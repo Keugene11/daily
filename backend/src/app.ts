@@ -3,16 +3,6 @@ import cors from 'cors';
 import planRouter from './routes/plan';
 import { requireAuth } from './middleware/auth';
 
-// Load .env file only when running locally (Vercel injects env vars directly)
-if (!process.env.VERCEL) {
-  try {
-    const dotenv = require('dotenv');
-    const path = require('path');
-    dotenv.config({ path: path.join(__dirname, '../.env') });
-    dotenv.config();
-  } catch { /* ignore if dotenv not available */ }
-}
-
 const app = express();
 
 // Middleware
@@ -26,7 +16,7 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -39,12 +29,12 @@ app.get('/health', (req, res) => {
 app.use('/api', requireAuth, planRouter);
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
 // Error handler
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[Error]', err);
   res.status(500).json({
     error: 'Internal server error',

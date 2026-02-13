@@ -1,3 +1,10 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load .env before importing app (local dev only)
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config();
+
 import { app } from './app';
 
 const PORT = process.env.PORT || 3000;
@@ -7,7 +14,6 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🎯 Plan endpoint: http://localhost:${PORT}/api/plan\n`);
 
-  // Configuration warnings
   if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
     console.warn('⚠️  Warning: DEDALUS_API_KEY not configured in .env file');
   }

@@ -1,11 +1,11 @@
 {
-  "buildCommand": "cd frontend && npm run build",
+  "buildCommand": "cd backend && npm run build && cd ../frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "installCommand": "npm install && cd backend && npm install && cd ../frontend && npm install",
   "functions": {
     "api/index.ts": {
       "maxDuration": 60,
-      "includeFiles": "backend/src/**"
+      "includeFiles": "backend/dist/**"
     }
   },
   "rewrites": [

@@ -125,6 +125,7 @@ function loadLeaflet(): Promise<void> {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = () => jsResolve();
+      script.onerror = () => jsResolve(); // proceed even if JS fails
       document.head.appendChild(script);
     });
 
