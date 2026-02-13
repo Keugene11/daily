@@ -122,6 +122,11 @@ export const usePlanStream = () => {
         if (contentBuffer) flushContent();
         reader.releaseLock();
       }
+
+      // Always mark streaming as done after the reader finishes.
+      // The 'done' event handler usually does this, but if the stream
+      // ends without one (timeout, dropped connection), this is the safety net.
+      setState(prev => prev.isStreaming ? { ...prev, isStreaming: false } : prev);
     } catch (error) {
       console.error('[SSE] Stream error:', error);
       setState(prev => ({
