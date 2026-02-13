@@ -212,10 +212,10 @@ function ContentWithMedia({ text, places, mediaData }: {
   }
 
   return (
-    <div className="relative">
+    <div>
       <FormattedContent text={text} />
-      {/* Media column — absolutely positioned outside the text area to the right */}
-      <div className="absolute top-0 left-full ml-8 w-[480px] flex flex-col gap-4">
+      {/* Media rendered inline below text with proper spacing */}
+      <div className="mt-5 flex flex-col gap-5">
         {mediaItems.map(place => {
           const media = mediaData.get(place)!;
           const isVideo = !!media.videoId;

@@ -836,10 +836,10 @@ async function testInlineMediaIntegration() {
   assert(itineraryContent.includes("import type { PlaceMediaData }"), 'ItineraryDisplay imports PlaceMediaData type');
   assert(itineraryContent.includes('getSectionPlaces'), 'ItineraryDisplay has getSectionPlaces function');
 
-  // ContentWithMedia renders media in a side column next to text
+  // ContentWithMedia renders media inline below text with spacing
   assert(itineraryContent.includes('ContentWithMedia'), 'ItineraryDisplay has ContentWithMedia component');
-  assert(itineraryContent.includes('left-full'), 'Media uses absolute positioning outside text column');
-  assert(itineraryContent.includes('w-[480px]'), 'Media column is 480px wide');
+  assert(itineraryContent.includes('mt-5'), 'Media renders inline below text with spacing');
+  assert(itineraryContent.includes('gap-5'), 'Media items have gap between them');
   assert(itineraryContent.includes('youtube.com/embed'), 'ItineraryDisplay uses YouTube embeds');
   assert(itineraryContent.includes('playingVideo'), 'ItineraryDisplay tracks playing video state');
   assert(itineraryContent.includes('maxresdefault'), 'ItineraryDisplay uses YouTube maxres thumbnails');
