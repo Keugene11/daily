@@ -1,13 +1,17 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
 import planRouter from './routes/plan';
 import { requireAuth } from './middleware/auth';
 
-// Load environment variables — works from both src/ (dev) and dist/ (prod)
-dotenv.config({ path: path.join(__dirname, '../.env') });
-dotenv.config();
+// Load .env file only when running locally (Vercel injects env vars directly)
+if (!process.env.VERCEL) {
+  try {
+    const dotenv = require('dotenv');
+    const path = require('path');
+    dotenv.config({ path: path.join(__dirname, '../.env') });
+    dotenv.config();
+  } catch { /* ignore if dotenv not available */ }
+}
 
 const app = express();
 
@@ -28,11 +32,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     dedalusConfigured: !!(process.env.DEDALUS_API_KEY && process.env.DEDALUS_API_KEY !== 'your_dedalus_api_key_here'),
     newsApiConfigured: !!(process.env.NEWS_API_KEY && process.env.NEWS_API_KEY !== 'your_newsapi_key_here'),
-    env: {
-      DEDALUS_API_KEY_SET: !!process.env.DEDALUS_API_KEY,
-      DEDALUS_API_KEY_PREFIX: process.env.DEDALUS_API_KEY?.substring(0, 10),
-      NODE_ENV: process.env.NODE_ENV
-    }
   });
 });
 

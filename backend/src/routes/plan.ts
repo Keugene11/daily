@@ -34,7 +34,9 @@ router.post('/plan', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering in nginx
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering in nginx/Vercel
+  res.status(200);
+  res.flushHeaders(); // Critical for Vercel serverless — starts the stream
 
   // Send initial connection confirmation
   res.write('data: {"type":"connected"}\n\n');
