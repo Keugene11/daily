@@ -15,7 +15,8 @@ const TOOL_CONFIG: Record<string, { label: string }> = {
   get_restaurant_recommendations: { label: 'Restaurants' },
   get_playlist_suggestion: { label: 'Playlist' },
   get_transit_estimates: { label: 'Transit' },
-  get_accommodations: { label: 'Stays' }
+  get_accommodations: { label: 'Stays' },
+  get_tech_meetups: { label: 'Meetups' }
 };
 
 export const ToolCallIndicator: React.FC<Props> = React.memo(({ activeToolCalls, toolResults, thinking }) => {

@@ -38,6 +38,19 @@ export interface EventItem {
   daySpecific?: string;
 }
 
+export interface MeetupItem {
+  name: string;
+  date: string;
+  location: string;
+  description: string;
+  category: string;
+  url?: string;
+  isFree?: boolean;
+  price?: string;
+  topics?: string[];
+  daySpecific?: string;
+}
+
 export interface Activity {
   activity: string;
   type: string;
