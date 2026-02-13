@@ -552,7 +552,7 @@ Visit [Pike Place Market](https://maps.google.com/?q=Pike+Place+Market,+Seattle)
 
   // Test 7: PlanMap detects multi-day and scales maxPlaces
   const fs = await import('fs');
-  const planMapContent = fs.readFileSync('frontend/src/components/PlanMap.tsx', 'utf8');
+  const planMapContent = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
   assert(planMapContent.includes('detectDayCount'), 'PlanMap has detectDayCount helper');
   assert(planMapContent.includes('# Day \\d+'), 'detectDayCount checks for Day N headers');
   assert(planMapContent.includes('dayCount * 10'), 'PlanMap scales places by day count');
@@ -568,7 +568,7 @@ async function testSystemPrompt() {
   console.log('\n=== System Prompt Verification ===');
 
   const fs = await import('fs');
-  const dedalusContent = fs.readFileSync('backend/src/services/dedalus.ts', 'utf8');
+  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
 
   // Accommodations in mandatory tool list
   assert(dedalusContent.includes('get_accommodations') && dedalusContent.includes('Call ALL of these'),
@@ -600,7 +600,7 @@ async function testToolCallIndicator() {
   console.log('\n=== Frontend ToolCallIndicator ===');
 
   const fs = await import('fs');
-  const indicatorContent = fs.readFileSync('frontend/src/components/ToolCallIndicator.tsx', 'utf8');
+  const indicatorContent = fs.readFileSync('../frontend/src/components/ToolCallIndicator.tsx', 'utf8');
 
   assert(indicatorContent.includes("get_accommodations: { label: 'Stays' }"),
     "ToolCallIndicator has 'Stays' label for accommodations");
@@ -613,14 +613,14 @@ async function testPlanMapStripping() {
   const fs = await import('fs');
 
   // Check the shared utility (logic now lives there, not in PlanMap.tsx directly)
-  const utilContent = fs.readFileSync('frontend/src/utils/extractPlaces.ts', 'utf8');
+  const utilContent = fs.readFileSync('../frontend/src/utils/extractPlaces.ts', 'utf8');
 
   // Check that utility strips Soundtrack section (Where to Stay is now included for media enrichment)
   assert(utilContent.includes('Soundtrack'),
     'extractPlaces should strip non-itinerary sections');
 
   // PlanMap should import from shared utility
-  const planMapContent = fs.readFileSync('frontend/src/components/PlanMap.tsx', 'utf8');
+  const planMapContent = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
   assert(planMapContent.includes("from '../utils/extractPlaces'"),
     'PlanMap imports extractPlaces from shared utility');
 }
@@ -632,7 +632,7 @@ async function testSharedExtractPlaces() {
   const fs = await import('fs');
 
   // Verify the shared utility file exists
-  const utilPath = 'frontend/src/utils/extractPlaces.ts';
+  const utilPath = '../frontend/src/utils/extractPlaces.ts';
   let utilContent;
   try {
     utilContent = fs.readFileSync(utilPath, 'utf8');
@@ -647,17 +647,17 @@ async function testSharedExtractPlaces() {
   assert(utilContent.includes('maxResults'), 'extractPlaces accepts maxResults parameter');
 
   // Verify PlanMap imports from shared utility (not local definition)
-  const planMapContent = fs.readFileSync('frontend/src/components/PlanMap.tsx', 'utf8');
+  const planMapContent = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
   assert(planMapContent.includes("from '../utils/extractPlaces'"), 'PlanMap imports from shared utility');
   assert(!planMapContent.includes('function extractPlaces'), 'PlanMap does NOT define local extractPlaces');
 
   // Verify useMediaEnrichment hook imports from shared utility and requests max 12 places
-  const mediaHookContent = fs.readFileSync('frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
+  const mediaHookContent = fs.readFileSync('../frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
   assert(mediaHookContent.includes("from '../utils/extractPlaces'"), 'useMediaEnrichment imports from shared utility');
   assert(mediaHookContent.includes('extractPlaces(content, city, maxPlaces)'), 'useMediaEnrichment uses configurable maxPlaces');
 
   // Verify PlaceMedia no longer does its own extraction (takes pre-fetched data)
-  const placeMediaContent = fs.readFileSync('frontend/src/components/PlaceMedia.tsx', 'utf8');
+  const placeMediaContent = fs.readFileSync('../frontend/src/components/PlaceMedia.tsx', 'utf8');
   assert(!placeMediaContent.includes('function extractPlaces'), 'PlaceMedia does NOT define local extractPlaces');
   assert(placeMediaContent.includes('mediaData'), 'PlaceMedia accepts mediaData prop');
 
@@ -701,7 +701,7 @@ async function testForceCallWarnings() {
   console.log('\n=== Force-Call Warnings ===');
 
   const fs = await import('fs');
-  const dedalusContent = fs.readFileSync('backend/src/services/dedalus.ts', 'utf8');
+  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
 
   // Verify force-call has warning for missing assistant message
   assert(dedalusContent.includes('Could not find assistant message to inject playlist'),
@@ -732,7 +732,7 @@ async function testItineraryDisplayKey() {
   console.log('\n=== ItineraryDisplay Key Fix ===');
 
   const fs = await import('fs');
-  const content = fs.readFileSync('frontend/src/components/ItineraryDisplay.tsx', 'utf8');
+  const content = fs.readFileSync('../frontend/src/components/ItineraryDisplay.tsx', 'utf8');
 
   // Should NOT have global _key variable
   assert(!content.includes('let _key = 0'), 'no global _key variable');
@@ -747,7 +747,7 @@ async function testMusicPlayerCleanup() {
   console.log('\n=== MusicPlayer Cleanup ===');
 
   const fs = await import('fs');
-  const content = fs.readFileSync('frontend/src/components/MusicPlayer.tsx', 'utf8');
+  const content = fs.readFileSync('../frontend/src/components/MusicPlayer.tsx', 'utf8');
 
   // Should have clearTimeout cleanup
   assert(content.includes('clearTimeout(timer)'), 'MusicPlayer cleans up timer on unmount');
@@ -759,7 +759,7 @@ async function testStreamReaderCleanup() {
   console.log('\n=== Stream Reader Cleanup ===');
 
   const fs = await import('fs');
-  const content = fs.readFileSync('frontend/src/hooks/usePlanStream.ts', 'utf8');
+  const content = fs.readFileSync('../frontend/src/hooks/usePlanStream.ts', 'utf8');
 
   // Should have reader cleanup in finally block
   assert(content.includes('finally'), 'usePlanStream has finally block');
@@ -771,7 +771,7 @@ async function testLeafletSingleton() {
   console.log('\n=== Leaflet Singleton Loading ===');
 
   const fs = await import('fs');
-  const content = fs.readFileSync('frontend/src/components/PlanMap.tsx', 'utf8');
+  const content = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
 
   // Should use singleton promise pattern
   assert(content.includes('_leafletPromise'), 'PlanMap uses singleton promise for Leaflet');
@@ -788,7 +788,7 @@ async function testLeafletSingleton() {
   // Progressive rendering — cached places show instantly
   assert(content.includes('resolvedCount'), 'PlanMap tracks resolved count for progress');
   assert(content.includes('totalPlaces'), 'PlanMap tracks total places for progress');
-  assert(content.includes('requestAnimationFrame'), 'PlanMap uses rAF for map rebuilds');
+  assert(content.includes('updateMarkers'), 'PlanMap uses incremental marker updates');
 }
 
 // ─── Test: YouTube search service ────────────────────────────────────
@@ -796,7 +796,7 @@ async function testYouTubeService() {
   console.log('\n=== YouTube Search Service ===');
 
   const fs = await import('fs');
-  const ytContent = fs.readFileSync('backend/src/services/apis/youtube.ts', 'utf8');
+  const ytContent = fs.readFileSync('./src/services/apis/youtube.ts', 'utf8');
 
   // Service structure
   assert(ytContent.includes('export async function searchYouTubeVideo'), 'YouTube service exports searchYouTubeVideo');
@@ -811,7 +811,7 @@ async function testYouTubeService() {
   assert(ytContent.includes('title'), 'YouTube service returns title');
 
   // Route is registered
-  const routeContent = fs.readFileSync('backend/src/routes/plan.ts', 'utf8');
+  const routeContent = fs.readFileSync('./src/routes/plan.ts', 'utf8');
   assert(routeContent.includes("'/youtube-search'"), 'YouTube search route registered');
   assert(routeContent.includes('searchYouTubeVideo'), 'Route calls searchYouTubeVideo');
   assert(routeContent.includes("req.query.q"), 'Route reads q parameter');
@@ -831,7 +831,7 @@ async function testInlineMediaIntegration() {
   const fs = await import('fs');
 
   // ItineraryDisplay accepts mediaData prop and has inline media rendering
-  const itineraryContent = fs.readFileSync('frontend/src/components/ItineraryDisplay.tsx', 'utf8');
+  const itineraryContent = fs.readFileSync('../frontend/src/components/ItineraryDisplay.tsx', 'utf8');
   assert(itineraryContent.includes('mediaData'), 'ItineraryDisplay accepts mediaData prop');
   assert(itineraryContent.includes("import type { PlaceMediaData }"), 'ItineraryDisplay imports PlaceMediaData type');
   assert(itineraryContent.includes('getSectionPlaces'), 'ItineraryDisplay has getSectionPlaces function');
@@ -849,14 +849,14 @@ async function testInlineMediaIntegration() {
   assert(itineraryContent.includes('slice(0, 2)'), 'Total media capped at 2 per section');
 
   // App.tsx uses the media enrichment hook
-  const appContent = fs.readFileSync('frontend/src/App.tsx', 'utf8');
+  const appContent = fs.readFileSync('../frontend/src/App.tsx', 'utf8');
   assert(appContent.includes('useMediaEnrichment'), 'App imports useMediaEnrichment');
   assert(appContent.includes('mediaData={mediaData}'), 'App passes mediaData to ItineraryDisplay');
   assert(!appContent.includes('<PlaceMedia content='), 'App no longer renders standalone PlaceMedia');
   assert(!appContent.includes('mediaReady'), 'App no longer gates media on streaming completion');
 
   // useMediaEnrichment hook structure — progressive loading
-  const hookContent = fs.readFileSync('frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
+  const hookContent = fs.readFileSync('../frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
   assert(hookContent.includes('export function useMediaEnrichment'), 'Hook exports useMediaEnrichment');
   assert(hookContent.includes('fetchWikipediaImage'), 'Hook fetches Wikipedia images');
   assert(hookContent.includes('fetchYouTubeVideoId'), 'Hook fetches YouTube video IDs');
@@ -923,22 +923,22 @@ async function testMultiDay() {
   const fs = await import('fs');
 
   // Backend: PlanRequest type includes days field
-  const typesContent = fs.readFileSync('backend/src/types/index.ts', 'utf8');
+  const typesContent = fs.readFileSync('./src/types/index.ts', 'utf8');
   assert(typesContent.includes('days?: number'), 'PlanRequest has days field');
 
   // Backend: Route validates days
-  const routeContent = fs.readFileSync('backend/src/routes/plan.ts', 'utf8');
+  const routeContent = fs.readFileSync('./src/routes/plan.ts', 'utf8');
   assert(routeContent.includes('days'), 'Route destructures days from request body');
 
   // Backend: System prompt handles multi-day
-  const dedalusContent = fs.readFileSync('backend/src/services/dedalus.ts', 'utf8');
+  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
   assert(dedalusContent.includes('MULTI-DAY VACATION MODE'), 'System prompt has multi-day instructions');
   assert(dedalusContent.includes('# Day ${i + 1}'), 'System prompt generates Day N headers');
   assert(dedalusContent.includes('isMultiDay'), 'Streaming function checks for multi-day');
   assert(dedalusContent.includes('days! * 3000'), 'Token budget scales with days');
 
   // Frontend: App.tsx has trip duration selector
-  const appContent = fs.readFileSync('frontend/src/App.tsx', 'utf8');
+  const appContent = fs.readFileSync('../frontend/src/App.tsx', 'utf8');
   assert(appContent.includes('tripDays'), 'App has tripDays state');
   assert(appContent.includes('setTripDays'), 'App has setTripDays setter');
   assert(appContent.includes('Trip Length'), 'App has Trip Length label');
@@ -947,7 +947,7 @@ async function testMultiDay() {
   assert(appContent.includes('days={tripDays}'), 'App passes days to ItineraryDisplay');
 
   // Frontend: ItineraryDisplay supports multi-day
-  const itineraryContent = fs.readFileSync('frontend/src/components/ItineraryDisplay.tsx', 'utf8');
+  const itineraryContent = fs.readFileSync('../frontend/src/components/ItineraryDisplay.tsx', 'utf8');
   assert(itineraryContent.includes('DayPlan'), 'ItineraryDisplay has DayPlan interface');
   assert(itineraryContent.includes('ParsedPlan'), 'ItineraryDisplay has ParsedPlan interface');
   assert(itineraryContent.includes('selectedDay'), 'ItineraryDisplay has selectedDay state');
@@ -970,7 +970,7 @@ async function testMultiDay() {
   assert(itineraryContent.includes('setSelectedDay(0)'), 'ItineraryDisplay resets selectedDay on new plan');
 
   // Frontend: PlanHistory stores days
-  const historyContent = fs.readFileSync('frontend/src/components/PlanHistory.tsx', 'utf8');
+  const historyContent = fs.readFileSync('../frontend/src/components/PlanHistory.tsx', 'utf8');
   assert(historyContent.includes('days?: number'), 'SavedPlan has days field');
   assert(historyContent.includes('-day trip'), 'PlanHistory shows trip length badge');
 
@@ -979,11 +979,11 @@ async function testMultiDay() {
   assert(appContent.includes('extras.days = plan.days'), 'handleSelectPlan uses saved plan days in extras');
 
   // Frontend: useMediaEnrichment accepts maxPlaces
-  const hookContent = fs.readFileSync('frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
+  const hookContent = fs.readFileSync('../frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
   assert(hookContent.includes('maxPlaces'), 'useMediaEnrichment accepts maxPlaces parameter');
 
   // Bug fix: usePlanStream extras type includes days
-  const streamContent = fs.readFileSync('frontend/src/hooks/usePlanStream.ts', 'utf8');
+  const streamContent = fs.readFileSync('../frontend/src/hooks/usePlanStream.ts', 'utf8');
   assert(streamContent.includes('days?: number'), 'usePlanStream extras type includes days');
 }
 

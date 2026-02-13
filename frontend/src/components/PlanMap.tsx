@@ -58,7 +58,6 @@ function cacheGeocode(place: string, city: string, coords: { lat: number; lng: n
 
 // Geocode a place using Nominatim (free, no API key) — checks cache first
 async function geocode(place: string, city: string): Promise<{ lat: number; lng: number } | null> {
-  // Check cache first — instant return
   const cached = getCachedGeocode(place, city);
   if (cached) return cached;
 
@@ -100,7 +99,6 @@ function loadLeaflet(): Promise<void> {
       return;
     }
 
-    // Load CSS — wait for it to apply before resolving
     const cssReady = new Promise<void>((cssResolve) => {
       if (document.querySelector('link[href*="leaflet"]')) {
         cssResolve();
@@ -110,11 +108,10 @@ function loadLeaflet(): Promise<void> {
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
       link.onload = () => cssResolve();
-      link.onerror = () => cssResolve(); // proceed even if CSS fails
+      link.onerror = () => cssResolve();
       document.head.appendChild(link);
     });
 
-    // Load JS
     const jsReady = new Promise<void>((jsResolve) => {
       const existingScript = document.querySelector('script[src*="leaflet"]');
       if (existingScript) {
@@ -125,11 +122,10 @@ function loadLeaflet(): Promise<void> {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = () => jsResolve();
-      script.onerror = () => jsResolve(); // proceed even if JS fails
+      script.onerror = () => jsResolve();
       document.head.appendChild(script);
     });
 
-    // Wait for both CSS and JS before resolving
     Promise.all([cssReady, jsReady]).then(() => resolve());
   });
   return _leafletPromise;
@@ -141,6 +137,31 @@ function detectDayCount(content: string): number {
   return dayHeaders ? dayHeaders.length : 1;
 }
 
+const MARKER_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#6366F1', '#14B8A6'];
+
+// Order locations into an efficient route using nearest-neighbor from the first point
+function optimizeRoute(locs: MapLocation[]): MapLocation[] {
+  if (locs.length <= 2) return locs;
+  const remaining = locs.slice(1);
+  const ordered: MapLocation[] = [locs[0]];
+  while (remaining.length > 0) {
+    const last = ordered[ordered.length - 1];
+    let nearest = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const dlat = remaining[i].lat - last.lat;
+      const dlng = remaining[i].lng - last.lng;
+      const dist = dlat * dlat + dlng * dlng;
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = i;
+      }
+    }
+    ordered.push(remaining.splice(nearest, 1)[0]);
+  }
+  return ordered;
+}
+
 // Auto-loading map with all plan locations — renders progressively as markers resolve
 export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [locations, setLocations] = useState<MapLocation[]>([]);
@@ -149,6 +170,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [totalPlaces, setTotalPlaces] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const routeLineRef = useRef<any>(null);
 
   // Destroy existing map instance
   const destroyMap = useCallback(() => {
@@ -156,48 +179,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       mapInstanceRef.current.remove();
       mapInstanceRef.current = null;
     }
+    markersRef.current = [];
+    routeLineRef.current = null;
   }, []);
 
-  // Order locations into an efficient route using nearest-neighbor from the first point
-  const optimizeRoute = useCallback((locs: MapLocation[]): MapLocation[] => {
-    if (locs.length <= 2) return locs;
-    const remaining = locs.slice(1);
-    const ordered: MapLocation[] = [locs[0]];
-    while (remaining.length > 0) {
-      const last = ordered[ordered.length - 1];
-      let nearest = 0;
-      let nearestDist = Infinity;
-      for (let i = 0; i < remaining.length; i++) {
-        const dlat = remaining[i].lat - last.lat;
-        const dlng = remaining[i].lng - last.lng;
-        const dist = dlat * dlat + dlng * dlng;
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearest = i;
-        }
-      }
-      ordered.push(remaining.splice(nearest, 1)[0]);
-    }
-    return ordered;
-  }, []);
-
-  // Initialize the map with given locations
-  const initMap = useCallback((locs: MapLocation[]) => {
+  // Create the map once (no markers yet)
+  const createMap = useCallback((center: [number, number]) => {
     const L = (window as any).L;
-    if (!L || !mapContainerRef.current || locs.length === 0) return;
+    if (!L || !mapContainerRef.current) return;
 
-    // Always destroy old map before creating new one
     destroyMap();
-
-    // Reorder for an efficient walking route
-    const routed = optimizeRoute(locs);
-
-    const lats = routed.map(l => l.lat);
-    const lngs = routed.map(l => l.lng);
-    const center: [number, number] = [
-      (Math.min(...lats) + Math.max(...lats)) / 2,
-      (Math.min(...lngs) + Math.max(...lngs)) / 2
-    ];
 
     const map = L.map(mapContainerRef.current).setView(center, 13);
     mapInstanceRef.current = map;
@@ -215,14 +206,43 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       }
     ).addTo(map);
 
-    // Add markers with numbered labels
-    const colors = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#6366F1', '#14B8A6'];
+    // Force Leaflet to recalculate container size (fixes grey/missing tiles)
+    setTimeout(() => { map.invalidateSize(); }, 100);
+    setTimeout(() => { map.invalidateSize(); }, 500);
+    setTimeout(() => { map.invalidateSize(); }, 1500);
+
+    // Watch for container resize
+    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { map.invalidateSize(); });
+      ro.observe(mapContainerRef.current);
+      const origRemove = map.remove.bind(map);
+      map.remove = () => { ro.disconnect(); return origRemove(); };
+    }
+  }, [destroyMap]);
+
+  // Update markers and route line on the existing map (no destroy/recreate)
+  const updateMarkers = useCallback((locs: MapLocation[]) => {
+    const L = (window as any).L;
+    const map = mapInstanceRef.current;
+    if (!L || !map || locs.length === 0) return;
+
+    // Clear old markers and route line
+    markersRef.current.forEach(m => map.removeLayer(m));
+    markersRef.current = [];
+    if (routeLineRef.current) {
+      map.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+
+    const routed = optimizeRoute(locs);
+
+    // Add markers
     routed.forEach((loc, i) => {
       const icon = L.divIcon({
         className: 'custom-marker',
         html: `<div style="
           width: 28px; height: 28px; border-radius: 50%;
-          background: ${colors[i % colors.length]};
+          background: ${MARKER_COLORS[i % MARKER_COLORS.length]};
           color: white; display: flex; align-items: center; justify-content: center;
           font-size: 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
           border: 2px solid white;
@@ -231,14 +251,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         iconAnchor: [14, 14],
       });
 
-      L.marker([loc.lat, loc.lng], { icon }).addTo(map)
+      const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map)
         .bindPopup(`<strong>${loc.name}</strong>`);
+      markersRef.current.push(marker);
     });
 
     // Draw route line
     if (routed.length > 1) {
+      const isDark = document.documentElement.classList.contains('dark');
       const coords = routed.map(l => [l.lat, l.lng] as [number, number]);
-      L.polyline(coords, {
+      routeLineRef.current = L.polyline(coords, {
         color: isDark ? '#6366F1' : '#3B82F6',
         weight: 2,
         opacity: 0.5,
@@ -248,20 +270,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       const bounds = L.latLngBounds(coords);
       map.fitBounds(bounds, { padding: [40, 40] });
     }
-
-    // Force Leaflet to recalculate container size (fixes grey/missing tiles)
-    setTimeout(() => { map.invalidateSize(); }, 100);
-    setTimeout(() => { map.invalidateSize(); }, 500);
-
-    // Also watch for container resize (e.g. sidebar open/close, layout shift)
-    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { map.invalidateSize(); });
-      ro.observe(mapContainerRef.current);
-      // Clean up observer when map is destroyed
-      const origRemove = map.remove.bind(map);
-      map.remove = () => { ro.disconnect(); return origRemove(); };
-    }
-  }, [destroyMap, optimizeRoute]);
+  }, []);
 
   // Load locations and build map when content/city changes
   useEffect(() => {
@@ -273,7 +282,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       setLocations([]);
       setResolvedCount(0);
 
-      // Scale place limit based on day count — map needs more places for multi-day trips
+      // Scale place limit based on day count
       const dayCount = detectDayCount(content);
       const maxPlaces = Math.min(dayCount * 10, 25);
       const places = extractPlaces(content, city, maxPlaces);
@@ -298,53 +307,63 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
       }
 
-      // If we have cached results, show the map immediately
-      if (cached.length > 0 && !cancelled) {
+      // Wait for Leaflet before creating the map
+      await leafletReady;
+      if (cancelled) return;
+
+      // If we have cached results, create the map and show them immediately
+      if (cached.length > 0) {
+        const lats = cached.map(l => l.lat);
+        const lngs = cached.map(l => l.lng);
+        const center: [number, number] = [
+          (Math.min(...lats) + Math.max(...lats)) / 2,
+          (Math.min(...lngs) + Math.max(...lngs)) / 2
+        ];
+        createMap(center);
         const routed = optimizeRoute(cached);
         setLocations(routed);
         setResolvedCount(cached.length);
         setLoading(false);
-        await leafletReady;
-        if (!cancelled) {
-          requestAnimationFrame(() => { if (!cancelled) initMap(routed); });
-        }
+        if (!cancelled) updateMarkers(routed);
       }
 
-      // Geocode uncached places, updating the map progressively
+      // Geocode uncached places, adding markers incrementally
       const allResults = [...cached];
+      let mapCreated = cached.length > 0;
+
       for (let i = 0; i < uncachedPlaces.length; i++) {
         if (cancelled) return;
-        // Rate-limit between Nominatim calls
         if (i > 0) await new Promise(r => setTimeout(r, 1100));
+
         const coords = await geocode(uncachedPlaces[i], city);
         if (cancelled) return;
+
         if (coords) {
           allResults.push({ name: uncachedPlaces[i], ...coords });
           const routed = optimizeRoute([...allResults]);
           setLocations(routed);
           setResolvedCount(allResults.length);
 
-          // Rebuild the map with updated markers
-          if (!loading || cached.length > 0) {
-            await leafletReady;
-            if (!cancelled) {
-              requestAnimationFrame(() => { if (!cancelled) initMap(routed); });
-            }
+          // Create map on first result if no cached results existed
+          if (!mapCreated) {
+            createMap([coords.lat, coords.lng]);
+            mapCreated = true;
+            setLoading(false);
           }
+
+          // Update markers on existing map (no rebuild)
+          if (!cancelled) updateMarkers(routed);
         }
       }
 
       if (cancelled) return;
 
-      // Final state
+      // Final update
       if (allResults.length > 0) {
         const routed = optimizeRoute(allResults);
         setLocations(routed);
         setLoading(false);
-        await leafletReady;
-        if (!cancelled) {
-          requestAnimationFrame(() => { if (!cancelled) initMap(routed); });
-        }
+        if (!cancelled) updateMarkers(routed);
       } else {
         setLoading(false);
       }
@@ -355,17 +374,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       cancelled = true;
       destroyMap();
     };
-  }, [content, city, destroyMap, initMap, optimizeRoute]);
+  }, [content, city, destroyMap, createMap, updateMarkers]);
 
   return (
     <div className="mb-8 animate-fadeIn">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <svg className="w-4 h-4 text-on-surface/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
           </svg>
           <span className="text-xs font-medium text-on-surface/50">Your Route</span>
-          {/* Progress indicator while geocoding */}
           {resolvedCount > 0 && resolvedCount < totalPlaces && (
             <span className="text-[10px] text-on-surface/25">{resolvedCount}/{totalPlaces} places</span>
           )}
@@ -397,7 +415,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
               <span key={i} className="flex items-center gap-1.5 text-[10px] text-on-surface/40">
                 <span
                   className="w-4 h-4 rounded-full text-white text-[8px] flex items-center justify-center font-bold"
-                  style={{ background: ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#6366F1', '#14B8A6'][i % 8] }}
+                  style={{ background: MARKER_COLORS[i % 8] }}
                 >
                   {i + 1}
                 </span>
