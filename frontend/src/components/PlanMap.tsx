@@ -70,18 +70,26 @@ async function geocode(place: string, city: string): Promise<{ lat: number; lng:
   for (const q of queries) {
     try {
       const query = encodeURIComponent(q);
+      // Use email param for Nominatim identification (User-Agent is forbidden in browser fetch)
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-        { headers: { 'User-Agent': 'DailyPlannerApp/1.0' } }
+        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&email=dailyplanner@app.dev`,
+        { signal: controller.signal }
       );
+      clearTimeout(timer);
+      if (!res.ok) {
+        console.warn(`[PlanMap] Nominatim returned ${res.status} for "${q}"`);
+        continue;
+      }
       const data = await res.json();
       if (data.length > 0) {
         const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
         cacheGeocode(place, city, coords);
         return coords;
       }
-    } catch {
-      // continue to next query
+    } catch (err) {
+      console.warn(`[PlanMap] Geocode failed for "${q}":`, err instanceof Error ? err.message : err);
     }
     // Nominatim requires 1 request per second
     await new Promise(r => setTimeout(r, 1100));
@@ -100,6 +108,10 @@ function loadLeaflet(): Promise<void> {
       return;
     }
 
+    // Try primary CDN, fall back to secondary
+    const CDN_PRIMARY = 'https://unpkg.com/leaflet@1.9.4/dist';
+    const CDN_FALLBACK = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4';
+
     const cssReady = new Promise<void>((cssResolve) => {
       if (document.querySelector('link[href*="leaflet"]')) {
         cssResolve();
@@ -107,9 +119,14 @@ function loadLeaflet(): Promise<void> {
       }
       const link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.href = `${CDN_PRIMARY}/leaflet.css`;
       link.onload = () => cssResolve();
-      link.onerror = () => cssResolve();
+      link.onerror = () => {
+        // Fallback CSS
+        link.href = `${CDN_FALLBACK}/leaflet.min.css`;
+        link.onload = () => cssResolve();
+        link.onerror = () => cssResolve();
+      };
       document.head.appendChild(link);
     });
 
@@ -121,9 +138,20 @@ function loadLeaflet(): Promise<void> {
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.src = `${CDN_PRIMARY}/leaflet.js`;
       script.onload = () => jsResolve();
-      script.onerror = () => jsResolve();
+      script.onerror = () => {
+        // Fallback JS
+        document.head.removeChild(script);
+        const fallback = document.createElement('script');
+        fallback.src = `${CDN_FALLBACK}/leaflet.min.js`;
+        fallback.onload = () => jsResolve();
+        fallback.onerror = () => {
+          console.error('[PlanMap] Failed to load Leaflet from both CDNs');
+          jsResolve(); // resolve anyway so the component doesn't hang
+        };
+        document.head.appendChild(fallback);
+      };
       document.head.appendChild(script);
     });
 
@@ -187,7 +215,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   // Create the map once (no markers yet)
   const createMap = useCallback((center: [number, number]) => {
     const L = (window as any).L;
-    if (!L || !mapContainerRef.current) return;
+    if (!L) {
+      console.error('[PlanMap] Leaflet not loaded — cannot create map');
+      return;
+    }
+    if (!mapContainerRef.current) {
+      console.error('[PlanMap] Map container ref is null — DOM not ready');
+      return;
+    }
 
     destroyMap();
 
@@ -287,6 +322,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       const dayCount = detectDayCount(content);
       const maxPlaces = Math.min(dayCount * 10, 25);
       const places = extractPlaces(content, city, maxPlaces);
+      console.log(`[PlanMap] Extracted ${places.length} places from content for "${city}":`, places.slice(0, 5));
       setTotalPlaces(places.length);
       if (places.length === 0) {
         setLoading(false);
@@ -308,9 +344,17 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
       }
 
+      console.log(`[PlanMap] ${cached.length} cached, ${uncachedPlaces.length} need geocoding`);
+
       // Wait for Leaflet before creating the map
       await leafletReady;
       if (cancelled) return;
+
+      if (!(window as any).L) {
+        console.error('[PlanMap] Leaflet failed to load — aborting map creation');
+        setLoading(false);
+        return;
+      }
 
       // If we have cached results, create the map and show them immediately
       if (cached.length > 0) {
@@ -377,6 +421,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         setLoading(false);
         if (!cancelled) updateMarkers(routed);
       } else {
+        console.warn('[PlanMap] No locations could be geocoded');
         setLoading(false);
       }
     };
