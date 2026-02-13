@@ -78,7 +78,7 @@ async function fetchYouTubeVideoId(place: string, city: string, token?: string |
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(
-      `${API_URL}/api/youtube-search?q=${encodeURIComponent(place + ' ' + city)}`,
+      `${API_URL}/api/youtube-search?q=${encodeURIComponent(place + ' ' + city + ' travel guide')}`,
       { headers }
     );
     if (!res.ok) return null;

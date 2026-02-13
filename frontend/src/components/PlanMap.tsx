@@ -251,6 +251,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
     // Force Leaflet to recalculate container size (fixes grey/missing tiles)
     setTimeout(() => { map.invalidateSize(); }, 100);
+    setTimeout(() => { map.invalidateSize(); }, 500);
+
+    // Also watch for container resize (e.g. sidebar open/close, layout shift)
+    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { map.invalidateSize(); });
+      ro.observe(mapContainerRef.current);
+      // Clean up observer when map is destroyed
+      const origRemove = map.remove.bind(map);
+      map.remove = () => { ro.disconnect(); return origRemove(); };
+    }
   }, [destroyMap, optimizeRoute]);
 
   // Load locations and build map when content/city changes

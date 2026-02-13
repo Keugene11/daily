@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 interface Track {
   title: string;
@@ -21,153 +21,172 @@ interface Props {
   playlist: PlaylistData;
 }
 
-// Fetch a 30-second preview URL from Deezer on demand
-async function fetchPreview(artist: string, title: string): Promise<string> {
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+// Resolve a YouTube video ID via the backend search endpoint
+async function resolveYouTubeId(artist: string, title: string): Promise<string | null> {
   try {
-    const query = encodeURIComponent(`${artist} ${title}`);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`https://api.deezer.com/search?q=${query}&limit=1`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
+    const q = encodeURIComponent(`${artist} - ${title} audio`);
+    const res = await fetch(`${API_URL}/api/youtube-search?q=${q}`);
+    if (!res.ok) return null;
     const data = await res.json();
-    return data?.data?.[0]?.preview || '';
+    return data.videoId || null;
   } catch {
-    return '';
+    return null;
   }
+}
+
+// Load the YouTube IFrame API (singleton)
+let _ytApiReady: Promise<void> | null = null;
+function loadYouTubeApi(): Promise<void> {
+  if (_ytApiReady) return _ytApiReady;
+  _ytApiReady = new Promise((resolve) => {
+    if ((window as any).YT?.Player) { resolve(); return; }
+    (window as any).onYouTubeIframeAPIReady = () => resolve();
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.onerror = () => resolve(); // proceed even if fails
+    document.head.appendChild(tag);
+  });
+  return _ytApiReady;
 }
 
 export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
   const [currentTrack, setCurrentTrack] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.04);
-  // Local cache of preview URLs (tracks may arrive without one)
-  const [previews, setPreviews] = useState<Record<number, string>>(() => {
-    const map: Record<number, string> = {};
-    playlist.tracks.forEach((t, i) => {
-      if (t.previewUrl) map[i] = t.previewUrl;
-    });
-    return map;
-  });
+  const [volume, setVolume] = useState(4); // 0-100 for YT API
   const [loadingTrack, setLoadingTrack] = useState<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  // Flag to suppress onPause during track transitions (prevents isPlaying flicker)
-  const transitioningRef = useRef(false);
+  const [videoIds, setVideoIds] = useState<Record<number, string>>({});
 
-  // Set initial volume
+  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const readyRef = useRef(false);
+  const pendingPlayRef = useRef<string | null>(null);
+
+  // Initialize YouTube player
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
+    let cancelled = false;
+    loadYouTubeApi().then(() => {
+      if (cancelled || !containerRef.current || !(window as any).YT?.Player) return;
+      playerRef.current = new (window as any).YT.Player(containerRef.current, {
+        height: '0',
+        width: '0',
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: () => {
+            readyRef.current = true;
+            playerRef.current?.setVolume(volume);
+            // If a video was queued before player was ready, play it now
+            if (pendingPlayRef.current) {
+              playerRef.current.loadVideoById(pendingPlayRef.current);
+              pendingPlayRef.current = null;
+            }
+          },
+          onStateChange: (e: any) => {
+            const YT = (window as any).YT;
+            if (e.data === YT.PlayerState.PLAYING) setIsPlaying(true);
+            if (e.data === YT.PlayerState.PAUSED) setIsPlaying(false);
+            if (e.data === YT.PlayerState.ENDED) handleEnded();
+          },
+        },
+      });
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  // Auto-play the first track with a preview URL when component mounts
+  // Sync volume
   useEffect(() => {
-    const firstPlayable = playlist.tracks.findIndex((_, i) => previews[i]);
-    if (firstPlayable < 0) return;
-
-    setCurrentTrack(firstPlayable);
-    const timer = setTimeout(() => {
-      if (audioRef.current && previews[firstPlayable]) {
-        audioRef.current.src = previews[firstPlayable];
-        audioRef.current.volume = volume;
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          setIsPlaying(false);
-        });
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, []); // Only on mount
-
-  // Sync volume to audio element
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (readyRef.current && playerRef.current?.setVolume) {
+      playerRef.current.setVolume(volume);
     }
   }, [volume]);
 
-  // Play a track — fetch preview on demand if needed
-  const playTrack = async (idx: number) => {
-    setCurrentTrack(idx);
+  const handleEnded = useCallback(() => {
+    setCurrentTrack(prev => {
+      const next = (prev + 1) % playlist.tracks.length;
+      playTrackByIdx(next);
+      return next;
+    });
+  }, [playlist.tracks.length]);
+
+  // Resolve a video ID and play it
+  const playTrackByIdx = async (idx: number) => {
     const track = playlist.tracks[idx];
 
-    let previewUrl = previews[idx] || '';
-
-    // If no cached preview, try fetching one on demand
-    if (!previewUrl) {
+    let vid = videoIds[idx];
+    if (!vid) {
       setLoadingTrack(idx);
-      previewUrl = await fetchPreview(track.artist, track.title);
+      vid = (await resolveYouTubeId(track.artist, track.title)) || '';
       setLoadingTrack(null);
-      if (previewUrl) {
-        setPreviews(prev => ({ ...prev, [idx]: previewUrl }));
+      if (vid) {
+        setVideoIds(prev => ({ ...prev, [idx]: vid }));
       }
     }
 
-    if (previewUrl && audioRef.current) {
-      transitioningRef.current = true;
-      audioRef.current.src = previewUrl;
-      audioRef.current.currentTime = 0;
-      audioRef.current.volume = volume;
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-        transitioningRef.current = false;
-      }).catch(() => {
-        transitioningRef.current = false;
-      });
-    } else {
-      // No preview available — skip to the next track to keep music going
+    if (!vid) {
+      // Couldn't find video — skip to next
       const nextIdx = (idx + 1) % playlist.tracks.length;
-      if (nextIdx !== idx) {
-        playTrack(nextIdx);
-      }
+      if (nextIdx !== idx) playTrackByIdx(nextIdx);
+      return;
     }
+
+    if (readyRef.current && playerRef.current?.loadVideoById) {
+      playerRef.current.loadVideoById(vid);
+    } else {
+      pendingPlayRef.current = vid;
+    }
+  };
+
+  const playTrack = (idx: number) => {
+    setCurrentTrack(idx);
+    playTrackByIdx(idx);
   };
 
   const togglePlayPause = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
+    if (!readyRef.current || !playerRef.current) return;
+    const state = playerRef.current.getPlayerState?.();
+    const YT = (window as any).YT;
+    if (state === YT?.PlayerState?.PLAYING) {
+      playerRef.current.pauseVideo();
     } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      playerRef.current.playVideo();
     }
   };
 
-  // Pre-fetch the next track's preview while the current one plays
+  // Pre-resolve the next track's video ID
   useEffect(() => {
     if (!isPlaying) return;
     const nextIdx = (currentTrack + 1) % playlist.tracks.length;
-    if (previews[nextIdx]) return; // already cached
+    if (videoIds[nextIdx]) return;
     const track = playlist.tracks[nextIdx];
-    fetchPreview(track.artist, track.title).then(url => {
-      if (url) setPreviews(prev => ({ ...prev, [nextIdx]: url }));
+    resolveYouTubeId(track.artist, track.title).then(vid => {
+      if (vid) setVideoIds(prev => ({ ...prev, [nextIdx]: vid }));
     });
   }, [currentTrack, isPlaying]);
 
-  // When current track ends, seamlessly play the next one (loops forever)
-  const handleEnded = () => {
-    const nextIdx = (currentTrack + 1) % playlist.tracks.length;
-    playTrack(nextIdx);
-  };
+  // Auto-play first track on mount
+  useEffect(() => {
+    const timer = setTimeout(() => playTrack(0), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="border border-on-surface/10 rounded-xl overflow-hidden mb-8 animate-fadeIn">
-      {/* Hidden audio element — src is set imperatively by playTrack() to avoid React re-render conflicts */}
-      <audio
-        ref={audioRef}
-        onEnded={handleEnded}
-        onPause={() => { if (!transitioningRef.current) setIsPlaying(false); }}
-        onPlay={() => setIsPlaying(true)}
-      />
+      {/* Hidden YouTube player */}
+      <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+        <div ref={containerRef} />
+      </div>
 
       {/* Player header */}
       <div className="flex items-center justify-between px-4 py-3 bg-on-surface/[0.03]">
         <div className="flex items-center gap-3">
-          {/* Play/pause button */}
           <button
             onClick={togglePlayPause}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-green-500 hover:bg-green-400 transition-colors"
@@ -184,7 +203,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
             )}
           </button>
 
-          {/* Animated equalizer bars (only when playing) */}
           {isPlaying && (
             <div className="flex items-end gap-[2px] h-4">
               <div className="w-[3px] bg-green-500 rounded-full animate-pulse" style={{ height: '60%', animationDelay: '0ms' }} />
@@ -205,7 +223,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Volume slider */}
           <div className="flex items-center gap-1.5">
             <svg className="w-3 h-3 text-on-surface/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
@@ -213,12 +230,12 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
             <input
               type="range"
               min="0"
-              max="1"
-              step="0.05"
+              max="100"
+              step="5"
               value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              onChange={(e) => setVolume(parseInt(e.target.value))}
               className="w-16 h-1 accent-green-500 cursor-pointer"
-              title={`Volume: ${Math.round(volume * 100)}%`}
+              title={`Volume: ${volume}%`}
             />
           </div>
 
@@ -243,7 +260,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
             }`}
             onClick={() => playTrack(idx)}
           >
-            {/* Track number / play icon / loading */}
             {loadingTrack === idx ? (
               <div className="w-5 flex items-center justify-center">
                 <svg className="w-3.5 h-3.5 text-on-surface/30 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -272,7 +288,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
               </>
             )}
 
-            {/* Track info */}
             <div className="flex-1 min-w-0">
               <p className={`text-sm truncate ${currentTrack === idx ? 'text-green-500 font-medium' : 'text-on-surface/70'}`}>
                 {track.title}
@@ -283,7 +298,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
               )}
             </div>
 
-            {/* Spotify / YouTube links */}
             <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <a
                 href={track.spotifyUrl}
