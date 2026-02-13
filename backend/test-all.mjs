@@ -582,8 +582,8 @@ async function testSystemPrompt() {
   assert(dedalusContent.includes('## Where to Stay'),
     'Where to Stay section in itinerary template');
 
-  // Force-call fallback exists
-  assert(dedalusContent.includes("forced_accommodations_"),
+  // Force-call fallback exists (parallel force-call uses tool name in ID)
+  assert(dedalusContent.includes("forced_") && dedalusContent.includes("forceCalls"),
     'force-call fallback for accommodations exists');
 
   // User message mentions accommodations
@@ -703,11 +703,11 @@ async function testForceCallWarnings() {
   const fs = await import('fs');
   const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
 
-  // Verify force-call has warning for missing assistant message
-  assert(dedalusContent.includes('Could not find assistant message to inject playlist'),
-    'playlist force-call has warning for missing assistant message');
-  assert(dedalusContent.includes('Could not find assistant message to inject accommodations'),
-    'accommodations force-call has warning for missing assistant message');
+  // Verify parallel force-call logic exists with logging
+  assert(dedalusContent.includes('forceCalls.length > 0'),
+    'force-call checks if any tools need forcing');
+  assert(dedalusContent.includes('Force-calling'),
+    'force-call logs when executing skipped tools');
 }
 
 // ─── Test: Deals data structure consistency ──────────────────────────
@@ -935,7 +935,7 @@ async function testMultiDay() {
   assert(dedalusContent.includes('MULTI-DAY VACATION MODE'), 'System prompt has multi-day instructions');
   assert(dedalusContent.includes('# Day ${i + 1}'), 'System prompt generates Day N headers');
   assert(dedalusContent.includes('isMultiDay'), 'Streaming function checks for multi-day');
-  assert(dedalusContent.includes('days! * 3000'), 'Token budget scales with days');
+  assert(dedalusContent.includes('days! * 4000'), 'Token budget scales with days');
 
   // Frontend: App.tsx has trip duration selector
   const appContent = fs.readFileSync('../frontend/src/App.tsx', 'utf8');

@@ -339,32 +339,30 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       tool_calls: assistantMessage.tool_calls
     });
 
+    // Parse all tool calls and emit start events immediately
+    const toolCallInfos: { toolCall: any; toolName: string; args: Record<string, any> }[] = [];
     for (const toolCall of assistantMessage.tool_calls) {
       if (toolCall.type !== 'function') continue;
-
       const fn = (toolCall as any).function;
       const toolName = fn?.name;
       let args: Record<string, any> = {};
-
-      try {
-        args = JSON.parse(fn?.arguments || '{}');
-      } catch {
-        args = {};
-      }
-
-      // Inject city from the request if the model didn't provide it
-      if (!args.city && request.city) {
-        args.city = request.city;
-      }
-
-      console.log(`[Dedalus] Executing tool: ${toolName}`, args);
-
+      try { args = JSON.parse(fn?.arguments || '{}'); } catch { args = {}; }
+      if (!args.city && request.city) args.city = request.city;
+      toolCallInfos.push({ toolCall, toolName, args });
       yield { type: 'tool_call_start', tool: toolName, args };
+    }
 
-      const result = await executeToolCall(toolName!, args, { rightNow: request.rightNow });
+    // Execute ALL tools in parallel (saves 4-7 seconds vs sequential)
+    const toolResults = await Promise.all(
+      toolCallInfos.map(async ({ toolCall, toolName, args }) => {
+        console.log(`[Dedalus] Executing tool: ${toolName}`, args);
+        const result = await executeToolCall(toolName!, args, { rightNow: request.rightNow });
+        return { toolCall, toolName, result };
+      })
+    );
 
+    for (const { toolCall, toolName, result } of toolResults) {
       yield { type: 'tool_call_result', tool: toolName, result };
-
       messages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
@@ -372,97 +370,60 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       });
     }
 
-    // ── Step 2b: Ensure critical tools were called ──
+    // ── Step 2b: Force-call any missing critical tools in parallel ──
     const calledTools = new Set(
       assistantMessage.tool_calls
         .filter((tc: any) => tc.type === 'function')
         .map((tc: any) => tc.function?.name)
     );
 
-    // Force-call playlist if the model skipped it
-    if (!calledTools.has('get_playlist_suggestion') && request.city) {
-      console.log('[Dedalus] Model skipped playlist tool — force-calling it');
-      const playlistArgs = { city: request.city, interests: request.interests || [] };
-      yield { type: 'tool_call_start', tool: 'get_playlist_suggestion', args: playlistArgs };
-      const playlistResult = await executeToolCall('get_playlist_suggestion', playlistArgs, { rightNow: request.rightNow });
-      yield { type: 'tool_call_result', tool: 'get_playlist_suggestion', result: playlistResult };
+    const techKeywords = ['tech', 'coding', 'startups', 'programming', 'hackathon', 'AI', 'web dev', 'software'];
+    const hasTechInterest = request.interests?.some(i => techKeywords.some(k => i.toLowerCase().includes(k.toLowerCase())));
 
-      // Add as a synthetic tool call in messages so the model sees the data
-      const syntheticId = 'forced_playlist_' + Date.now();
-      // Find the assistant message that contains the tool_calls array
-      const assistantMsgIndex = messages.findIndex(
-        (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
-      );
-      if (assistantMsgIndex !== -1) {
-        messages[assistantMsgIndex].tool_calls.push({
-          id: syntheticId,
-          type: 'function',
-          function: { name: 'get_playlist_suggestion', arguments: JSON.stringify(playlistArgs) }
-        });
-      } else {
-        console.warn('[Dedalus] Could not find assistant message to inject playlist tool call');
-      }
-      messages.push({
-        role: 'tool',
-        tool_call_id: syntheticId,
-        content: JSON.stringify(playlistResult)
-      });
+    const forceCalls: { name: string; args: Record<string, any> }[] = [];
+    if (!calledTools.has('get_playlist_suggestion') && request.city) {
+      forceCalls.push({ name: 'get_playlist_suggestion', args: { city: request.city, interests: request.interests || [] } });
+    }
+    if (!calledTools.has('get_accommodations') && request.city && !request.rightNow) {
+      forceCalls.push({ name: 'get_accommodations', args: { city: request.city, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+    }
+    if (!calledTools.has('get_tech_meetups') && request.city && hasTechInterest) {
+      forceCalls.push({ name: 'get_tech_meetups', args: { city: request.city, interests: request.interests || [] } });
     }
 
-    // Force-call accommodations if the model skipped it (skip in rightNow mode — 2hr plans don't need hotels)
-    if (!calledTools.has('get_accommodations') && request.city && !request.rightNow) {
-      console.log('[Dedalus] Model skipped accommodations tool — force-calling it');
-      const accomArgs = { city: request.city, budget: request.budget && request.budget !== 'any' ? request.budget : undefined };
-      yield { type: 'tool_call_start', tool: 'get_accommodations', args: accomArgs };
-      const accomResult = await executeToolCall('get_accommodations', accomArgs, { rightNow: request.rightNow });
-      yield { type: 'tool_call_result', tool: 'get_accommodations', result: accomResult };
+    if (forceCalls.length > 0) {
+      console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
+      for (const fc of forceCalls) {
+        yield { type: 'tool_call_start', tool: fc.name, args: fc.args };
+      }
 
-      const syntheticAccomId = 'forced_accommodations_' + Date.now();
+      const forceResults = await Promise.all(
+        forceCalls.map(async (fc) => {
+          const result = await executeToolCall(fc.name, fc.args, { rightNow: request.rightNow });
+          return { ...fc, result };
+        })
+      );
+
       const assistantMsgIdx = messages.findIndex(
         (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
       );
-      if (assistantMsgIdx !== -1) {
-        messages[assistantMsgIdx].tool_calls.push({
-          id: syntheticAccomId,
-          type: 'function',
-          function: { name: 'get_accommodations', arguments: JSON.stringify(accomArgs) }
-        });
-      } else {
-        console.warn('[Dedalus] Could not find assistant message to inject accommodations tool call');
-      }
-      messages.push({
-        role: 'tool',
-        tool_call_id: syntheticAccomId,
-        content: JSON.stringify(accomResult)
-      });
-    }
 
-    // Force-call tech meetups if user has tech-related interests and model skipped it
-    const techKeywords = ['tech', 'coding', 'startups', 'programming', 'hackathon', 'AI', 'web dev', 'software'];
-    const hasTechInterest = request.interests?.some(i => techKeywords.some(k => i.toLowerCase().includes(k.toLowerCase())));
-    if (!calledTools.has('get_tech_meetups') && request.city && hasTechInterest) {
-      console.log('[Dedalus] User has tech interests but model skipped meetups tool — force-calling it');
-      const meetupArgs = { city: request.city, interests: request.interests || [] };
-      yield { type: 'tool_call_start', tool: 'get_tech_meetups', args: meetupArgs };
-      const meetupResult = await executeToolCall('get_tech_meetups', meetupArgs, { rightNow: request.rightNow });
-      yield { type: 'tool_call_result', tool: 'get_tech_meetups', result: meetupResult };
-
-      const syntheticMeetupId = 'forced_meetups_' + Date.now();
-      const assistantMeetupIdx = messages.findIndex(
-        (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
-      );
-      if (assistantMeetupIdx !== -1) {
-        messages[assistantMeetupIdx].tool_calls.push({
-          id: syntheticMeetupId,
-          type: 'function',
-          function: { name: 'get_tech_meetups', arguments: JSON.stringify(meetupArgs) }
+      for (const { name, args, result } of forceResults) {
+        yield { type: 'tool_call_result', tool: name, result };
+        const syntheticId = `forced_${name}_${Date.now()}`;
+        if (assistantMsgIdx !== -1) {
+          messages[assistantMsgIdx].tool_calls.push({
+            id: syntheticId,
+            type: 'function',
+            function: { name, arguments: JSON.stringify(args) }
+          });
+        }
+        messages.push({
+          role: 'tool',
+          tool_call_id: syntheticId,
+          content: JSON.stringify(result)
         });
       }
-      messages.push({
-        role: 'tool',
-        tool_call_id: syntheticMeetupId,
-        content: JSON.stringify(meetupResult)
-      });
     }
 
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
@@ -480,7 +441,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       }
 
       // Scale token budget for multi-day trips
-      const tokenBudget = isMultiDay ? Math.min(request.days! * 3000, 16000) : 3000;
+      const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 4000;
 
       if (!isRetry) {
         // Streaming attempt
@@ -518,7 +479,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
         const fallbackContent = fallbackResponse.choices?.[0]?.message?.content;
         if (fallbackContent) {
           contentReceived = true;
-          const chunkSize = 20;
+          const chunkSize = 100;
           for (let i = 0; i < fallbackContent.length; i += chunkSize) {
             yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
           }

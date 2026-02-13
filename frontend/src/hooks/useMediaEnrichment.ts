@@ -18,16 +18,31 @@ interface MediaCacheEntry {
   ts: number;
 }
 
+// In-memory cache to avoid repeated localStorage reads
+let _mediaCacheInMemory: Record<string, MediaCacheEntry> | null = null;
+let _mediaCacheDirty = false;
+let _mediaCacheFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
 function getMediaCache(): Record<string, MediaCacheEntry> {
-  try {
-    return JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
-  } catch { return {}; }
+  if (!_mediaCacheInMemory) {
+    try {
+      _mediaCacheInMemory = JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
+    } catch { _mediaCacheInMemory = {}; }
+  }
+  return _mediaCacheInMemory!;
 }
 
 function setMediaCache(cache: Record<string, MediaCacheEntry>) {
-  try {
-    localStorage.setItem(MEDIA_CACHE_KEY, JSON.stringify(cache));
-  } catch { /* quota exceeded — ignore */ }
+  _mediaCacheInMemory = cache;
+  _mediaCacheDirty = true;
+  // Debounce localStorage writes — flush after 2 seconds of inactivity
+  if (_mediaCacheFlushTimer) clearTimeout(_mediaCacheFlushTimer);
+  _mediaCacheFlushTimer = setTimeout(() => {
+    if (_mediaCacheDirty && _mediaCacheInMemory) {
+      try { localStorage.setItem(MEDIA_CACHE_KEY, JSON.stringify(_mediaCacheInMemory)); } catch {}
+      _mediaCacheDirty = false;
+    }
+  }, 2000);
 }
 
 function getCachedMedia(place: string, city: string): PlaceMediaData | null {
@@ -146,7 +161,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
 
       // Fetch media for each uncached place (staggered to be polite to APIs)
       uncached.forEach(async (place, i) => {
-        await new Promise(r => setTimeout(r, i * 150));
+        await new Promise(r => setTimeout(r, i * 50));
 
         const [imageUrl, videoId] = await Promise.all([
           fetchWikipediaImage(place, city),

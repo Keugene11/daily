@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { extractPlaces } from '../utils/extractPlaces';
 
 interface Props {
@@ -313,6 +314,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
       // If we have cached results, create the map and show them immediately
       if (cached.length > 0) {
+        const routed = optimizeRoute(cached);
+        // Flush state so the map container div renders in the DOM before createMap
+        flushSync(() => {
+          setLocations(routed);
+          setResolvedCount(cached.length);
+          setLoading(false);
+        });
+        if (cancelled) return;
         const lats = cached.map(l => l.lat);
         const lngs = cached.map(l => l.lng);
         const center: [number, number] = [
@@ -320,11 +329,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           (Math.min(...lngs) + Math.max(...lngs)) / 2
         ];
         createMap(center);
-        const routed = optimizeRoute(cached);
-        setLocations(routed);
-        setResolvedCount(cached.length);
-        setLoading(false);
-        if (!cancelled) updateMarkers(routed);
+        updateMarkers(routed);
       }
 
       // Geocode uncached places, adding markers incrementally
@@ -341,14 +346,21 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         if (coords) {
           allResults.push({ name: uncachedPlaces[i], ...coords });
           const routed = optimizeRoute([...allResults]);
-          setLocations(routed);
-          setResolvedCount(allResults.length);
 
           // Create map on first result if no cached results existed
           if (!mapCreated) {
+            // Flush state so the map container div renders in the DOM before createMap
+            flushSync(() => {
+              setLocations(routed);
+              setResolvedCount(allResults.length);
+              setLoading(false);
+            });
+            if (cancelled) return;
             createMap([coords.lat, coords.lng]);
             mapCreated = true;
-            setLoading(false);
+          } else {
+            setLocations(routed);
+            setResolvedCount(allResults.length);
           }
 
           // Update markers on existing map (no rebuild)

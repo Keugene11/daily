@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { InstagramCaption } from './InstagramCaption';
 import type { PlaceMediaData } from '../hooks/useMediaEnrichment';
 
@@ -284,6 +284,82 @@ function ContentWithMedia({ text, places, mediaData }: {
   );
 }
 
+// Pure parsing functions — defined outside component to avoid recreation on every render
+function parseSections(text: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const sections = text.split(/##\s+/);
+  sections.shift();
+  sections.forEach(section => {
+    const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
+    if (match) {
+      slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
+    }
+  });
+  return slots;
+}
+
+function parseItinerary(text: string): ParsedPlan {
+  const hasMultipleDays = /^# Day \d/m.test(text);
+
+  if (!hasMultipleDays) {
+    const sections = text.split(/##\s+/);
+    const preamble = (sections.shift() || '').trim();
+    const slots: TimeSlot[] = [];
+    sections.forEach(section => {
+      const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
+      if (match) {
+        slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
+      }
+    });
+    return { preamble, days: [], slots, globalSections: [] };
+  }
+
+  const dayChunks = text.split(/^# /m);
+  const preamble = (dayChunks.shift() || '').trim();
+  const parsedDays: DayPlan[] = [];
+  const globalSections: TimeSlot[] = [];
+
+  for (const chunk of dayChunks) {
+    const headerMatch = chunk.match(/^(Day \d+[^\n]*)\n([\s\S]*)/);
+    if (!headerMatch) continue;
+
+    const dayLabel = headerMatch[1].trim();
+    const dayNumberMatch = dayLabel.match(/Day (\d+)/);
+    const dayNumber = dayNumberMatch ? parseInt(dayNumberMatch[1]) : 0;
+    const dayContent = headerMatch[2];
+
+    const allSlots = parseSections(dayContent);
+    const daySlots: TimeSlot[] = [];
+
+    for (const slot of allSlots) {
+      if (/^(where to stay|soundtrack)$/i.test(slot.period)) {
+        globalSections.push(slot);
+      } else {
+        daySlots.push(slot);
+      }
+    }
+
+    if (daySlots.length > 0) {
+      parsedDays.push({ dayLabel, dayNumber, slots: daySlots });
+    }
+  }
+
+  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Soundtrack)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
+  if (afterLastDay) {
+    for (const match of afterLastDay) {
+      const m = match.match(/## ([^\n(]+?)(?:\s*\(([^)]*)\))?\s*\n([\s\S]*)/);
+      if (m) {
+        const period = m[1].trim();
+        if (!globalSections.some(s => s.period.toLowerCase() === period.toLowerCase())) {
+          globalSections.push({ period, time: m[2] || '', content: m[3].trim() });
+        }
+      }
+    }
+  }
+
+  return { preamble, days: parsedDays, slots: [], globalSections };
+}
+
 export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onShare, isSpeaking, mediaData }) => {
   const ref = useRef<HTMLDivElement>(null);
   // Track places already shown so each video/image only appears once across all sections
@@ -299,87 +375,12 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
     prevContentRef.current = content;
   }, [content]);
 
-  const parseSections = (text: string): TimeSlot[] => {
-    const slots: TimeSlot[] = [];
-    const sections = text.split(/##\s+/);
-    sections.shift(); // discard text before first ##
-    sections.forEach(section => {
-      const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
-      if (match) {
-        slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
-      }
-    });
-    return slots;
-  };
+  // Memoize content parsing — only re-parse when content changes, not on every re-render
+  const { processed, parsed } = useMemo(() => {
+    const p = convertRawUrls(content);
+    return { processed: p, parsed: parseItinerary(p) };
+  }, [content]);
 
-  const parseItinerary = (text: string): ParsedPlan => {
-    const hasMultipleDays = /^# Day \d/m.test(text);
-
-    if (!hasMultipleDays) {
-      // Single-day: existing logic
-      const sections = text.split(/##\s+/);
-      const preamble = (sections.shift() || '').trim();
-      const slots: TimeSlot[] = [];
-      sections.forEach(section => {
-        const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
-        if (match) {
-          slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
-        }
-      });
-      return { preamble, days: [], slots, globalSections: [] };
-    }
-
-    // Multi-day parsing: split on "# " (H1) headers
-    const dayChunks = text.split(/^# /m);
-    const preamble = (dayChunks.shift() || '').trim();
-    const parsedDays: DayPlan[] = [];
-    const globalSections: TimeSlot[] = [];
-
-    for (const chunk of dayChunks) {
-      const headerMatch = chunk.match(/^(Day \d+[^\n]*)\n([\s\S]*)/);
-      if (!headerMatch) continue;
-
-      const dayLabel = headerMatch[1].trim();
-      const dayNumberMatch = dayLabel.match(/Day (\d+)/);
-      const dayNumber = dayNumberMatch ? parseInt(dayNumberMatch[1]) : 0;
-      const dayContent = headerMatch[2];
-
-      const allSlots = parseSections(dayContent);
-      const daySlots: TimeSlot[] = [];
-
-      for (const slot of allSlots) {
-        if (/^(where to stay|soundtrack)$/i.test(slot.period)) {
-          globalSections.push(slot);
-        } else {
-          daySlots.push(slot);
-        }
-      }
-
-      if (daySlots.length > 0) {
-        parsedDays.push({ dayLabel, dayNumber, slots: daySlots });
-      }
-    }
-
-    // Also catch global sections that appear after all day blocks
-    const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Soundtrack)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
-    if (afterLastDay) {
-      for (const match of afterLastDay) {
-        const m = match.match(/## ([^\n(]+?)(?:\s*\(([^)]*)\))?\s*\n([\s\S]*)/);
-        if (m) {
-          const period = m[1].trim();
-          if (!globalSections.some(s => s.period.toLowerCase() === period.toLowerCase())) {
-            globalSections.push({ period, time: m[2] || '', content: m[3].trim() });
-          }
-        }
-      }
-    }
-
-    return { preamble, days: parsedDays, slots: [], globalSections };
-  };
-
-  // Convert any raw URLs to markdown links before parsing
-  const processed = convertRawUrls(content);
-  const parsed = parseItinerary(processed);
   const hasDayParsing = parsed.days.length > 0;
   const showDayTabs = parsed.days.length > 1;
 
@@ -403,7 +404,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
           <div
             key={`${slot.period}-${startIndex + index}`}
             className="animate-slideInUp"
-            style={{ animationDelay: `${(startIndex + index) * 120}ms`, opacity: 0 }}
+            style={{ animationDelay: `${(startIndex + index) * 50}ms`, opacity: 0 }}
           >
             {(startIndex + index) > 0 && <div className="border-t border-on-surface/[0.06] my-0" />}
             <div className="grid grid-cols-[120px_1fr] gap-8 py-8">
