@@ -1231,6 +1231,7 @@ function interestToVibes(interests: string[]): string[] {
     else if (i === 'sports') vibes.push('upbeat', 'adventure');
     else if (i === 'shopping') vibes.push('upbeat', 'indie');
     else if (i === 'relaxation') vibes.push('chill', 'tropical');
+    else if (i === 'tech' || i === 'coding') vibes.push('contemplative', 'nightout');
   }
   return vibes;
 }
@@ -1830,15 +1831,36 @@ function generateReason(t: Track, vibe: string, city?: string): string {
 
 export const spotifyService = {
   async getPlaylist(city: string, interests: string[], mood?: string): Promise<ToolResult<PlaylistSuggestion>> {
-    // 1. Try city-specific playlist — shuffle and pick 5
+    const TRACK_COUNT = 7;
+
+    // Build vibe context from mood + interests (used for both city and generic playlists)
+    const moodVibes = moodToVibes(mood);
+    const interestVibes = interestToVibes(interests);
+    let vibes = [...new Set([...moodVibes, ...interestVibes])];
+    if (vibes.length === 0) vibes = ['upbeat', 'adventure'];
+
+    // 1. Try city-specific playlist — blend city tracks with vibe-matched tracks
     const cityKey = matchCity(city);
 
     if (cityKey) {
       const cityPlaylist = CITY_PLAYLISTS[cityKey];
-      const picked = pickRandom(cityPlaylist.tracks, 5);
+      // Pick 5 city-specific tracks + 2 vibe-matched tracks for variety
+      const cityPicks = pickRandom(cityPlaylist.tracks, Math.min(5, cityPlaylist.tracks.length));
+
+      // Add vibe-matched tracks from the pools (avoids city playlist feeling stale)
+      const vibePool: Track[] = [];
+      for (const vibe of vibes) {
+        const pool = VIBE_POOLS[vibe];
+        if (pool) vibePool.push(...pool.tracks);
+      }
+      const cityTrackKeys = new Set(cityPicks.map(t => `${t.title}|${t.artist}`.toLowerCase()));
+      const uniqueVibeTracks = vibePool.filter(t => !cityTrackKeys.has(`${t.title}|${t.artist}`.toLowerCase()));
+      const vibePicks = pickRandom(uniqueVibeTracks, TRACK_COUNT - cityPicks.length);
+
+      const allPicked = shuffle([...cityPicks, ...vibePicks]);
 
       const tracksWithPreviews = await Promise.all(
-        picked.map(async (t) => ({
+        allPicked.map(async (t) => ({
           ...t,
           previewUrl: await fetchDeezerPreview(t.artist, t.title),
           reason: generateReason(t, cityPlaylist.mood, city),
@@ -1852,13 +1874,6 @@ export const spotifyService = {
     }
 
     // 2. Build vibe-based playlist from mood + interests
-    const moodVibes = moodToVibes(mood);
-    const interestVibes = interestToVibes(interests);
-
-    let vibes = [...moodVibes, ...interestVibes];
-    if (vibes.length === 0) vibes = ['upbeat', 'adventure'];
-    vibes = [...new Set(vibes)];
-
     const candidateTracks: Track[] = [];
     for (const vibe of vibes) {
       const pool = VIBE_POOLS[vibe];
@@ -1873,7 +1888,7 @@ export const spotifyService = {
       return true;
     });
 
-    const picked = pickRandom(uniqueTracks, 5);
+    const picked = pickRandom(uniqueTracks, TRACK_COUNT);
     const primaryVibe = vibes[0];
     const pool = VIBE_POOLS[primaryVibe] || VIBE_POOLS.upbeat;
     const name = pool.names[Math.floor(Math.random() * pool.names.length)];

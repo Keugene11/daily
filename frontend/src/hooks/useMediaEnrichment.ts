@@ -67,19 +67,28 @@ function cacheMedia(place: string, city: string, media: PlaceMediaData) {
   setMediaCache(cache);
 }
 
+/**
+ * Search Wikipedia using the MediaWiki search API, which is far more
+ * reliable than the REST summary endpoint (which requires exact titles).
+ * Returns the first article thumbnail found.
+ */
 async function fetchWikipediaImage(place: string, city: string): Promise<string | null> {
-  const queries = [`${place}, ${city}`, place];
+  const queries = [`${place} ${city}`, place];
   for (const q of queries) {
     try {
       const res = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`,
+        `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
         { headers: { 'User-Agent': 'DailyPlannerApp/1.0' } }
       );
       if (!res.ok) continue;
       const data = await res.json();
-      if (data.thumbnail?.source) {
-        // Request a larger image for better quality in big cards
-        return data.thumbnail.source.replace(/\/\d+px-/, '/800px-');
+      const pages = data?.query?.pages;
+      if (!pages) continue;
+      // Pages are returned as an object keyed by page ID — find first with a thumbnail
+      for (const page of Object.values(pages) as any[]) {
+        if (page.thumbnail?.source) {
+          return page.thumbnail.source;
+        }
       }
     } catch {
       continue;
@@ -88,12 +97,40 @@ async function fetchWikipediaImage(place: string, city: string): Promise<string 
   return null;
 }
 
+/**
+ * Search Wikimedia Commons for photos of a place.
+ * Fallback when Wikipedia articles don't have images.
+ */
+async function fetchCommonsImage(place: string, city: string): Promise<string | null> {
+  try {
+    const q = `${place} ${city}`;
+    const res = await fetch(
+      `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json&origin=*`,
+      { headers: { 'User-Agent': 'DailyPlannerApp/1.0' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const pages = data?.query?.pages;
+    if (!pages) return null;
+    for (const page of Object.values(pages) as any[]) {
+      const info = page.imageinfo?.[0];
+      if (info?.thumburl) return info.thumburl;
+      if (info?.url && /\.(jpe?g|png|webp)/i.test(info.url)) return info.url;
+    }
+  } catch {
+    // Commons search failed
+  }
+  return null;
+}
+
 async function fetchYouTubeVideoId(place: string, city: string, token?: string | null): Promise<string | null> {
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Use a focused query — "place city" is better than appending "travel guide"
+    // which often returns generic compilations instead of place-specific videos
     const res = await fetch(
-      `${API_URL}/api/youtube-search?q=${encodeURIComponent(place + ' ' + city + ' travel guide')}`,
+      `${API_URL}/api/youtube-search?q=${encodeURIComponent(place + ' ' + city)}`,
       { headers }
     );
     if (!res.ok) return null;
@@ -163,17 +200,22 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       uncached.forEach(async (place, i) => {
         await new Promise(r => setTimeout(r, i * 50));
 
-        const [imageUrl, videoId] = await Promise.all([
+        const [wikiImage, videoId] = await Promise.all([
           fetchWikipediaImage(place, city),
           fetchYouTubeVideoId(place, city, token),
         ]);
 
-        // YouTube thumbnail as fallback when Wikipedia has no image
-        const finalImage = imageUrl ||
-          (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined);
+        // Image fallback chain: Wikipedia → Wikimedia Commons → YouTube thumbnail
+        let finalImage = wikiImage;
+        if (!finalImage) {
+          finalImage = await fetchCommonsImage(place, city);
+        }
+        if (!finalImage && videoId) {
+          finalImage = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        }
 
         const media: PlaceMediaData = {
-          imageUrl: finalImage,
+          imageUrl: finalImage || undefined,
           videoId: videoId || undefined,
         };
 

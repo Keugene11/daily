@@ -238,7 +238,6 @@ function ContentWithMedia({ text, places, mediaData }: {
           }
 
           if (isVideo) {
-            const ytThumb = `https://img.youtube.com/vi/${media.videoId}/maxresdefault.jpg`;
             return (
               <button
                 key={place}
@@ -246,10 +245,17 @@ function ContentWithMedia({ text, places, mediaData }: {
                 className="relative w-full aspect-video bg-black cursor-pointer group block rounded-xl overflow-hidden"
               >
                 <img
-                  src={ytThumb}
+                  src={`https://img.youtube.com/vi/${media.videoId}/maxresdefault.jpg`}
                   alt={place}
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  onError={(e) => {
+                    // maxresdefault 404s on some videos — fall back to hqdefault
+                    const img = e.currentTarget;
+                    if (!img.src.includes('hqdefault')) {
+                      img.src = `https://img.youtube.com/vi/${media.videoId}/hqdefault.jpg`;
+                    }
+                  }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-16 h-11 bg-red-600 rounded-xl flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
@@ -271,6 +277,10 @@ function ContentWithMedia({ text, places, mediaData }: {
                   alt={place}
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  onError={(e) => {
+                    // Hide broken images gracefully
+                    e.currentTarget.parentElement!.style.display = 'none';
+                  }}
                 />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2 pt-8">
                   <p className="text-xs font-medium text-white truncate">{place}</p>

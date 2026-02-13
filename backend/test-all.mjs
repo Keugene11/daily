@@ -866,7 +866,7 @@ async function testInlineMediaIntegration() {
   assert(hookContent.includes('fetchedRef'), 'Hook tracks already-fetched places to avoid duplicates');
   assert(hookContent.includes('setTimeout'), 'Hook debounces extraction during streaming');
   assert(!hookContent.includes('isReady'), 'Hook does NOT wait for streaming to finish');
-  assert(hookContent.includes('/800px-'), 'Hook requests larger Wikipedia images');
+  assert(hookContent.includes('pithumbsize=800'), 'Hook requests larger Wikipedia images via search API');
 
   // Media cache (localStorage) — instant return for previously fetched media
   assert(hookContent.includes('MEDIA_CACHE_KEY'), 'Hook has media cache key constant');
