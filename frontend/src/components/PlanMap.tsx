@@ -100,26 +100,36 @@ function loadLeaflet(): Promise<void> {
       return;
     }
 
-    // Load CSS
-    if (!document.querySelector('link[href*="leaflet"]')) {
+    // Load CSS — wait for it to apply before resolving
+    const cssReady = new Promise<void>((cssResolve) => {
+      if (document.querySelector('link[href*="leaflet"]')) {
+        cssResolve();
+        return;
+      }
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.onload = () => cssResolve();
+      link.onerror = () => cssResolve(); // proceed even if CSS fails
       document.head.appendChild(link);
-    }
+    });
 
     // Load JS
-    const existingScript = document.querySelector('script[src*="leaflet"]');
-    if (existingScript) {
-      if ((window as any).L) { resolve(); return; }
-      existingScript.addEventListener('load', () => resolve());
-      return;
-    }
+    const jsReady = new Promise<void>((jsResolve) => {
+      const existingScript = document.querySelector('script[src*="leaflet"]');
+      if (existingScript) {
+        if ((window as any).L) { jsResolve(); return; }
+        existingScript.addEventListener('load', () => jsResolve());
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => jsResolve();
+      document.head.appendChild(script);
+    });
 
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => resolve();
-    document.head.appendChild(script);
+    // Wait for both CSS and JS before resolving
+    Promise.all([cssReady, jsReady]).then(() => resolve());
   });
   return _leafletPromise;
 }
@@ -237,6 +247,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       const bounds = L.latLngBounds(coords);
       map.fitBounds(bounds, { padding: [40, 40] });
     }
+
+    // Force Leaflet to recalculate container size (fixes grey/missing tiles)
+    setTimeout(() => { map.invalidateSize(); }, 100);
   }, [destroyMap, optimizeRoute]);
 
   // Load locations and build map when content/city changes
