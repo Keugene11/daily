@@ -141,6 +141,7 @@ function loadLeaflet(): Promise<void> {
         fallback.onload = () => jsResolve();
         fallback.onerror = () => {
           console.error('[PlanMap] Failed to load Leaflet from both CDNs');
+          _leafletPromise = null; // Reset so next attempt can retry
           jsResolve();
         };
         document.head.appendChild(fallback);
@@ -420,23 +421,25 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         </div>
       </div>
 
-      {/* Map container — ALWAYS in the DOM so Leaflet can initialize reliably */}
-      <div
-        ref={mapContainerRef}
-        className="border border-on-surface/10 rounded-xl overflow-hidden"
-        style={{ height: '300px', display: mapReady ? 'block' : 'none' }}
-      />
+      {/* Map wrapper — container is ALWAYS visible so Leaflet can measure it */}
+      <div className="relative border border-on-surface/10 rounded-xl overflow-hidden" style={{ height: '300px' }}>
+        {/* Actual map container — always has layout dimensions */}
+        <div
+          ref={mapContainerRef}
+          style={{ width: '100%', height: '100%' }}
+        />
 
-      {/* Loading placeholder — shown until the map is created */}
-      {!mapReady && (
-        <div className="border border-on-surface/10 rounded-xl h-[300px] flex flex-col items-center justify-center gap-2 animate-pulse">
-          <svg className="w-5 h-5 text-on-surface/20 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <p className="text-xs text-on-surface/30">Loading map...</p>
-        </div>
-      )}
+        {/* Loading overlay — sits on top until map tiles are ready */}
+        {!mapReady && (
+          <div className="absolute inset-0 bg-surface flex flex-col items-center justify-center gap-2 z-[1000]">
+            <svg className="w-5 h-5 text-on-surface/20 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-xs text-on-surface/30">Loading map...</p>
+          </div>
+        )}
+      </div>
 
       {/* Location legend */}
       {locations.length > 0 && (
