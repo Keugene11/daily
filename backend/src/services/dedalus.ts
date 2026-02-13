@@ -437,6 +437,34 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       });
     }
 
+    // Force-call tech meetups if user has tech-related interests and model skipped it
+    const techKeywords = ['tech', 'coding', 'startups', 'programming', 'hackathon', 'AI', 'web dev', 'software'];
+    const hasTechInterest = request.interests?.some(i => techKeywords.some(k => i.toLowerCase().includes(k.toLowerCase())));
+    if (!calledTools.has('get_tech_meetups') && request.city && hasTechInterest) {
+      console.log('[Dedalus] User has tech interests but model skipped meetups tool — force-calling it');
+      const meetupArgs = { city: request.city, interests: request.interests || [] };
+      yield { type: 'tool_call_start', tool: 'get_tech_meetups', args: meetupArgs };
+      const meetupResult = await executeToolCall('get_tech_meetups', meetupArgs, { rightNow: request.rightNow });
+      yield { type: 'tool_call_result', tool: 'get_tech_meetups', result: meetupResult };
+
+      const syntheticMeetupId = 'forced_meetups_' + Date.now();
+      const assistantMeetupIdx = messages.findIndex(
+        (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
+      );
+      if (assistantMeetupIdx !== -1) {
+        messages[assistantMeetupIdx].tool_calls.push({
+          id: syntheticMeetupId,
+          type: 'function',
+          function: { name: 'get_tech_meetups', arguments: JSON.stringify(meetupArgs) }
+        });
+      }
+      messages.push({
+        role: 'tool',
+        tool_call_id: syntheticMeetupId,
+        content: JSON.stringify(meetupResult)
+      });
+    }
+
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──

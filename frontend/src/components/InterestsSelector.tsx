@@ -14,7 +14,9 @@ const INTEREST_OPTIONS = [
   { id: 'music', label: 'Music' },
   { id: 'sports', label: 'Sports' },
   { id: 'shopping', label: 'Shopping' },
-  { id: 'relaxation', label: 'Wellness' }
+  { id: 'relaxation', label: 'Wellness' },
+  { id: 'tech', label: 'Tech & Startups' },
+  { id: 'coding', label: 'Coding' }
 ];
 
 export const InterestsSelector: React.FC<Props> = ({ selected, onChange, disabled }) => {
