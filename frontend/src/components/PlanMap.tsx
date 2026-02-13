@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { flushSync } from 'react-dom';
 import { extractPlaces } from '../utils/extractPlaces';
 
 interface Props {
@@ -57,44 +56,40 @@ function cacheGeocode(place: string, city: string, coords: { lat: number; lng: n
   setGeoCache(cache);
 }
 
-// Geocode a place using Nominatim (free, no API key) — checks cache first
+// Geocode a single query string using Nominatim
+async function geocodeQuery(query: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=dailyplanner@app.dev`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch { /* timeout or network error */ }
+  return null;
+}
+
+// Geocode a place — tries "place, city" then just "place". Checks cache first.
 async function geocode(place: string, city: string): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
   if (cached) return cached;
 
-  const queries = [
-    `${place}, ${city}`,
-    place,
-  ];
-
+  const queries = [`${place}, ${city}`, place];
   for (const q of queries) {
-    try {
-      const query = encodeURIComponent(q);
-      // Use email param for Nominatim identification (User-Agent is forbidden in browser fetch)
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&email=dailyplanner@app.dev`,
-        { signal: controller.signal }
-      );
-      clearTimeout(timer);
-      if (!res.ok) {
-        console.warn(`[PlanMap] Nominatim returned ${res.status} for "${q}"`);
-        continue;
-      }
-      const data = await res.json();
-      if (data.length > 0) {
-        const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-        cacheGeocode(place, city, coords);
-        return coords;
-      }
-    } catch (err) {
-      console.warn(`[PlanMap] Geocode failed for "${q}":`, err instanceof Error ? err.message : err);
+    const coords = await geocodeQuery(q);
+    if (coords) {
+      cacheGeocode(place, city, coords);
+      return coords;
     }
     // Nominatim requires 1 request per second
     await new Promise(r => setTimeout(r, 1100));
   }
-
   return null;
 }
 
@@ -122,7 +117,6 @@ function loadLeaflet(): Promise<void> {
       link.href = `${CDN_PRIMARY}/leaflet.css`;
       link.onload = () => cssResolve();
       link.onerror = () => {
-        // Fallback CSS
         link.href = `${CDN_FALLBACK}/leaflet.min.css`;
         link.onload = () => cssResolve();
         link.onerror = () => cssResolve();
@@ -141,14 +135,13 @@ function loadLeaflet(): Promise<void> {
       script.src = `${CDN_PRIMARY}/leaflet.js`;
       script.onload = () => jsResolve();
       script.onerror = () => {
-        // Fallback JS
         document.head.removeChild(script);
         const fallback = document.createElement('script');
         fallback.src = `${CDN_FALLBACK}/leaflet.min.js`;
         fallback.onload = () => jsResolve();
         fallback.onerror = () => {
           console.error('[PlanMap] Failed to load Leaflet from both CDNs');
-          jsResolve(); // resolve anyway so the component doesn't hang
+          jsResolve();
         };
         document.head.appendChild(fallback);
       };
@@ -195,6 +188,7 @@ function optimizeRoute(locs: MapLocation[]): MapLocation[] {
 export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [locations, setLocations] = useState<MapLocation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [resolvedCount, setResolvedCount] = useState(0);
   const [totalPlaces, setTotalPlaces] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -205,28 +199,21 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   // Destroy existing map instance
   const destroyMap = useCallback(() => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
+      try { mapInstanceRef.current.remove(); } catch { /* already removed */ }
       mapInstanceRef.current = null;
     }
     markersRef.current = [];
     routeLineRef.current = null;
   }, []);
 
-  // Create the map once (no markers yet)
-  const createMap = useCallback((center: [number, number]) => {
+  // Create the map on the always-present container div
+  const createMap = useCallback((center: [number, number], zoom = 13) => {
     const L = (window as any).L;
-    if (!L) {
-      console.error('[PlanMap] Leaflet not loaded — cannot create map');
-      return;
-    }
-    if (!mapContainerRef.current) {
-      console.error('[PlanMap] Map container ref is null — DOM not ready');
-      return;
-    }
+    if (!L || !mapContainerRef.current) return false;
 
     destroyMap();
 
-    const map = L.map(mapContainerRef.current).setView(center, 13);
+    const map = L.map(mapContainerRef.current).setView(center, zoom);
     mapInstanceRef.current = map;
 
     const isDark = document.documentElement.classList.contains('dark');
@@ -254,6 +241,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       const origRemove = map.remove.bind(map);
       map.remove = () => { ro.disconnect(); return origRemove(); };
     }
+
+    return true;
   }, [destroyMap]);
 
   // Update markers and route line on the existing map (no destroy/recreate)
@@ -314,23 +303,46 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
     const loadAndBuildMap = async () => {
       setLoading(true);
+      setMapReady(false);
       destroyMap();
       setLocations([]);
       setResolvedCount(0);
 
-      // Scale place limit based on day count
+      // Step 1: Load Leaflet + geocode the CITY to get a map center immediately
+      const [, cityCoords] = await Promise.all([
+        loadLeaflet(),
+        geocodeQuery(city),
+      ]);
+      if (cancelled) return;
+
+      if (!(window as any).L) {
+        console.error('[PlanMap] Leaflet failed to load');
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Create the map immediately with the city center
+      // The map container div is ALWAYS in the DOM, so this always works
+      const center: [number, number] = cityCoords
+        ? [cityCoords.lat, cityCoords.lng]
+        : [40.7128, -74.006]; // fallback to NYC if city geocode fails
+      const created = createMap(center, cityCoords ? 12 : 3);
+      if (!created) {
+        console.error('[PlanMap] Failed to create map — container not ready');
+        setLoading(false);
+        return;
+      }
+      setMapReady(true);
+
+      // Step 3: Extract places and geocode them, adding markers progressively
       const dayCount = detectDayCount(content);
       const maxPlaces = Math.min(dayCount * 10, 25);
       const places = extractPlaces(content, city, maxPlaces);
-      console.log(`[PlanMap] Extracted ${places.length} places from content for "${city}":`, places.slice(0, 5));
       setTotalPlaces(places.length);
       if (places.length === 0) {
         setLoading(false);
         return;
       }
-
-      // Start loading Leaflet in parallel with geocoding
-      const leafletReady = loadLeaflet();
 
       // Separate cached (instant) from uncached (needs API) places
       const cached: MapLocation[] = [];
@@ -344,41 +356,15 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
       }
 
-      console.log(`[PlanMap] ${cached.length} cached, ${uncachedPlaces.length} need geocoding`);
-
-      // Wait for Leaflet before creating the map
-      await leafletReady;
-      if (cancelled) return;
-
-      if (!(window as any).L) {
-        console.error('[PlanMap] Leaflet failed to load — aborting map creation');
-        setLoading(false);
-        return;
-      }
-
-      // If we have cached results, create the map and show them immediately
+      // Show cached results immediately
       if (cached.length > 0) {
-        const routed = optimizeRoute(cached);
-        // Flush state so the map container div renders in the DOM before createMap
-        flushSync(() => {
-          setLocations(routed);
-          setResolvedCount(cached.length);
-          setLoading(false);
-        });
-        if (cancelled) return;
-        const lats = cached.map(l => l.lat);
-        const lngs = cached.map(l => l.lng);
-        const center: [number, number] = [
-          (Math.min(...lats) + Math.max(...lats)) / 2,
-          (Math.min(...lngs) + Math.max(...lngs)) / 2
-        ];
-        createMap(center);
-        updateMarkers(routed);
+        setLocations(cached);
+        setResolvedCount(cached.length);
+        updateMarkers(cached);
       }
 
       // Geocode uncached places, adding markers incrementally
       const allResults = [...cached];
-      let mapCreated = cached.length > 0;
 
       for (let i = 0; i < uncachedPlaces.length; i++) {
         if (cancelled) return;
@@ -390,25 +376,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         if (coords) {
           allResults.push({ name: uncachedPlaces[i], ...coords });
           const routed = optimizeRoute([...allResults]);
-
-          // Create map on first result if no cached results existed
-          if (!mapCreated) {
-            // Flush state so the map container div renders in the DOM before createMap
-            flushSync(() => {
-              setLocations(routed);
-              setResolvedCount(allResults.length);
-              setLoading(false);
-            });
-            if (cancelled) return;
-            createMap([coords.lat, coords.lng]);
-            mapCreated = true;
-          } else {
-            setLocations(routed);
-            setResolvedCount(allResults.length);
-          }
-
-          // Update markers on existing map (no rebuild)
-          if (!cancelled) updateMarkers(routed);
+          setLocations(routed);
+          setResolvedCount(allResults.length);
+          updateMarkers(routed);
         }
       }
 
@@ -418,12 +388,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       if (allResults.length > 0) {
         const routed = optimizeRoute(allResults);
         setLocations(routed);
-        setLoading(false);
-        if (!cancelled) updateMarkers(routed);
-      } else {
-        console.warn('[PlanMap] No locations could be geocoded');
-        setLoading(false);
+        updateMarkers(routed);
       }
+      setLoading(false);
     };
 
     loadAndBuildMap();
@@ -441,46 +408,51 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
           </svg>
           <span className="text-xs font-medium text-on-surface/50">Your Route</span>
-          {resolvedCount > 0 && resolvedCount < totalPlaces && (
-            <span className="text-[10px] text-on-surface/25">{resolvedCount}/{totalPlaces} places</span>
+          {loading && totalPlaces > 0 && (
+            <span className="text-[10px] text-on-surface/25 flex items-center gap-1">
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {resolvedCount}/{totalPlaces} places
+            </span>
           )}
         </div>
       </div>
 
-      {loading && locations.length === 0 ? (
-        <div className="border border-on-surface/10 rounded-xl h-64 flex flex-col items-center justify-center gap-2 animate-pulse">
+      {/* Map container — ALWAYS in the DOM so Leaflet can initialize reliably */}
+      <div
+        ref={mapContainerRef}
+        className="border border-on-surface/10 rounded-xl overflow-hidden"
+        style={{ height: '300px', display: mapReady ? 'block' : 'none' }}
+      />
+
+      {/* Loading placeholder — shown until the map is created */}
+      {!mapReady && (
+        <div className="border border-on-surface/10 rounded-xl h-[300px] flex flex-col items-center justify-center gap-2 animate-pulse">
           <svg className="w-5 h-5 text-on-surface/20 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-xs text-on-surface/30">Finding locations on the map...</p>
+          <p className="text-xs text-on-surface/30">Loading map...</p>
         </div>
-      ) : locations.length === 0 ? (
-        <div className="border border-on-surface/10 rounded-xl h-32 flex items-center justify-center">
-          <p className="text-xs text-on-surface/30">No locations could be mapped</p>
-        </div>
-      ) : (
-        <>
-          <div
-            ref={mapContainerRef}
-            className="border border-on-surface/10 rounded-xl overflow-hidden"
-            style={{ height: '300px' }}
-          />
-          {/* Location legend */}
-          <div className="flex flex-wrap gap-2 mt-3">
-            {locations.map((loc, i) => (
-              <span key={i} className="flex items-center gap-1.5 text-[10px] text-on-surface/40">
-                <span
-                  className="w-4 h-4 rounded-full text-white text-[8px] flex items-center justify-center font-bold"
-                  style={{ background: MARKER_COLORS[i % 8] }}
-                >
-                  {i + 1}
-                </span>
-                {loc.name}
+      )}
+
+      {/* Location legend */}
+      {locations.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {locations.map((loc, i) => (
+            <span key={i} className="flex items-center gap-1.5 text-[10px] text-on-surface/40">
+              <span
+                className="w-4 h-4 rounded-full text-white text-[8px] flex items-center justify-center font-bold"
+                style={{ background: MARKER_COLORS[i % 8] }}
+              >
+                {i + 1}
               </span>
-            ))}
-          </div>
-        </>
+              {loc.name}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
