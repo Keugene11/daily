@@ -554,7 +554,8 @@ Visit [Pike Place Market](https://maps.google.com/?q=Pike+Place+Market,+Seattle)
   const fs = await import('fs');
   const planMapContent = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
   assert(planMapContent.includes('detectDayCount'), 'PlanMap has detectDayCount helper');
-  assert(planMapContent.includes('# Day \\d+'), 'detectDayCount checks for Day N headers');
+  const mapUtilsContent = fs.readFileSync('../frontend/src/utils/mapUtils.ts', 'utf8');
+  assert(mapUtilsContent.includes('# Day \\d+'), 'detectDayCount checks for Day N headers');
   assert(planMapContent.includes('dayCount * 10'), 'PlanMap scales places by day count');
   assert(planMapContent.includes('25'), 'PlanMap caps max places at 25');
   assert(planMapContent.includes('extractPlaces(content, city, maxPlaces)'), 'PlanMap passes scaled maxPlaces to extractPlaces');
@@ -777,13 +778,14 @@ async function testLeafletSingleton() {
   assert(content.includes('_leafletPromise'), 'PlanMap uses singleton promise for Leaflet');
   assert(content.includes('if (_leafletPromise) return _leafletPromise'), 'PlanMap returns cached promise');
 
-  // Geocode cache (localStorage, 7-day TTL)
-  assert(content.includes('GEO_CACHE_KEY'), 'PlanMap has geocode cache key constant');
-  assert(content.includes('GEO_CACHE_TTL'), 'PlanMap has geocode cache TTL constant');
-  assert(content.includes('getCachedGeocode'), 'PlanMap has getCachedGeocode function');
-  assert(content.includes('cacheGeocode'), 'PlanMap has cacheGeocode function');
-  assert(content.includes('7 * 24 * 60 * 60 * 1000'), 'Geocode cache TTL is 7 days');
-  assert(content.includes('500'), 'Geocode cache evicts at 500 entries');
+  // Geocode cache (localStorage, 7-day TTL) — now in mapUtils.ts
+  const mapUtilsForCache = (await import('fs')).readFileSync('../frontend/src/utils/mapUtils.ts', 'utf8');
+  assert(mapUtilsForCache.includes('GEO_CACHE_KEY'), 'PlanMap has geocode cache key constant');
+  assert(mapUtilsForCache.includes('GEO_CACHE_TTL'), 'PlanMap has geocode cache TTL constant');
+  assert(content.includes('getCachedGeocode') || mapUtilsForCache.includes('getCachedGeocode'), 'PlanMap has getCachedGeocode function');
+  assert(mapUtilsForCache.includes('cacheGeocode'), 'PlanMap has cacheGeocode function');
+  assert(mapUtilsForCache.includes('7 * 24 * 60 * 60 * 1000'), 'Geocode cache TTL is 7 days');
+  assert(mapUtilsForCache.includes('500'), 'Geocode cache evicts at 500 entries');
 
   // Progressive rendering — cached places show instantly
   assert(content.includes('resolvedCount'), 'PlanMap tracks resolved count for progress');
@@ -955,13 +957,14 @@ async function testPlanMapRendering() {
     'loadAndBuildMap has top-level error catch to prevent silent failures');
 
   // ── 11. Nominatim uses email param (not forbidden User-Agent header) ──
-  assert(planMap.includes('email=dailyplanner@app.dev'),
+  const mapUtilsSrc = (await import('fs')).readFileSync('../frontend/src/utils/mapUtils.ts', 'utf8');
+  assert(mapUtilsSrc.includes('email=dailyplanner@app.dev'),
     'Nominatim requests use email param for identification');
-  assert(!planMap.includes("'User-Agent'") || planMap.includes('// User-Agent'),
+  assert(!mapUtilsSrc.includes("'User-Agent'") || mapUtilsSrc.includes('// User-Agent'),
     'PlanMap does not set User-Agent header on browser fetch');
 
   // ── 12. AbortController timeout on geocode requests ──
-  assert(planMap.includes('AbortController') && planMap.includes('5000'),
+  assert(mapUtilsSrc.includes('AbortController') && mapUtilsSrc.includes('5000'),
     'Geocode requests have 5s AbortController timeout');
 
   // ── 13. CDN fallback for Leaflet ──
