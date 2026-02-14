@@ -14,6 +14,16 @@ function getClient(): Dedalus {
   return client;
 }
 
+/** Race a promise against a timeout — rejects if the promise doesn't resolve in time */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ]);
+}
+
 function buildSystemPrompt(request: PlanRequest): string {
   const { budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = request;
 
@@ -288,14 +298,18 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     for (let step1Attempt = 0; step1Attempt < 3; step1Attempt++) {
       console.log(`[Dedalus] Step 1 (attempt ${step1Attempt + 1}): Requesting tool calls...`);
 
-      const firstResponse = await dedalus.chat.completions.create({
-        model: 'anthropic/claude-sonnet-4-5',
-        messages,
-        tools,
-        tool_choice: { type: 'auto' } as any,
-        temperature: 0.7,
-        max_tokens: 2000
-      });
+      const firstResponse = await withTimeout(
+        dedalus.chat.completions.create({
+          model: 'anthropic/claude-sonnet-4-5',
+          messages,
+          tools,
+          tool_choice: { type: 'auto' } as any,
+          temperature: 0.7,
+          max_tokens: 2000
+        }),
+        40000,
+        'Tool selection API call'
+      );
 
       assistantMessage = firstResponse.choices?.[0]?.message;
       if (!assistantMessage) {
@@ -487,12 +501,16 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
         }
       } else {
         // Non-streaming fallback
-        const fallbackResponse = await dedalus.chat.completions.create({
-          model: 'anthropic/claude-sonnet-4-5',
-          messages,
-          temperature: 0.7,
-          max_tokens: tokenBudget
-        });
+        const fallbackResponse = await withTimeout(
+          dedalus.chat.completions.create({
+            model: 'anthropic/claude-sonnet-4-5',
+            messages,
+            temperature: 0.7,
+            max_tokens: tokenBudget
+          }),
+          50000,
+          'Itinerary generation (fallback)'
+        );
 
         const fallbackContent = fallbackResponse.choices?.[0]?.message?.content;
         if (fallbackContent) {
