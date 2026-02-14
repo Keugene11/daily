@@ -84,6 +84,37 @@ router.post('/plan', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/test-plan — Run a minimal plan generation via SSE for debugging
+ */
+router.get('/test-plan', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.status(200);
+  res.flushHeaders();
+
+  res.write(`data: {"n":0,"msg":"starting streamPlanGeneration"}\n\n`);
+
+  try {
+    const stream = streamPlanGeneration({ city: 'New York', interests: ['food'] });
+    let count = 0;
+    for await (const event of stream) {
+      count++;
+      const summary = event.type === 'content_chunk'
+        ? { type: event.type, len: (event as any).content?.length || 0 }
+        : event;
+      res.write(`data: ${JSON.stringify({ n: count, event: summary })}\n\n`);
+      if (count > 100 || event.type === 'error' || event.type === 'done') break;
+    }
+    res.write(`data: {"n":"end","total":${count}}\n\n`);
+  } catch (err: any) {
+    res.write(`data: {"n":"crash","error":"${err?.message || 'unknown'}"}\n\n`);
+  }
+  res.end();
+});
+
+/**
  * GET /api/test-sse — Verify SSE streaming works on Vercel
  */
 router.get('/test-sse', (req: Request, res: Response) => {
