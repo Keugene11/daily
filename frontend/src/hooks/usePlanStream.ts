@@ -41,7 +41,7 @@ export const usePlanStream = () => {
     try {
       const token = getAccessToken ? await getAccessToken() : null;
 
-      const response = await fetch(`${API_URL}/api/plan`, {
+      const response = await fetch(`${API_URL}/api/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

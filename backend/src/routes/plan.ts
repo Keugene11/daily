@@ -8,7 +8,7 @@ const router = Router();
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
-router.post('/plan', async (req: Request, res: Response) => {
+router.post('/generate', async (req: Request, res: Response) => {
   // Set up SSE immediately — no validation that could call res.json()
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
