@@ -9,22 +9,7 @@ const router = Router();
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', async (req: Request, res: Response) => {
-  const { city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
-
-  // Validate input — must happen before SSE headers are set
-  if (!city || !Array.isArray(interests)) {
-    res.status(400).json({ error: !city ? 'City is required' : 'Interests must be an array' });
-    return;
-  }
-  if (days !== undefined) {
-    const numDays = Number(days);
-    if (!Number.isInteger(numDays) || numDays < 1 || numDays > 7) {
-      res.status(400).json({ error: 'Days must be an integer between 1 and 7' });
-      return;
-    }
-  }
-
-  // Set up Server-Sent Events
+  // Set up SSE immediately — no validation that could call res.json()
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -32,9 +17,19 @@ router.post('/plan', async (req: Request, res: Response) => {
   res.status(200);
   res.flushHeaders();
 
+  const city = req.body?.city;
+  const interests = req.body?.interests;
+
+  if (!city || !Array.isArray(interests)) {
+    res.write(`data: ${JSON.stringify({ type: 'error', error: !city ? 'City is required' : 'Interests must be an array' })}\n\n`);
+    res.end();
+    return;
+  }
+
   res.write('data: {"type":"connected"}\n\n');
 
   try {
+    const { budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body || {};
     const stream = streamPlanGeneration({ city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
     for await (const event of stream) {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
