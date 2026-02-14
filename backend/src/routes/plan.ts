@@ -84,6 +84,33 @@ router.post('/plan', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/test-sse — Verify SSE streaming works on Vercel
+ */
+router.get('/test-sse', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.status(200);
+  res.flushHeaders();
+
+  let count = 0;
+  const interval = setInterval(() => {
+    count++;
+    res.write(`data: {"count":${count},"time":"${new Date().toISOString()}"}\n\n`);
+    if (count >= 5) {
+      clearInterval(interval);
+      res.write(`data: {"type":"done"}\n\n`);
+      res.end();
+    }
+  }, 1000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+  });
+});
+
+/**
  * GET /api/test-llm — Step-by-step diagnostic for plan generation
  */
 router.get('/test-llm', async (_req: Request, res: Response) => {
