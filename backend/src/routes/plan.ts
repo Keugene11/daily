@@ -11,25 +11,20 @@ const router = Router();
 router.post('/plan', async (req: Request, res: Response) => {
   const { city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
 
-  // Validate input
-  if (!city) {
-    return res.status(400).json({ error: 'City is required' });
+  // Validate input — must happen before SSE headers are set
+  if (!city || !Array.isArray(interests)) {
+    res.status(400).json({ error: !city ? 'City is required' : 'Interests must be an array' });
+    return;
   }
-
-  if (!Array.isArray(interests)) {
-    return res.status(400).json({ error: 'Interests must be an array' });
-  }
-
   if (days !== undefined) {
     const numDays = Number(days);
     if (!Number.isInteger(numDays) || numDays < 1 || numDays > 7) {
-      return res.status(400).json({ error: 'Days must be an integer between 1 and 7' });
+      res.status(400).json({ error: 'Days must be an integer between 1 and 7' });
+      return;
     }
   }
 
-  console.log(`[SSE] Starting stream for city: ${city}, interests: ${interests.join(', ')}${days > 1 ? `, days: ${days}` : ''}`);
-
-  // Set up Server-Sent Events headers
+  // Set up Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -37,39 +32,18 @@ router.post('/plan', async (req: Request, res: Response) => {
   res.status(200);
   res.flushHeaders();
 
-  // Send initial connection confirmation
   res.write('data: {"type":"connected"}\n\n');
 
   try {
     const stream = streamPlanGeneration({ city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
-
     for await (const event of stream) {
-      try {
-        const data = JSON.stringify(event);
-        res.write(`data: ${data}\n\n`);
-      } catch (writeErr) {
-        console.error('[SSE] Write failed:', writeErr);
-        break;
-      }
-
-      if (event.type === 'error' || event.type === 'done') {
-        break;
-      }
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      if (event.type === 'error' || event.type === 'done') break;
     }
-
-    res.end();
-    console.log('[SSE] Stream ended');
-  } catch (error) {
-    console.error('[SSE] Stream error:', error);
-    try {
-      const errorEvent = {
-        type: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
-      };
-      res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-    } catch { /* response already closed */ }
-    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ type: 'error', error: err?.message || 'Unknown error' })}\n\n`);
   }
+  res.end();
 });
 
 /**
