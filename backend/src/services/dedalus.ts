@@ -252,6 +252,9 @@ Writing style:
  */
 export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerator<StreamEvent> {
   console.log('[Dedalus] Starting stream for:', request);
+  const MASTER_START = Date.now();
+  const MASTER_LIMIT = 52000; // 52s — leave 8s buffer for Vercel's 60s limit
+  const remaining = () => MASTER_LIMIT - (Date.now() - MASTER_START);
 
   if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
     yield { type: 'error', error: 'Dedalus API key not configured.' };
@@ -298,16 +301,21 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     for (let step1Attempt = 0; step1Attempt < 3; step1Attempt++) {
       console.log(`[Dedalus] Step 1 (attempt ${step1Attempt + 1}): Requesting tool calls...`);
 
+      const step1Timeout = Math.min(remaining() - 5000, 25000); // max 25s, leave time for later steps
+      if (step1Timeout < 5000) {
+        yield { type: 'error', error: 'Request timed out. Please try again.' };
+        return;
+      }
       const firstResponse = await withTimeout(
         dedalus.chat.completions.create({
           model: 'anthropic/claude-sonnet-4-5',
           messages,
           tools,
-          tool_choice: { type: 'auto' } as any,
+          tool_choice: 'auto' as any,
           temperature: 0.7,
           max_tokens: 2000
         }),
-        40000,
+        step1Timeout,
         'Tool selection API call'
       );
 
@@ -461,75 +469,101 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
-    let contentReceived = false;
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const isRetry = attempt > 0;
-      if (isRetry) {
-        console.log('[Dedalus] Step 3 retry: Non-streaming fallback...');
-        yield { type: 'thinking_chunk', thinking: 'Generating itinerary (retry)...' };
-      } else {
-        console.log('[Dedalus] Step 3: Streaming itinerary from tool results...');
-      }
-
-      // Scale token budget for multi-day trips
-      const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 4000;
-
-      if (!isRetry) {
-        // Streaming attempt
-        const stream = await dedalus.chat.completions.create({
+    const step3Remaining = remaining();
+    if (step3Remaining < 8000) {
+      // Not enough time left — use non-streaming fallback with strict timeout
+      console.log(`[Dedalus] Only ${step3Remaining}ms left, using fast fallback`);
+      const fallbackResponse = await withTimeout(
+        dedalus.chat.completions.create({
           model: 'anthropic/claude-sonnet-4-5',
           messages,
-          stream: true,
           temperature: 0.7,
-          max_tokens: tokenBudget
-        });
-
-        for await (const chunk of stream) {
-          const delta = chunk.choices?.[0]?.delta;
-          const content = delta?.content;
-
-          if (content) {
-            contentReceived = true;
-            yield { type: 'content_chunk', content };
-          }
-
-          if (chunk.choices?.[0]?.finish_reason) {
-            console.log('[Dedalus] Stream finished:', chunk.choices[0].finish_reason, '| content received:', contentReceived);
-            break;
-          }
+          max_tokens: isMultiDay ? Math.min(request.days! * 4000, 16000) : 4000
+        }),
+        step3Remaining - 2000,
+        'Itinerary generation (time-limited)'
+      );
+      const fc = fallbackResponse.choices?.[0]?.message?.content;
+      if (fc) {
+        for (let i = 0; i < fc.length; i += 100) {
+          yield { type: 'content_chunk', content: fc.slice(i, i + 100) };
         }
+        yield { type: 'done' };
       } else {
-        // Non-streaming fallback
-        const fallbackResponse = await withTimeout(
-          dedalus.chat.completions.create({
-            model: 'anthropic/claude-sonnet-4-5',
-            messages,
-            temperature: 0.7,
-            max_tokens: tokenBudget
-          }),
-          50000,
-          'Itinerary generation (fallback)'
-        );
+        yield { type: 'error', error: 'Failed to generate itinerary. Please try again.' };
+      }
+      return;
+    }
 
-        const fallbackContent = fallbackResponse.choices?.[0]?.message?.content;
-        if (fallbackContent) {
+    let contentReceived = false;
+    const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 4000;
+
+    // Streaming attempt with timeout protection
+    console.log(`[Dedalus] Step 3: Streaming itinerary (${step3Remaining}ms remaining)...`);
+    try {
+      const streamPromise = dedalus.chat.completions.create({
+        model: 'anthropic/claude-sonnet-4-5',
+        messages,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: tokenBudget
+      });
+
+      const stream = await withTimeout(streamPromise, Math.min(step3Remaining - 3000, 30000), 'Streaming connection');
+      const streamDeadline = Date.now() + step3Remaining - 2000;
+
+      for await (const chunk of stream) {
+        if (Date.now() > streamDeadline) {
+          console.log('[Dedalus] Stream deadline reached, stopping');
+          break;
+        }
+
+        const delta = chunk.choices?.[0]?.delta;
+        const content = delta?.content;
+
+        if (content) {
           contentReceived = true;
-          const chunkSize = 100;
-          for (let i = 0; i < fallbackContent.length; i += chunkSize) {
-            yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
-          }
-          console.log('[Dedalus] Fallback response received, length:', fallbackContent.length);
-        } else {
-          console.log('[Dedalus] Fallback also returned no content');
+          yield { type: 'content_chunk', content };
+        }
+
+        if (chunk.choices?.[0]?.finish_reason) {
+          console.log('[Dedalus] Stream finished:', chunk.choices[0].finish_reason, '| content received:', contentReceived);
+          break;
         }
       }
-
-      if (contentReceived) break;
+    } catch (streamErr) {
+      console.error('[Dedalus] Streaming failed:', streamErr);
+      // If streaming failed and we have time, try non-streaming fallback
+      const fallbackRemaining = remaining();
+      if (!contentReceived && fallbackRemaining > 5000) {
+        console.log(`[Dedalus] Trying non-streaming fallback (${fallbackRemaining}ms left)...`);
+        yield { type: 'thinking_chunk', thinking: 'Generating itinerary (retry)...' };
+        try {
+          const fallbackResponse = await withTimeout(
+            dedalus.chat.completions.create({
+              model: 'anthropic/claude-sonnet-4-5',
+              messages,
+              temperature: 0.7,
+              max_tokens: tokenBudget
+            }),
+            fallbackRemaining - 2000,
+            'Itinerary generation (fallback)'
+          );
+          const fc = fallbackResponse.choices?.[0]?.message?.content;
+          if (fc) {
+            contentReceived = true;
+            for (let i = 0; i < fc.length; i += 100) {
+              yield { type: 'content_chunk', content: fc.slice(i, i + 100) };
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('[Dedalus] Fallback also failed:', fallbackErr);
+        }
+      }
     }
 
     if (!contentReceived) {
-      yield { type: 'error', error: 'Failed to generate itinerary after retrying. Please try again.' };
+      yield { type: 'error', error: 'Failed to generate itinerary. Please try again.' };
       return;
     }
 

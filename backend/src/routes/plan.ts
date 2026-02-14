@@ -84,26 +84,90 @@ router.post('/plan', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/test-llm — Diagnostic: test if the Dedalus/LLM API is reachable
+ * GET /api/test-llm — Step-by-step diagnostic for plan generation
  */
 router.get('/test-llm', async (_req: Request, res: Response) => {
   const start = Date.now();
+  const steps: { step: string; ms: number; ok: boolean; detail?: string }[] = [];
+  const elapsed = () => Date.now() - start;
+
   try {
     const Dedalus = (await import('dedalus-labs')).default;
     const apiKey = process.env.DEDALUS_API_KEY || '';
-    const client = new Dedalus({ apiKey, timeout: 15000 });
-    const response = await Promise.race([
-      client.chat.completions.create({
-        model: 'anthropic/claude-sonnet-4-5',
-        messages: [{ role: 'user', content: 'Say hi in one word' }],
-        max_tokens: 10,
-      }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Manual 15s timeout')), 15000)),
-    ]);
-    const content = response.choices?.[0]?.message?.content;
-    res.json({ ok: true, content, ms: Date.now() - start, keyPrefix: apiKey.substring(0, 10) });
+    const client = new Dedalus({ apiKey, timeout: 20000 });
+
+    // Step 1: Simple API call (no tools)
+    const s1 = Date.now();
+    try {
+      const r = await Promise.race([
+        client.chat.completions.create({
+          model: 'anthropic/claude-sonnet-4-5',
+          messages: [{ role: 'user', content: 'Say hi' }],
+          max_tokens: 10,
+        }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ]);
+      steps.push({ step: 'simple_call', ms: Date.now() - s1, ok: true, detail: r.choices?.[0]?.message?.content || '' });
+    } catch (e: any) {
+      steps.push({ step: 'simple_call', ms: Date.now() - s1, ok: false, detail: e.message });
+    }
+
+    // Step 2: API call WITH tools (mimics Step 1 of plan generation)
+    const { tools: toolDefs } = await import('../services/tools');
+    const s2 = Date.now();
+    try {
+      const r = await Promise.race([
+        client.chat.completions.create({
+          model: 'anthropic/claude-sonnet-4-5',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant. Call tools to gather data.' },
+            { role: 'user', content: 'I want to visit New York. Call get_weather for New York.' }
+          ],
+          tools: toolDefs,
+          tool_choice: 'auto' as any,
+          max_tokens: 500,
+        }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+      ]);
+      const tc = r.choices?.[0]?.message?.tool_calls;
+      steps.push({
+        step: 'tools_call',
+        ms: Date.now() - s2,
+        ok: true,
+        detail: `finish=${r.choices?.[0]?.finish_reason}, tool_calls=${tc?.length || 0}, names=${tc?.map((t: any) => t.function?.name).join(',') || 'none'}`
+      });
+    } catch (e: any) {
+      steps.push({ step: 'tools_call', ms: Date.now() - s2, ok: false, detail: e.message });
+    }
+
+    // Step 3: Streaming API call
+    const s3 = Date.now();
+    try {
+      let chunks = 0;
+      let content = '';
+      const stream = await Promise.race([
+        client.chat.completions.create({
+          model: 'anthropic/claude-sonnet-4-5',
+          messages: [{ role: 'user', content: 'Write one sentence about NYC.' }],
+          stream: true,
+          max_tokens: 50,
+        }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ]);
+      for await (const chunk of stream as any) {
+        chunks++;
+        const c = chunk.choices?.[0]?.delta?.content;
+        if (c) content += c;
+        if (chunks > 50 || Date.now() - s3 > 10000) break;
+      }
+      steps.push({ step: 'streaming', ms: Date.now() - s3, ok: true, detail: `chunks=${chunks}, content=${content.substring(0, 100)}` });
+    } catch (e: any) {
+      steps.push({ step: 'streaming', ms: Date.now() - s3, ok: false, detail: e.message });
+    }
+
+    res.json({ ok: true, totalMs: elapsed(), keyPrefix: apiKey.substring(0, 10), steps });
   } catch (error) {
-    res.json({ ok: false, error: error instanceof Error ? error.message : 'Unknown', ms: Date.now() - start });
+    res.json({ ok: false, totalMs: elapsed(), error: error instanceof Error ? error.message : 'Unknown', steps });
   }
 });
 
