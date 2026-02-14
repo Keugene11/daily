@@ -29,13 +29,6 @@ router.post('/plan', async (req: Request, res: Response) => {
 
   console.log(`[SSE] Starting stream for city: ${city}, interests: ${interests.join(', ')}${days > 1 ? `, days: ${days}` : ''}`);
 
-  // Track client disconnect so we can stop the generator
-  let clientDisconnected = false;
-  req.on('close', () => {
-    clientDisconnected = true;
-    console.log('[SSE] Client disconnected');
-  });
-
   // Set up Server-Sent Events headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -51,8 +44,6 @@ router.post('/plan', async (req: Request, res: Response) => {
     const stream = streamPlanGeneration({ city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
 
     for await (const event of stream) {
-      if (clientDisconnected) break;
-
       try {
         const data = JSON.stringify(event);
         res.write(`data: ${data}\n\n`);
@@ -60,8 +51,6 @@ router.post('/plan', async (req: Request, res: Response) => {
         console.error('[SSE] Write failed:', writeErr);
         break;
       }
-
-      console.log(`[SSE] Event sent:`, event.type);
 
       if (event.type === 'error' || event.type === 'done') {
         break;
@@ -72,14 +61,14 @@ router.post('/plan', async (req: Request, res: Response) => {
     console.log('[SSE] Stream ended');
   } catch (error) {
     console.error('[SSE] Stream error:', error);
-    if (!clientDisconnected) {
+    try {
       const errorEvent = {
         type: 'error',
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
       res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-      res.end();
-    }
+    } catch { /* response already closed */ }
+    res.end();
   }
 });
 
