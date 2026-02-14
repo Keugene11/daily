@@ -126,7 +126,15 @@ export const usePlanStream = () => {
       // Always mark streaming as done after the reader finishes.
       // The 'done' event handler usually does this, but if the stream
       // ends without one (timeout, dropped connection), this is the safety net.
-      setState(prev => prev.isStreaming ? { ...prev, isStreaming: false } : prev);
+      // If no content or error was received, show a timeout error so the user
+      // knows something went wrong (instead of silently reverting to idle).
+      setState(prev => {
+        if (!prev.isStreaming) return prev;
+        if (!prev.content && !prev.error) {
+          return { ...prev, isStreaming: false, error: 'Request timed out. Please try again.' };
+        }
+        return { ...prev, isStreaming: false };
+      });
     } catch (error) {
       console.error('[SSE] Stream error:', error);
       setState(prev => ({

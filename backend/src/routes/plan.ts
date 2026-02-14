@@ -53,8 +53,13 @@ router.post('/plan', async (req: Request, res: Response) => {
     for await (const event of stream) {
       if (clientDisconnected) break;
 
-      const data = JSON.stringify(event);
-      res.write(`data: ${data}\n\n`);
+      try {
+        const data = JSON.stringify(event);
+        res.write(`data: ${data}\n\n`);
+      } catch (writeErr) {
+        console.error('[SSE] Write failed:', writeErr);
+        break;
+      }
 
       console.log(`[SSE] Event sent:`, event.type);
 

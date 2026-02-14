@@ -1003,6 +1003,26 @@ async function testPlanMapRendering() {
     'Dark mode uses CARTO dark tiles');
   assert(planMap.includes('tile.openstreetmap.org'),
     'Light mode uses OSM tiles');
+
+  // ── 20. Dedalus SDK has timeout ──
+  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
+  assert(dedalusContent.includes('timeout: 45000'),
+    'Dedalus client has 45s timeout to prevent Vercel function hanging');
+
+  // ── 21. Tool execution uses Promise.allSettled (not Promise.all) ──
+  assert(dedalusContent.includes('Promise.allSettled'),
+    'Tool execution uses allSettled so one failing tool cannot crash the plan');
+  assert(!dedalusContent.includes('Promise.all(') || dedalusContent.indexOf('Promise.all(') > dedalusContent.indexOf('Promise.allSettled'),
+    'No remaining Promise.all for tool execution (replaced with allSettled)');
+
+  // ── 22. res.write wrapped in try/catch ──
+  const planRoute = fs.readFileSync('./src/routes/plan.ts', 'utf8');
+  assert(planRoute.includes('writeErr') || (planRoute.includes('try') && planRoute.includes('res.write')),
+    'SSE res.write is wrapped in try/catch to handle write failures');
+
+  // ── 23. Frontend shows timeout error when stream ends empty ──
+  assert(streamHook.includes('Request timed out'),
+    'Frontend shows timeout error when SSE stream ends without content or error');
 }
 
 // ─── Test: Data quality — no duplicate names within a city ────────────

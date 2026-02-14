@@ -9,7 +9,7 @@ function getClient(): Dedalus {
   if (!client) {
     const apiKey = process.env.DEDALUS_API_KEY || '';
     console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-    client = new Dedalus({ apiKey });
+    client = new Dedalus({ apiKey, timeout: 45000 });
   }
   return client;
 }
@@ -353,7 +353,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     }
 
     // Execute ALL tools in parallel (saves 4-7 seconds vs sequential)
-    const toolResults = await Promise.all(
+    const toolSettled = await Promise.allSettled(
       toolCallInfos.map(async ({ toolCall, toolName, args }) => {
         console.log(`[Dedalus] Executing tool: ${toolName}`, args);
         const result = await executeToolCall(toolName!, args, { rightNow: request.rightNow });
@@ -361,13 +361,27 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       })
     );
 
-    for (const { toolCall, toolName, result } of toolResults) {
-      yield { type: 'tool_call_result', tool: toolName, result };
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolCall.id,
-        content: JSON.stringify(result)
-      });
+    for (let idx = 0; idx < toolSettled.length; idx++) {
+      const settled = toolSettled[idx];
+      if (settled.status === 'fulfilled') {
+        const { toolCall, toolName, result } = settled.value;
+        yield { type: 'tool_call_result', tool: toolName, result };
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result)
+        });
+      } else {
+        // Tool failed — send empty result so the model can still generate
+        const { toolCall, toolName } = toolCallInfos[idx];
+        console.error(`[Dedalus] Tool ${toolName} failed:`, settled.reason);
+        yield { type: 'tool_call_result', tool: toolName, result: { success: false, error: 'Tool execution failed' } };
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify({ success: false, error: 'Tool execution failed' })
+        });
+      }
     }
 
     // ── Step 2b: Force-call any missing critical tools in parallel ──
@@ -397,7 +411,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
         yield { type: 'tool_call_start', tool: fc.name, args: fc.args };
       }
 
-      const forceResults = await Promise.all(
+      const forceSettled = await Promise.allSettled(
         forceCalls.map(async (fc) => {
           const result = await executeToolCall(fc.name, fc.args, { rightNow: request.rightNow });
           return { ...fc, result };
@@ -408,7 +422,11 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
         (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
       );
 
-      for (const { name, args, result } of forceResults) {
+      for (let idx = 0; idx < forceSettled.length; idx++) {
+        const settled = forceSettled[idx];
+        const { name, args, result } = settled.status === 'fulfilled'
+          ? settled.value
+          : { ...forceCalls[idx], result: { success: false, error: 'Tool execution failed' } };
         yield { type: 'tool_call_result', tool: name, result };
         const syntheticId = `forced_${name}_${Date.now()}`;
         if (assistantMsgIdx !== -1) {
