@@ -885,6 +885,126 @@ async function testInlineMediaIntegration() {
   assert(hookContent.includes('uncached'), 'Hook separates cached and uncached places');
 }
 
+// ─── Test: PlanMap rendering & robustness (broad) ─────────────────────
+async function testPlanMapRendering() {
+  console.log('\n=== PlanMap Rendering & Robustness ===');
+
+  const fs = await import('fs');
+  const planMap = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
+  const appContent = fs.readFileSync('../frontend/src/App.tsx', 'utf8');
+  const streamHook = fs.readFileSync('../frontend/src/hooks/usePlanStream.ts', 'utf8');
+
+  // ── 1. PlanMap is rendered in App.tsx ──
+  assert(appContent.includes('<PlanMap'), 'App renders PlanMap component');
+  assert(appContent.includes("import { PlanMap }"), 'App imports PlanMap');
+
+  // ── 2. PlanMap mount condition: content + !isStreaming + !error + city ──
+  assert(appContent.includes('!state.isStreaming') && appContent.includes('<PlanMap'),
+    'PlanMap is gated on !isStreaming');
+
+  // ── 3. isStreaming safety net after stream reader finishes ──
+  // After the try/finally stream reader loop, isStreaming MUST be set false
+  assert(streamHook.includes('reader.releaseLock()'),
+    'Stream reader releases lock in finally');
+  const afterRelease = streamHook.slice(streamHook.indexOf('reader.releaseLock()'));
+  assert(afterRelease.includes('isStreaming') && afterRelease.includes('false'),
+    'isStreaming is set false AFTER reader.releaseLock (safety net)');
+
+  // ── 4. Map container is ALWAYS in the DOM (never display:none) ──
+  assert(!planMap.includes("display: mapReady") && !planMap.includes("display: 'none'"),
+    'Map container never has display:none (Leaflet needs real dimensions)');
+  assert(planMap.includes("width: '100%', height: '100%'"),
+    'Map container has explicit 100% width and height');
+  assert(planMap.includes("height: '300px'"),
+    'Map wrapper has fixed 300px height');
+
+  // ── 5. Loading overlay is absolute-positioned ON TOP of map ──
+  assert(planMap.includes('absolute inset-0'),
+    'Loading overlay uses absolute positioning over the map');
+  assert(planMap.includes('z-[1000]'),
+    'Loading overlay has high z-index to cover Leaflet tiles');
+
+  // ── 6. City is geocoded FIRST for instant map display ──
+  assert(planMap.includes('geocodeQuery(city)'),
+    'PlanMap geocodes the city name directly');
+  assert(planMap.includes("Promise.all") && planMap.includes('loadLeaflet()') && planMap.includes('geocodeQuery(city)'),
+    'Leaflet loading and city geocoding happen in parallel');
+
+  // ── 7. Fallback center if city geocode fails ──
+  assert(planMap.includes('40.7128') && planMap.includes('-74.006'),
+    'PlanMap has NYC fallback coordinates if city geocoding fails');
+
+  // ── 8. Leaflet _leaflet_id cleanup prevents container reuse crash ──
+  assert(planMap.includes('_leaflet_id'),
+    'PlanMap cleans _leaflet_id from container to prevent "already initialized" error');
+  assert(planMap.includes('delete') && planMap.includes('_leaflet_id'),
+    'PlanMap deletes _leaflet_id attribute from container element');
+
+  // ── 9. L.map() is wrapped in try/catch with retry ──
+  assert(planMap.includes("L.map(mapContainerRef.current)"),
+    'PlanMap calls L.map on container ref');
+  // Check that there's error handling around L.map
+  const createMapFn = planMap.slice(planMap.indexOf('const createMap'), planMap.indexOf('// Update markers'));
+  assert(createMapFn.includes('try') && createMapFn.includes('catch'),
+    'createMap wraps L.map in try/catch');
+  assert(createMapFn.includes('innerHTML'),
+    'createMap has fallback to clear container innerHTML on L.map failure');
+
+  // ── 10. Entire loadAndBuildMap wrapped in try/catch ──
+  assert(planMap.includes("'[PlanMap] loadAndBuildMap failed:'"),
+    'loadAndBuildMap has top-level error catch to prevent silent failures');
+
+  // ── 11. Nominatim uses email param (not forbidden User-Agent header) ──
+  assert(planMap.includes('email=dailyplanner@app.dev'),
+    'Nominatim requests use email param for identification');
+  assert(!planMap.includes("'User-Agent'") || planMap.includes('// User-Agent'),
+    'PlanMap does not set User-Agent header on browser fetch');
+
+  // ── 12. AbortController timeout on geocode requests ──
+  assert(planMap.includes('AbortController') && planMap.includes('5000'),
+    'Geocode requests have 5s AbortController timeout');
+
+  // ── 13. CDN fallback for Leaflet ──
+  assert(planMap.includes('unpkg.com/leaflet') && planMap.includes('cdnjs.cloudflare.com'),
+    'Leaflet loads from unpkg with cdnjs fallback');
+  assert(planMap.includes('_leafletPromise = null'),
+    'Leaflet singleton resets on double CDN failure so retry is possible');
+
+  // ── 14. ResizeObserver for dynamic container resizing ──
+  assert(planMap.includes('ResizeObserver'),
+    'PlanMap uses ResizeObserver to handle container resize');
+  assert(planMap.includes('invalidateSize'),
+    'PlanMap calls invalidateSize on resize');
+
+  // ── 15. Cancelled flag prevents stale updates ──
+  assert(planMap.includes('let cancelled = false'),
+    'PlanMap uses cancelled flag for cleanup');
+  assert(planMap.includes('cancelled = true') && planMap.includes('destroyMap'),
+    'Effect cleanup sets cancelled and destroys map');
+
+  // ── 16. No flushSync dependency (removed fragile workaround) ──
+  assert(!planMap.includes('flushSync'),
+    'PlanMap no longer uses flushSync (fragile; container is always in DOM instead)');
+
+  // ── 17. mapReady state controls overlay visibility ──
+  assert(planMap.includes('mapReady'),
+    'PlanMap has mapReady state');
+  assert(planMap.includes('setMapReady(true)'),
+    'PlanMap sets mapReady true after createMap succeeds');
+  assert(planMap.includes('!mapReady'),
+    'Loading overlay is shown when mapReady is false');
+
+  // ── 18. Rate limiting between geocode calls ──
+  assert(planMap.includes('1100'),
+    'PlanMap has 1.1s delay between Nominatim requests');
+
+  // ── 19. Tile layer URLs are valid ──
+  assert(planMap.includes('basemaps.cartocdn.com') && planMap.includes('dark_all'),
+    'Dark mode uses CARTO dark tiles');
+  assert(planMap.includes('tile.openstreetmap.org'),
+    'Light mode uses OSM tiles');
+}
+
 // ─── Test: Data quality — no duplicate names within a city ────────────
 async function testDataQuality(services) {
   console.log('\n=== Data Quality Checks ===');
@@ -1037,6 +1157,7 @@ async function main() {
   await testYouTubeService();
   await testInlineMediaIntegration();
   await testMultiDay();
+  await testPlanMapRendering();
   await testDataQuality(services);
 
   console.log(`\n${'='.repeat(60)}`);

@@ -197,11 +197,17 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const markersRef = useRef<any[]>([]);
   const routeLineRef = useRef<any>(null);
 
-  // Destroy existing map instance
+  // Destroy existing map instance and clean up Leaflet's internal state
   const destroyMap = useCallback(() => {
     if (mapInstanceRef.current) {
       try { mapInstanceRef.current.remove(); } catch { /* already removed */ }
       mapInstanceRef.current = null;
+    }
+    // Leaflet stamps _leaflet_id on the container. If map.remove() fails,
+    // this persists and L.map() throws "Map container is already initialized."
+    // Always clean it so the container can be safely reused.
+    if (mapContainerRef.current) {
+      delete (mapContainerRef.current as any)._leaflet_id;
     }
     markersRef.current = [];
     routeLineRef.current = null;
@@ -214,7 +220,20 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
     destroyMap();
 
-    const map = L.map(mapContainerRef.current).setView(center, zoom);
+    let map: any;
+    try {
+      map = L.map(mapContainerRef.current).setView(center, zoom);
+    } catch (err) {
+      console.error('[PlanMap] L.map() failed:', err);
+      // Last resort: clear container innerHTML and _leaflet_id, retry once
+      try {
+        delete (mapContainerRef.current as any)._leaflet_id;
+        mapContainerRef.current.innerHTML = '';
+        map = L.map(mapContainerRef.current).setView(center, zoom);
+      } catch {
+        return false;
+      }
+    }
     mapInstanceRef.current = map;
 
     const isDark = document.documentElement.classList.contains('dark');
@@ -303,95 +322,100 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     let cancelled = false;
 
     const loadAndBuildMap = async () => {
-      setLoading(true);
-      setMapReady(false);
-      destroyMap();
-      setLocations([]);
-      setResolvedCount(0);
+      try {
+        setLoading(true);
+        setMapReady(false);
+        destroyMap();
+        setLocations([]);
+        setResolvedCount(0);
 
-      // Step 1: Load Leaflet + geocode the CITY to get a map center immediately
-      const [, cityCoords] = await Promise.all([
-        loadLeaflet(),
-        geocodeQuery(city),
-      ]);
-      if (cancelled) return;
+        // Step 1: Load Leaflet + geocode the CITY to get a map center immediately
+        const [, cityCoords] = await Promise.all([
+          loadLeaflet(),
+          geocodeQuery(city),
+        ]);
+        if (cancelled) return;
 
-      if (!(window as any).L) {
-        console.error('[PlanMap] Leaflet failed to load');
-        setLoading(false);
-        return;
-      }
-
-      // Step 2: Create the map immediately with the city center
-      // The map container div is ALWAYS in the DOM, so this always works
-      const center: [number, number] = cityCoords
-        ? [cityCoords.lat, cityCoords.lng]
-        : [40.7128, -74.006]; // fallback to NYC if city geocode fails
-      const created = createMap(center, cityCoords ? 12 : 3);
-      if (!created) {
-        console.error('[PlanMap] Failed to create map — container not ready');
-        setLoading(false);
-        return;
-      }
-      setMapReady(true);
-
-      // Step 3: Extract places and geocode them, adding markers progressively
-      const dayCount = detectDayCount(content);
-      const maxPlaces = Math.min(dayCount * 10, 25);
-      const places = extractPlaces(content, city, maxPlaces);
-      setTotalPlaces(places.length);
-      if (places.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      // Separate cached (instant) from uncached (needs API) places
-      const cached: MapLocation[] = [];
-      const uncachedPlaces: string[] = [];
-      for (const place of places) {
-        const coords = getCachedGeocode(place, city);
-        if (coords) {
-          cached.push({ name: place, ...coords });
-        } else {
-          uncachedPlaces.push(place);
+        if (!(window as any).L) {
+          console.error('[PlanMap] Leaflet failed to load');
+          setLoading(false);
+          return;
         }
-      }
 
-      // Show cached results immediately
-      if (cached.length > 0) {
-        setLocations(cached);
-        setResolvedCount(cached.length);
-        updateMarkers(cached);
-      }
+        // Step 2: Create the map immediately with the city center
+        // The map container div is ALWAYS in the DOM, so this always works
+        const center: [number, number] = cityCoords
+          ? [cityCoords.lat, cityCoords.lng]
+          : [40.7128, -74.006]; // fallback to NYC if city geocode fails
+        const created = createMap(center, cityCoords ? 12 : 3);
+        if (!created) {
+          console.error('[PlanMap] Failed to create map — container not ready');
+          setLoading(false);
+          return;
+        }
+        setMapReady(true);
 
-      // Geocode uncached places, adding markers incrementally
-      const allResults = [...cached];
+        // Step 3: Extract places and geocode them, adding markers progressively
+        const dayCount = detectDayCount(content);
+        const maxPlaces = Math.min(dayCount * 10, 25);
+        const places = extractPlaces(content, city, maxPlaces);
+        setTotalPlaces(places.length);
+        if (places.length === 0) {
+          setLoading(false);
+          return;
+        }
 
-      for (let i = 0; i < uncachedPlaces.length; i++) {
+        // Separate cached (instant) from uncached (needs API) places
+        const cached: MapLocation[] = [];
+        const uncachedPlaces: string[] = [];
+        for (const place of places) {
+          const coords = getCachedGeocode(place, city);
+          if (coords) {
+            cached.push({ name: place, ...coords });
+          } else {
+            uncachedPlaces.push(place);
+          }
+        }
+
+        // Show cached results immediately
+        if (cached.length > 0) {
+          setLocations(cached);
+          setResolvedCount(cached.length);
+          updateMarkers(cached);
+        }
+
+        // Geocode uncached places, adding markers incrementally
+        const allResults = [...cached];
+
+        for (let i = 0; i < uncachedPlaces.length; i++) {
+          if (cancelled) return;
+          if (i > 0) await new Promise(r => setTimeout(r, 1100));
+
+          const coords = await geocode(uncachedPlaces[i], city);
+          if (cancelled) return;
+
+          if (coords) {
+            allResults.push({ name: uncachedPlaces[i], ...coords });
+            const routed = optimizeRoute([...allResults]);
+            setLocations(routed);
+            setResolvedCount(allResults.length);
+            updateMarkers(routed);
+          }
+        }
+
         if (cancelled) return;
-        if (i > 0) await new Promise(r => setTimeout(r, 1100));
 
-        const coords = await geocode(uncachedPlaces[i], city);
-        if (cancelled) return;
-
-        if (coords) {
-          allResults.push({ name: uncachedPlaces[i], ...coords });
-          const routed = optimizeRoute([...allResults]);
+        // Final update
+        if (allResults.length > 0) {
+          const routed = optimizeRoute(allResults);
           setLocations(routed);
-          setResolvedCount(allResults.length);
           updateMarkers(routed);
         }
+        setLoading(false);
+      } catch (err) {
+        console.error('[PlanMap] loadAndBuildMap failed:', err);
+        setLoading(false);
       }
-
-      if (cancelled) return;
-
-      // Final update
-      if (allResults.length > 0) {
-        const routed = optimizeRoute(allResults);
-        setLocations(routed);
-        updateMarkers(routed);
-      }
-      setLoading(false);
     };
 
     loadAndBuildMap();
