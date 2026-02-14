@@ -127,10 +127,11 @@ async function fetchYouTubeVideoId(place: string, city: string, token?: string |
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Use a focused query — "place city" is better than appending "travel guide"
-    // which often returns generic compilations instead of place-specific videos
+    // Append "walking tour" to get cinematic/visual content about the place
+    // rather than random vlogs, reactions, or listicles
+    const query = `${place} ${city} walking tour`;
     const res = await fetch(
-      `${API_URL}/api/youtube-search?q=${encodeURIComponent(place + ' ' + city)}`,
+      `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
       { headers }
     );
     if (!res.ok) return null;

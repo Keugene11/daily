@@ -1,7 +1,8 @@
 /**
  * YouTube video search — scrapes YouTube search results server-side.
  * No API key needed. Extracts video IDs from ytInitialData in the HTML.
- * Picks the best result by filtering out shorts and preferring higher view counts.
+ * Picks the best result by scoring on views, duration, title quality,
+ * and position relevance — prefers cinematic/tour/walkthrough content.
  */
 
 interface VideoResult {
@@ -41,6 +42,69 @@ function parseDuration(text?: string): number {
   return parts[0] || 0;
 }
 
+// Keywords in titles that indicate high-quality visual content
+const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s*through|drone|aerial|timelapse|time.lapse|travel guide|city guide|tour|explore|exploring|hidden gem|must.see|top\s*\d+|best of|complete guide|virtual tour|night walk|sunset|sunrise)\b/i;
+
+// Keywords that indicate low-quality or irrelevant content
+const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list)\b/i;
+
+// Channels/patterns that indicate listicle/compilation content (less place-specific)
+const COMPILATION_KEYWORDS = /\b(top 100|every single|all \d+ |complete ranking|ranked|tier)\b/i;
+
+/**
+ * Score a video candidate based on multiple quality signals.
+ * Higher score = better video for showcasing a place.
+ */
+function scoreCandidate(c: { title: string; views: number; durationSec: number }, position: number, poolSize: number): number {
+  let score = 0;
+
+  // Base: view count (log scale, diminishing returns)
+  score += Math.log10(Math.max(c.views, 1));
+
+  // Position relevance (YouTube ranks results well, so first results get a boost)
+  score += (poolSize - position) * 0.2;
+
+  // Duration sweet spot: 2-15 minutes is ideal for place showcase videos
+  if (c.durationSec > 0) {
+    if (c.durationSec >= 120 && c.durationSec <= 900) {
+      score += 3; // sweet spot: 2-15 min
+    } else if (c.durationSec >= 60 && c.durationSec <= 1200) {
+      score += 1; // acceptable: 1-20 min
+    } else {
+      score -= 2; // too short or too long
+    }
+  }
+
+  // Title quality signals
+  const titleLower = c.title.toLowerCase();
+
+  if (QUALITY_KEYWORDS.test(c.title)) {
+    score += 4; // strong boost for quality content indicators
+  }
+
+  if (PENALTY_KEYWORDS.test(c.title)) {
+    score -= 8; // strong penalty for irrelevant content
+  }
+
+  if (COMPILATION_KEYWORDS.test(c.title)) {
+    score -= 2; // mild penalty for compilations
+  }
+
+  // Penalize all-caps titles (clickbait signal)
+  const words = c.title.split(/\s+/);
+  const capsWords = words.filter(w => w.length > 2 && w === w.toUpperCase()).length;
+  if (capsWords > words.length * 0.5) {
+    score -= 3;
+  }
+
+  // Boost videos with the word "walk" — walking tours are great for places
+  if (/\bwalk\b/i.test(titleLower)) {
+    score += 2;
+  }
+
+  return score;
+}
+
 /**
  * Search YouTube by scraping the search results page and extracting
  * video data from the embedded ytInitialData JSON.
@@ -68,7 +132,6 @@ async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
 
     const items = contents[0]?.itemSectionRenderer?.contents || [];
 
-    // Evaluate up to 8 video results and pick the best one
     interface Candidate {
       videoId: string;
       title: string;
@@ -85,31 +148,29 @@ async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
       const title = vr.title?.runs?.[0]?.text || '';
       if (!videoId) continue;
 
-      // Extract view count and duration for quality scoring
       const viewText = vr.viewCountText?.simpleText || vr.viewCountText?.runs?.[0]?.text || '';
       const views = parseViewCount(viewText);
       const durationText = vr.lengthText?.simpleText || '';
       const durationSec = parseDuration(durationText);
 
       candidates.push({ videoId, title, views, durationSec });
-      if (candidates.length >= 8) break;
+      if (candidates.length >= 12) break;
     }
 
     if (candidates.length === 0) return null;
 
-    // Filter: skip very short videos (<60s, likely Shorts/ads) and very long ones (>30min, likely full movies)
+    // Filter: skip very short (<45s, Shorts/ads) and very long (>45min, full movies/docs)
     const filtered = candidates.filter(c =>
-      c.durationSec === 0 || // unknown duration is OK
-      (c.durationSec >= 60 && c.durationSec <= 1800)
+      c.durationSec === 0 ||
+      (c.durationSec >= 45 && c.durationSec <= 2700)
     );
 
     const pool = filtered.length > 0 ? filtered : candidates;
 
-    // Score: prefer videos with more views (indicates quality/relevance)
-    // but also give a small boost to earlier search results (position relevance)
+    // Score each candidate with multi-factor quality scoring
     const scored = pool.map((c, i) => ({
       ...c,
-      score: Math.log10(Math.max(c.views, 1)) + (pool.length - i) * 0.3
+      score: scoreCandidate(c, i, pool.length)
     }));
 
     scored.sort((a, b) => b.score - a.score);
