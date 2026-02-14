@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-// When Supabase isn't configured, return a fake "always authenticated" state
-const SKIP_AUTH = !supabase;
+// Skip auth when Supabase isn't configured OR in dev mode
+const SKIP_AUTH = !supabase || import.meta.env.DEV;
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);

@@ -30,8 +30,11 @@ router.post('/plan', async (req: Request, res: Response) => {
   console.log(`[SSE] Starting stream for city: ${city}, interests: ${interests.join(', ')}${days > 1 ? `, days: ${days}` : ''}`);
 
   // Track client disconnect so we can stop the generator
+  // IMPORTANT: Listen on `res` not `req` — req 'close' fires when the POST body
+  // is fully consumed, which happens immediately after express.json() parses it.
+  // res 'close' fires when the actual TCP connection drops.
   let clientDisconnected = false;
-  req.on('close', () => {
+  res.on('close', () => {
     clientDisconnected = true;
     console.log('[SSE] Client disconnected');
   });
