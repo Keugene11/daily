@@ -84,9 +84,9 @@ router.post('/plan', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/test-plan — Run a minimal plan generation via SSE for debugging
+ * POST /api/test-plan — Run a minimal plan generation via SSE for debugging (POST to match /api/plan)
  */
-router.get('/test-plan', async (req: Request, res: Response) => {
+router.post('/test-plan', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -94,10 +94,12 @@ router.get('/test-plan', async (req: Request, res: Response) => {
   res.status(200);
   res.flushHeaders();
 
-  res.write(`data: {"n":0,"msg":"starting streamPlanGeneration"}\n\n`);
+  const city = req.body?.city || 'New York';
+  const interests = req.body?.interests || ['food'];
+  res.write(`data: {"n":0,"msg":"starting streamPlanGeneration","city":"${city}"}\n\n`);
 
   try {
-    const stream = streamPlanGeneration({ city: 'New York', interests: ['food'] });
+    const stream = streamPlanGeneration({ city, interests });
     let count = 0;
     for await (const event of stream) {
       count++;
