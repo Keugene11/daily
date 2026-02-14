@@ -84,6 +84,30 @@ router.post('/plan', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/test-llm — Diagnostic: test if the Dedalus/LLM API is reachable
+ */
+router.get('/test-llm', async (_req: Request, res: Response) => {
+  const start = Date.now();
+  try {
+    const Dedalus = (await import('dedalus-labs')).default;
+    const apiKey = process.env.DEDALUS_API_KEY || '';
+    const client = new Dedalus({ apiKey, timeout: 15000 });
+    const response = await Promise.race([
+      client.chat.completions.create({
+        model: 'anthropic/claude-sonnet-4-5',
+        messages: [{ role: 'user', content: 'Say hi in one word' }],
+        max_tokens: 10,
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Manual 15s timeout')), 15000)),
+    ]);
+    const content = response.choices?.[0]?.message?.content;
+    res.json({ ok: true, content, ms: Date.now() - start, keyPrefix: apiKey.substring(0, 10) });
+  } catch (error) {
+    res.json({ ok: false, error: error instanceof Error ? error.message : 'Unknown', ms: Date.now() - start });
+  }
+});
+
+/**
  * GET /api/youtube-search?q=query
  * Returns { videoId, title } for the top YouTube result, or { videoId: null } on failure.
  */
