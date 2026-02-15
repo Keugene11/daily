@@ -51,6 +51,9 @@ const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s
 // Irrelevant or low-quality content — hard reject
 const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:ing)?|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list|live stream|livestream|shorts|tiktok|compilation|meme|funny|cringe|exposed|canceled|cancelled|apology|rant|vent|asmr|gameplay|playthrough|let'?s play)\b/i;
 
+// Entertainment/celebrity content — not place-discovery content
+const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime)\b/i;
+
 // News/current-affairs content — not what we want for place discovery
 const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation)\b/i;
 
@@ -105,6 +108,11 @@ function scoreCandidate(
 
   if (NEWS_KEYWORDS.test(c.title)) {
     score -= 8;
+  }
+
+  // Entertainment/celebrity content — penalize hard, these dominate on views
+  if (ENTERTAINMENT_KEYWORDS.test(c.title) || ENTERTAINMENT_KEYWORDS.test(c.channel)) {
+    score -= 15;
   }
 
   // Penalize all-caps titles (clickbait signal)

@@ -12,7 +12,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 2;
+const MEDIA_CACHE_VERSION = 3;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -141,9 +141,9 @@ async function fetchYouTubeVideoId(place: string, city: string, token?: string |
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Let YouTube surface the best result naturally — backend scoring
-    // handles quality ranking (views, verified channels, content type)
-    const query = `${place} ${city}`;
+    // "travel" biases YouTube toward travel/guide content without being
+    // as restrictive as "walking tour" — backend scoring handles the rest
+    const query = `${place} ${city} travel`;
     const res = await fetch(
       `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
       { headers }
