@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 3;
+const GEO_CACHE_VERSION = 4;
 
 interface GeoCacheEntry {
   lat: number;
@@ -164,20 +164,27 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
+    // Request multiple results so we can pick the most important one.
+    // Nominatim's default ordering isn't by importance — e.g. "Yosemite"
+    // returns a tiny Australian neighbourhood before Yosemite National Park.
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1&addressdetails=1&email=dailyplanner@app.dev`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
       { signal: controller.signal }
     );
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.length > 0) {
-      const bbox = data[0].boundingbox;
+      // Pick the result with the highest importance score
+      const best = data.reduce((a: any, b: any) =>
+        (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a
+      );
+      const bbox = best.boundingbox;
       return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        countryCode: data[0].address?.country_code || undefined,
-        country: data[0].address?.country || undefined,
+        lat: parseFloat(best.lat),
+        lng: parseFloat(best.lon),
+        countryCode: best.address?.country_code || undefined,
+        country: best.address?.country || undefined,
         boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
       };
     }

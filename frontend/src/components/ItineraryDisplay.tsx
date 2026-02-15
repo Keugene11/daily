@@ -154,12 +154,29 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
   return elements;
 }
 
-/** Find which places from the media map appear in this section's text, skipping already-shown ones */
-function getSectionPlaces(sectionContent: string, allPlaces: string[], shownSet: Set<string>): string[] {
+/** Find which places from the media map appear in this section's text, skipping already-shown ones.
+ *  Also deduplicates by videoId — different places can return the same YouTube video. */
+function getSectionPlaces(
+  sectionContent: string,
+  allPlaces: string[],
+  shownSet: Set<string>,
+  mediaData?: Map<string, PlaceMediaData>,
+  shownVideoIds?: Set<string>,
+): string[] {
   const lower = sectionContent.toLowerCase();
   return allPlaces.filter(p => {
     if (shownSet.has(p)) return false;
     if (!lower.includes(p.toLowerCase())) return false;
+    // Skip if this place's video was already shown for a different place
+    if (mediaData && shownVideoIds) {
+      const media = mediaData.get(p);
+      if (media?.videoId && shownVideoIds.has(media.videoId)) {
+        // Still mark the place as shown so it doesn't appear later
+        shownSet.add(p);
+        return false;
+      }
+      if (media?.videoId) shownVideoIds.add(media.videoId);
+    }
     shownSet.add(p);
     return true;
   });
@@ -391,8 +408,9 @@ function parseItinerary(text: string): ParsedPlan {
 
 export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onShare, isSpeaking, mediaData }) => {
   const ref = useRef<HTMLDivElement>(null);
-  // Track places already shown so each video/image only appears once across all sections
+  // Track places and videoIds already shown so each appears only once across all sections
   const shownPlacesRef = useRef<Set<string>>(new Set());
+  const shownVideoIdsRef = useRef<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState(0);
   const prevContentRef = useRef(content);
 
@@ -413,8 +431,9 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
   const hasDayParsing = parsed.days.length > 0;
   const showDayTabs = parsed.days.length > 1;
 
-  // Reset shown places each render so dedup is fresh for new content
+  // Reset shown places/videos each render so dedup is fresh for new content
   shownPlacesRef.current.clear();
+  shownVideoIdsRef.current.clear();
 
   // Clamp selectedDay to valid range
   const activeDayIdx = showDayTabs ? Math.min(selectedDay, parsed.days.length - 1) : 0;
@@ -426,7 +445,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
       {slots.map((slot, index) => {
         const isSoundtrack = slot.period.toLowerCase() === 'soundtrack';
         const sectionPlaces = !isSoundtrack && mediaData && mediaData.size > 0
-          ? getSectionPlaces(slot.content, [...mediaData.keys()], shownPlacesRef.current)
+          ? getSectionPlaces(slot.content, [...mediaData.keys()], shownPlacesRef.current, mediaData, shownVideoIdsRef.current)
           : [];
 
         return (
