@@ -150,6 +150,14 @@ export interface CityGeoResult {
   lng: number;
   countryCode?: string;
   country?: string;
+  /** Nominatim bounding box [south, north, west, east] */
+  boundingBox?: [number, number, number, number];
+}
+
+/** Compute the radius (km) of a Nominatim bounding box from its center */
+export function boundingBoxRadiusKm(bbox: [number, number, number, number]): number {
+  const [south, north, west, east] = bbox;
+  return distanceKm(south, west, north, east) / 2;
 }
 
 export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
@@ -164,41 +172,45 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
     if (!res.ok) return null;
     const data = await res.json();
     if (data.length > 0) {
+      const bbox = data[0].boundingbox;
       return {
         lat: parseFloat(data[0].lat),
         lng: parseFloat(data[0].lon),
         countryCode: data[0].address?.country_code || undefined,
         country: data[0].address?.country || undefined,
+        boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
       };
     }
   } catch { /* timeout or network error */ }
   return null;
 }
 
-// Check if coords are within MAX_DISTANCE_KM of a reference point
-function isWithinRange(coords: { lat: number; lng: number }, ref: { lat: number; lng: number }): boolean {
-  return distanceKm(ref.lat, ref.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
+// Check if coords are within a given range of a reference point
+function isWithinRange(coords: { lat: number; lng: number }, ref: { lat: number; lng: number }, maxKm = MAX_DISTANCE_KM): boolean {
+  return distanceKm(ref.lat, ref.lng, coords.lat, coords.lng) <= maxKm;
 }
 
 // Geocode a place within a city. Uses viewbox + country code to constrain results
 // to the correct geographic area. Validates distance before caching.
+// maxDistKm overrides the default 80km threshold (useful for country-level queries).
 export async function geocode(
   place: string,
   city: string,
   cityCoords?: { lat: number; lng: number },
   countryCode?: string,
-  country?: string
+  country?: string,
+  maxDistKm = MAX_DISTANCE_KM
 ): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
   if (cached) {
     // Validate cached results against city coords — reject stale bad entries
-    if (cityCoords && !isWithinRange(cached, cityCoords)) return null;
+    if (cityCoords && !isWithinRange(cached, cityCoords, maxDistKm)) return null;
     return cached;
   }
 
   const options: { viewbox?: string; countrycodes?: string } = {};
   if (cityCoords) {
-    options.viewbox = toViewbox(cityCoords.lat, cityCoords.lng, MAX_DISTANCE_KM);
+    options.viewbox = toViewbox(cityCoords.lat, cityCoords.lng, maxDistKm);
   }
   if (countryCode) {
     options.countrycodes = countryCode;
@@ -208,13 +220,20 @@ export async function geocode(
   // e.g. "Eiffel Tower, Paris, France" instead of just "Eiffel Tower, Paris"
   const query = country ? `${place}, ${city}, ${country}` : `${place}, ${city}`;
 
+  // For wide areas (countries/regions), don't use bounded=1 — it's too restrictive.
+  // Just use countrycodes to keep results in the right country.
+  const useViewbox = maxDistKm <= MAX_DISTANCE_KM;
+  const queryOptions: { viewbox?: string; countrycodes?: string } = {};
+  if (useViewbox && options.viewbox) queryOptions.viewbox = options.viewbox;
+  if (options.countrycodes) queryOptions.countrycodes = options.countrycodes;
+
   const coords = await geocodeQuery(
     query,
-    Object.keys(options).length > 0 ? options : undefined
+    Object.keys(queryOptions).length > 0 ? queryOptions : undefined
   );
   if (coords) {
     // Validate distance before caching — never store bad results
-    if (cityCoords && !isWithinRange(coords, cityCoords)) return null;
+    if (cityCoords && !isWithinRange(coords, cityCoords, maxDistKm)) return null;
     cacheGeocode(place, city, coords);
     return coords;
   }

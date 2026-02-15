@@ -5,6 +5,7 @@ import {
   getCachedGeocode,
   geocode,
   geocodeCity,
+  boundingBoxRadiusKm,
   getGeoCache,
   setGeoCache,
   optimizeRoute,
@@ -245,6 +246,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const countryCode = cityResult?.countryCode;
         const country = cityResult?.country;
 
+        // Compute effective radius from bounding box (for countries/regions this can be 1000+ km)
+        const bboxRadius = cityResult?.boundingBox ? boundingBoxRadiusKm(cityResult.boundingBox) : 0;
+        const effectiveRadius = Math.max(bboxRadius, MAX_DISTANCE_KM);
+
         if (!(window as any).L) {
           console.error('[PlanMap] Leaflet failed to load');
           setLoading(false);
@@ -257,9 +262,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Step 2: Create the map centered on the city
+        // Step 2: Create the map — use bounding box for countries, fixed zoom for cities
         const center: [number, number] = [cityCoords.lat, cityCoords.lng];
-        const created = createMap(center, 12);
+        const zoom = bboxRadius > 200 ? 5 : bboxRadius > 50 ? 8 : 12;
+        const created = createMap(center, zoom);
         if (!created) {
           console.error('[PlanMap] Failed to create map — container not ready');
           setLoading(false);
@@ -267,7 +273,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
         setMapReady(true);
 
-        // Purge cached geocodes that are far from this city (clears pre-fix bad entries)
+        // Purge cached geocodes that are far from this city/country
         if (cityCoords) {
           const cache = getGeoCache();
           const cityKey = `|||${city.toLowerCase()}`;
@@ -275,7 +281,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           for (const key of Object.keys(cache)) {
             if (key.toLowerCase().endsWith(cityKey)) {
               const entry = cache[key];
-              if (distanceKm(cityCoords.lat, cityCoords.lng, entry.lat, entry.lng) > MAX_DISTANCE_KM) {
+              if (distanceKm(cityCoords.lat, cityCoords.lng, entry.lat, entry.lng) > effectiveRadius) {
                 delete cache[key];
                 purged = true;
               }
@@ -294,10 +300,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Helper: check if coords are within range of city center.
+        // Helper: check if coords are within range of city/country center.
         // If city geocode failed, reject ALL results — we can't verify they're correct.
         const isNearCity = (coords: { lat: number; lng: number }) =>
-          !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
+          !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= effectiveRadius;
 
         // Separate cached (instant) from uncached (needs API) places
         const cached: MapLocation[] = [];
@@ -329,7 +335,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           if (cancelled) return;
           if (i > 0) await new Promise(r => setTimeout(r, 1100));
 
-          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode, country);
+          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode, country, effectiveRadius);
           if (cancelled) return;
 
           if (coords && isNearCity(coords)) {
