@@ -101,6 +101,27 @@ export function optimizeRoute(locs: MapLocation[]): MapLocation[] {
 // Max distance (km) a geocoded place can be from the city center before we discard it
 export const MAX_DISTANCE_KM = 80;
 
+/**
+ * Remove outlier locations that are far from the main cluster.
+ * A hotel that geocoded to the wrong country shows up as a lone pin
+ * hundreds of km from everything else — this filters those out.
+ */
+export function removeOutliers(locs: MapLocation[]): MapLocation[] {
+  if (locs.length <= 3) return locs;
+  // Compute centroid
+  const cLat = locs.reduce((s, l) => s + l.lat, 0) / locs.length;
+  const cLng = locs.reduce((s, l) => s + l.lng, 0) / locs.length;
+  // Distance of each location from centroid
+  const dists = locs.map(l => distanceKm(cLat, cLng, l.lat, l.lng));
+  // Median distance
+  const sorted = [...dists].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  // Keep locations within 3× the median distance (or at least 30km to avoid
+  // filtering tight clusters where median ≈ 0)
+  const threshold = Math.max(median * 3, 30);
+  return locs.filter((_, i) => dists[i] <= threshold);
+}
+
 // Haversine distance in km between two lat/lng points
 export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;

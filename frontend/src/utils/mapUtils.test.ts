@@ -11,6 +11,7 @@ import {
   distanceKm,
   boundingBoxRadiusKm,
   MAX_DISTANCE_KM,
+  removeOutliers,
   MapLocation,
 } from './mapUtils';
 
@@ -332,5 +333,65 @@ describe('boundingBoxRadiusKm', () => {
     // Japan center to Okinawa is ~1500 km — must be within radius
     const centerToOkinawa = distanceKm(36.57, 139.24, 26.34, 127.77);
     expect(centerToOkinawa).toBeLessThan(effectiveRadius);
+  });
+});
+
+// ── removeOutliers ────────────────────────────────────────────────────
+
+describe('removeOutliers', () => {
+  it('returns all locations when 3 or fewer', () => {
+    const locs: MapLocation[] = [
+      { name: 'A', lat: 0, lng: 0 },
+      { name: 'B', lat: 50, lng: 50 },
+    ];
+    expect(removeOutliers(locs)).toEqual(locs);
+  });
+
+  it('keeps tightly clustered locations', () => {
+    const locs: MapLocation[] = [
+      { name: 'A', lat: 48.20, lng: 16.37 }, // Vienna
+      { name: 'B', lat: 48.21, lng: 16.36 },
+      { name: 'C', lat: 48.19, lng: 16.38 },
+      { name: 'D', lat: 48.22, lng: 16.35 },
+    ];
+    expect(removeOutliers(locs)).toHaveLength(4);
+  });
+
+  it('removes a single outlier far from the cluster', () => {
+    const locs: MapLocation[] = [
+      { name: 'Vienna 1', lat: 48.20, lng: 16.37 },
+      { name: 'Vienna 2', lat: 48.21, lng: 16.36 },
+      { name: 'Vienna 3', lat: 48.19, lng: 16.38 },
+      { name: 'Vienna 4', lat: 48.22, lng: 16.35 },
+      { name: 'Wrong Hotel', lat: 52.52, lng: 13.40 }, // Berlin — ~500km away
+    ];
+    const result = removeOutliers(locs);
+    expect(result.map(l => l.name)).not.toContain('Wrong Hotel');
+    expect(result).toHaveLength(4);
+  });
+
+  it('keeps all locations in a multi-city trip spread', () => {
+    // Vienna to Salzburg is ~250km — both are legitimate
+    const locs: MapLocation[] = [
+      { name: 'Vienna 1', lat: 48.20, lng: 16.37 },
+      { name: 'Vienna 2', lat: 48.21, lng: 16.36 },
+      { name: 'Salzburg 1', lat: 47.80, lng: 13.04 },
+      { name: 'Salzburg 2', lat: 47.81, lng: 13.05 },
+    ];
+    // With 2 cities, the median distance is ~125km, threshold = 4x = 500km
+    // Both cities are within 500km of centroid, so all should be kept
+    expect(removeOutliers(locs)).toHaveLength(4);
+  });
+
+  it('removes outlier even with moderate spread', () => {
+    const locs: MapLocation[] = [
+      { name: 'A', lat: 48.20, lng: 16.37 },
+      { name: 'B', lat: 48.21, lng: 16.36 },
+      { name: 'C', lat: 48.19, lng: 16.38 },
+      { name: 'D', lat: 48.22, lng: 16.35 },
+      { name: 'Outlier', lat: 40.71, lng: -74.01 }, // New York — 7000km away
+    ];
+    const result = removeOutliers(locs);
+    expect(result.map(l => l.name)).not.toContain('Outlier');
   });
 });

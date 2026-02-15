@@ -13,6 +13,7 @@ import {
   distanceKm,
   MAX_DISTANCE_KM,
   MARKER_COLORS,
+  removeOutliers,
 } from '../utils/mapUtils';
 
 interface Props {
@@ -366,9 +367,11 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         if (cancelled) return;
 
-        // Final update — fit bounds once at the end so map doesn't jump during loading
+        // Final update — remove outliers (mis-geocoded places far from the cluster),
+        // then fit bounds so the map frames the real locations correctly.
         if (allResults.length > 0) {
-          const routed = optimizeRoute(allResults);
+          const cleaned = removeOutliers(allResults);
+          const routed = optimizeRoute(cleaned);
           setLocations(routed);
           updateMarkers(routed);
           fitMapBounds(routed);
