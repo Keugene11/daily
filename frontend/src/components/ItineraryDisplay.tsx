@@ -156,7 +156,7 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
 
 /** Find which places from the media map appear in this section's text, skipping already-shown ones.
  *  Also deduplicates by videoId — different places can return the same YouTube video. */
-function getSectionPlaces(
+export function getSectionPlaces(
   sectionContent: string,
   allPlaces: string[],
   shownSet: Set<string>,
