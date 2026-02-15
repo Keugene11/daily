@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 2;
+const GEO_CACHE_VERSION = 3;
 
 interface GeoCacheEntry {
   lat: number;
@@ -216,9 +216,12 @@ export async function geocode(
     options.countrycodes = countryCode;
   }
 
-  // Include the country name in the query for maximum specificity
-  // e.g. "Eiffel Tower, Paris, France" instead of just "Eiffel Tower, Paris"
-  const query = country ? `${place}, ${city}, ${country}` : `${place}, ${city}`;
+  // For city-level queries, append country for specificity: "Eiffel Tower, Paris, France"
+  // For country-level queries (user typed a country name), skip appending the country —
+  // Nominatim fails when mixing scripts (e.g. "Shrine, Japan, 日本" returns nothing).
+  // The countrycodes parameter already constrains to the correct country.
+  const isWideArea = maxDistKm > MAX_DISTANCE_KM;
+  const query = (!isWideArea && country) ? `${place}, ${city}, ${country}` : `${place}, ${city}`;
 
   // For wide areas (countries/regions), don't use bounded=1 — it's too restrictive.
   // Just use countrycodes to keep results in the right country.
