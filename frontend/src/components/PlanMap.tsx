@@ -86,6 +86,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [locations, setLocations] = useState<MapLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [resolvedCount, setResolvedCount] = useState(0);
   const [totalPlaces, setTotalPlaces] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -231,16 +232,27 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       try {
         setLoading(true);
         setMapReady(false);
+        setMapError(null);
         destroyMap();
         setLocations([]);
         setResolvedCount(0);
 
         // Step 1: Load Leaflet + geocode the CITY to get a map center + country code
-        const [, cityResult] = await Promise.all([
+        // Retry geocodeCity once if it fails (Nominatim can rate-limit or timeout)
+        const [, firstTry] = await Promise.all([
           loadLeaflet(),
           geocodeCity(city),
         ]);
         if (cancelled) return;
+
+        let cityResult = firstTry;
+        if (!cityResult) {
+          console.warn('[PlanMap] geocodeCity failed, retrying in 2s...');
+          await new Promise(r => setTimeout(r, 2000));
+          if (cancelled) return;
+          cityResult = await geocodeCity(city);
+          if (cancelled) return;
+        }
 
         const cityCoords = cityResult ? { lat: cityResult.lat, lng: cityResult.lng } : null;
         const countryCode = cityResult?.countryCode;
@@ -252,12 +264,15 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         if (!(window as any).L) {
           console.error('[PlanMap] Leaflet failed to load');
+          setMapError('Map library failed to load');
           setLoading(false);
           return;
         }
 
-        // If city geocode failed, don't show a map at all — avoids showing wrong location
+        // If city geocode failed after retry, show error instead of permanent spinner
         if (!cityCoords) {
+          console.error('[PlanMap] geocodeCity returned null for:', city);
+          setMapError('Could not locate this destination');
           setLoading(false);
           return;
         }
@@ -333,7 +348,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         for (let i = 0; i < uncachedPlaces.length; i++) {
           if (cancelled) return;
-          if (i > 0) await new Promise(r => setTimeout(r, 1100));
+          // Wait 1100ms between Nominatim requests to respect rate limit (1 req/sec).
+          // Always delay — even the first call needs spacing after geocodeCity.
+          await new Promise(r => setTimeout(r, 1100));
 
           const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode, country, effectiveRadius);
           if (cancelled) return;
@@ -398,14 +415,20 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           style={{ width: '100%', height: '100%' }}
         />
 
-        {/* Loading overlay — sits on top until map tiles are ready */}
+        {/* Loading/error overlay — sits on top until map tiles are ready */}
         {!mapReady && (
           <div className="absolute inset-0 bg-surface flex flex-col items-center justify-center gap-2 z-[1000]">
-            <svg className="w-5 h-5 text-on-surface/20 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <p className="text-xs text-on-surface/30">Loading map...</p>
+            {mapError ? (
+              <p className="text-xs text-on-surface/30">{mapError}</p>
+            ) : (
+              <>
+                <svg className="w-5 h-5 text-on-surface/20 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <p className="text-xs text-on-surface/30">Loading map...</p>
+              </>
+            )}
           </div>
         )}
       </div>

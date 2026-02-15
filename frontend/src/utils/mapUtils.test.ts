@@ -8,6 +8,9 @@ import {
   setGeoCache,
   getCachedGeocode,
   cacheGeocode,
+  distanceKm,
+  boundingBoxRadiusKm,
+  MAX_DISTANCE_KM,
   MapLocation,
 } from './mapUtils';
 
@@ -266,5 +269,68 @@ describe('geocode cache', () => {
   it('handles corrupted localStorage gracefully', () => {
     localStorage.setItem('daily_geocache', 'not valid json!!!');
     expect(getGeoCache()).toEqual({});
+  });
+});
+
+// ── distanceKm ──────────────────────────────────────────────────────
+
+describe('distanceKm', () => {
+  it('returns 0 for same point', () => {
+    expect(distanceKm(35, 139, 35, 139)).toBe(0);
+  });
+
+  it('computes distance between Tokyo and Kyoto (~370 km)', () => {
+    const d = distanceKm(35.6762, 139.6503, 35.0116, 135.7681);
+    expect(d).toBeGreaterThan(350);
+    expect(d).toBeLessThan(400);
+  });
+
+  it('computes distance between NYC and London (~5570 km)', () => {
+    const d = distanceKm(40.7128, -74.006, 51.5074, -0.1278);
+    expect(d).toBeGreaterThan(5500);
+    expect(d).toBeLessThan(5700);
+  });
+});
+
+// ── boundingBoxRadiusKm ─────────────────────────────────────────────
+
+describe('boundingBoxRadiusKm', () => {
+  it('returns large radius for Japan bounding box', () => {
+    // Japan: [south=20.21, north=45.71, west=122.71, east=154.21]
+    const radius = boundingBoxRadiusKm([20.21, 45.71, 122.71, 154.21]);
+    expect(radius).toBeGreaterThan(1500); // Japan spans ~3000km+
+    expect(radius).toBeLessThan(2500);
+  });
+
+  it('returns small radius for city bounding box (Paris)', () => {
+    // Paris: roughly [48.81, 48.90, 2.22, 2.47]
+    const radius = boundingBoxRadiusKm([48.81, 48.90, 2.22, 2.47]);
+    expect(radius).toBeLessThan(20); // Paris is ~10km across
+  });
+
+  it('country radius exceeds MAX_DISTANCE_KM', () => {
+    const japanRadius = boundingBoxRadiusKm([20.21, 45.71, 122.71, 154.21]);
+    expect(japanRadius).toBeGreaterThan(MAX_DISTANCE_KM);
+  });
+
+  it('city radius is smaller than MAX_DISTANCE_KM', () => {
+    const parisRadius = boundingBoxRadiusKm([48.81, 48.90, 2.22, 2.47]);
+    expect(parisRadius).toBeLessThan(MAX_DISTANCE_KM);
+  });
+
+  it('effective radius for Japan allows Tokyo-to-Kyoto distance', () => {
+    const japanRadius = boundingBoxRadiusKm([20.21, 45.71, 122.71, 154.21]);
+    const effectiveRadius = Math.max(japanRadius, MAX_DISTANCE_KM);
+    // Tokyo to Kyoto is ~370 km — must be within the effective radius
+    const tokyoToKyoto = distanceKm(35.6762, 139.6503, 35.0116, 135.7681);
+    expect(tokyoToKyoto).toBeLessThan(effectiveRadius);
+  });
+
+  it('effective radius for Japan allows Tokyo-to-Okinawa distance', () => {
+    const japanRadius = boundingBoxRadiusKm([20.21, 45.71, 122.71, 154.21]);
+    const effectiveRadius = Math.max(japanRadius, MAX_DISTANCE_KM);
+    // Japan center to Okinawa is ~1500 km — must be within radius
+    const centerToOkinawa = distanceKm(36.57, 139.24, 26.34, 127.77);
+    expect(centerToOkinawa).toBeLessThan(effectiveRadius);
   });
 });
