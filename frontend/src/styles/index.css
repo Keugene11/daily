@@ -40,6 +40,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Leaflet overrides — remove default white square behind custom divIcon markers */
+.leaflet-div-icon {
+  background: none !important;
+  border: none !important;
+}
+
 /* Animations */
 @keyframes slideInUp {
   from { opacity: 0; transform: translateY(16px); }

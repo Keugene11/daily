@@ -120,20 +120,16 @@ export async function geocodeQuery(query: string): Promise<{ lat: number; lng: n
   return null;
 }
 
-// Geocode a place — tries "place, city" then just "place". Checks cache first.
+// Geocode a place within a city. Only tries "place, city" — never falls back to
+// place alone, which can return locations anywhere in the world.
 export async function geocode(place: string, city: string): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
   if (cached) return cached;
 
-  const queries = [`${place}, ${city}`, place];
-  for (const q of queries) {
-    const coords = await geocodeQuery(q);
-    if (coords) {
-      cacheGeocode(place, city, coords);
-      return coords;
-    }
-    // Nominatim requires 1 request per second
-    await new Promise(r => setTimeout(r, 1100));
+  const coords = await geocodeQuery(`${place}, ${city}`);
+  if (coords) {
+    cacheGeocode(place, city, coords);
+    return coords;
   }
   return null;
 }

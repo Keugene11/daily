@@ -46,14 +46,21 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
       names.push(label);
     });
 
-    // From **bold** text — only if it looks like a venue name
+    // From **bold** text — only if it looks like a venue name (strict filtering)
     const boldMatches = text.match(/\*\*([^*]+)\*\*/g) || [];
     boldMatches.forEach(m => {
       const name = m.replace(/\*\*/g, '').trim();
       // Skip bold text that's clearly not a venue
-      if (!/^(pro tip|tip|note|save|deal|free|warning|heads up|budget|cost|price)/i.test(name)) {
-        names.push(name);
-      }
+      if (/^(pro tip|tip|note|save|deal|free|warning|heads up|budget|cost|price)/i.test(name)) return;
+      // Skip food/drink items (dish names, cuisine types)
+      if (/^(the |a |an |order |try |get |grab |skip )/i.test(name)) return;
+      // Skip prices and percentages
+      if (/^\$|^\d|\d+%/.test(name)) return;
+      // Skip time-related, transport, and generic action phrases
+      if (/^(open|closed|hours|daily|cash only|reserv|book|uber|lyft|taxi|subway|walk|since it|today|tonight)/i.test(name)) return;
+      // Skip if too short (likely abbreviations or noise)
+      if (name.length <= 3) return;
+      names.push(name);
     });
 
     return names;

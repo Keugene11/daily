@@ -158,7 +158,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     return true;
   }, [destroyMap]);
 
-  // Update markers and route line on the existing map (no destroy/recreate)
+  // Update markers and route line on the existing map (no destroy/recreate).
+  // Expects locs to be already in display order. Does NOT fit bounds — caller decides.
   const updateMarkers = useCallback((locs: MapLocation[]) => {
     const L = (window as any).L;
     const map = mapInstanceRef.current;
@@ -172,10 +173,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       routeLineRef.current = null;
     }
 
-    const routed = optimizeRoute(locs);
-
     // Add markers
-    routed.forEach((loc, i) => {
+    locs.forEach((loc, i) => {
       const icon = L.divIcon({
         className: 'custom-marker',
         html: `<div style="
@@ -195,18 +194,29 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     });
 
     // Draw route line
-    if (routed.length > 1) {
+    if (locs.length > 1) {
       const isDark = document.documentElement.classList.contains('dark');
-      const coords = routed.map(l => [l.lat, l.lng] as [number, number]);
+      const coords = locs.map(l => [l.lat, l.lng] as [number, number]);
       routeLineRef.current = L.polyline(coords, {
         color: isDark ? '#6366F1' : '#3B82F6',
         weight: 2,
         opacity: 0.5,
         dashArray: '8, 8',
       }).addTo(map);
+    }
+  }, []);
 
-      const bounds = L.latLngBounds(coords);
+  // Fit map bounds to show all current markers
+  const fitMapBounds = useCallback((locs: MapLocation[]) => {
+    const L = (window as any).L;
+    const map = mapInstanceRef.current;
+    if (!L || !map || locs.length === 0) return;
+
+    if (locs.length > 1) {
+      const bounds = L.latLngBounds(locs.map(l => [l.lat, l.lng]));
       map.fitBounds(bounds, { padding: [40, 40] });
+    } else {
+      map.setView([locs[0].lat, locs[0].lng], 15);
     }
   }, []);
 
@@ -278,9 +288,11 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         // Show cached results immediately
         if (cached.length > 0) {
-          setLocations(cached);
+          const routed = optimizeRoute(cached);
+          setLocations(routed);
           setResolvedCount(cached.length);
-          updateMarkers(cached);
+          updateMarkers(routed);
+          fitMapBounds(routed);
         }
 
         // Geocode uncached places, adding markers incrementally
@@ -304,11 +316,12 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         if (cancelled) return;
 
-        // Final update
+        // Final update — fit bounds once at the end so map doesn't jump during loading
         if (allResults.length > 0) {
           const routed = optimizeRoute(allResults);
           setLocations(routed);
           updateMarkers(routed);
+          fitMapBounds(routed);
         }
         setLoading(false);
       } catch (err) {
@@ -322,7 +335,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       cancelled = true;
       destroyMap();
     };
-  }, [content, city, destroyMap, createMap, updateMarkers]);
+  }, [content, city, destroyMap, createMap, updateMarkers, fitMapBounds]);
 
   return (
     <div className="mb-8 animate-fadeIn">
