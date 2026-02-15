@@ -8,14 +8,21 @@ export interface PlaceMediaData {
   videoId?: string;
 }
 
-// ── Media cache (localStorage, 3-day TTL) ──────────────────────────
+// ── Media cache (localStorage, 3-day TTL, versioned) ────────────────
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days
+// Bump to invalidate all cached media entries (forces re-fetch with new scoring)
+const MEDIA_CACHE_VERSION = 2;
 
 interface MediaCacheEntry {
   imageUrl?: string;
   videoId?: string;
   ts: number;
+}
+
+interface MediaCacheStore {
+  _v?: number;
+  [key: string]: MediaCacheEntry | number | undefined;
 }
 
 // In-memory cache to avoid repeated localStorage reads
@@ -26,7 +33,14 @@ let _mediaCacheFlushTimer: ReturnType<typeof setTimeout> | null = null;
 function getMediaCache(): Record<string, MediaCacheEntry> {
   if (!_mediaCacheInMemory) {
     try {
-      _mediaCacheInMemory = JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
+      const raw: MediaCacheStore = JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
+      if (raw._v !== MEDIA_CACHE_VERSION) {
+        localStorage.removeItem(MEDIA_CACHE_KEY);
+        _mediaCacheInMemory = {};
+      } else {
+        const { _v, ...entries } = raw;
+        _mediaCacheInMemory = entries as Record<string, MediaCacheEntry>;
+      }
     } catch { _mediaCacheInMemory = {}; }
   }
   return _mediaCacheInMemory!;
@@ -39,7 +53,7 @@ function setMediaCache(cache: Record<string, MediaCacheEntry>) {
   if (_mediaCacheFlushTimer) clearTimeout(_mediaCacheFlushTimer);
   _mediaCacheFlushTimer = setTimeout(() => {
     if (_mediaCacheDirty && _mediaCacheInMemory) {
-      try { localStorage.setItem(MEDIA_CACHE_KEY, JSON.stringify(_mediaCacheInMemory)); } catch {}
+      try { localStorage.setItem(MEDIA_CACHE_KEY, JSON.stringify({ ..._mediaCacheInMemory, _v: MEDIA_CACHE_VERSION })); } catch {}
       _mediaCacheDirty = false;
     }
   }, 2000);
@@ -127,9 +141,9 @@ async function fetchYouTubeVideoId(place: string, city: string, token?: string |
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Append "walking tour" to get cinematic/visual content about the place
-    // rather than random vlogs, reactions, or listicles
-    const query = `${place} ${city} walking tour`;
+    // Let YouTube surface the best result naturally — backend scoring
+    // handles quality ranking (views, verified channels, content type)
+    const query = `${place} ${city}`;
     const res = await fetch(
       `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
       { headers }
