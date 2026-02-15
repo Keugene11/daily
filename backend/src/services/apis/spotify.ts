@@ -1831,7 +1831,7 @@ function generateReason(t: Track, vibe: string, city?: string): string {
 
 export const spotifyService = {
   async getPlaylist(city: string, interests: string[], mood?: string): Promise<ToolResult<PlaylistSuggestion>> {
-    const TRACK_COUNT = 7;
+    const TRACK_COUNT = 5;
 
     // Build vibe context from mood + interests (used for both city and generic playlists)
     const moodVibes = moodToVibes(mood);
@@ -1844,8 +1844,8 @@ export const spotifyService = {
 
     if (cityKey) {
       const cityPlaylist = CITY_PLAYLISTS[cityKey];
-      // Pick 5 city-specific tracks + 2 vibe-matched tracks for variety
-      const cityPicks = pickRandom(cityPlaylist.tracks, Math.min(5, cityPlaylist.tracks.length));
+      // Pick 3 city-specific tracks + 2 vibe-matched tracks for variety
+      const cityPicks = pickRandom(cityPlaylist.tracks, Math.min(3, cityPlaylist.tracks.length));
 
       // Add vibe-matched tracks from the pools (avoids city playlist feeling stale)
       const vibePool: Track[] = [];
