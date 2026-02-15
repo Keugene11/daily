@@ -9,9 +9,11 @@ export interface MapLocation {
   lng: number;
 }
 
-// ── Geocode cache (localStorage, 7-day TTL) ──────────────────────────
+// ── Geocode cache (localStorage, 7-day TTL, versioned) ──────────────
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+// Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
+const GEO_CACHE_VERSION = 2;
 
 interface GeoCacheEntry {
   lat: number;
@@ -19,15 +21,27 @@ interface GeoCacheEntry {
   ts: number;
 }
 
+interface GeoCacheStore {
+  _v?: number;
+  [key: string]: GeoCacheEntry | number | undefined;
+}
+
 export function getGeoCache(): Record<string, GeoCacheEntry> {
   try {
-    return JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || '{}');
+    const raw: GeoCacheStore = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || '{}');
+    // If cache version doesn't match, wipe everything — old entries were saved without constraints
+    if (raw._v !== GEO_CACHE_VERSION) {
+      localStorage.removeItem(GEO_CACHE_KEY);
+      return {};
+    }
+    const { _v, ...entries } = raw;
+    return entries as Record<string, GeoCacheEntry>;
   } catch { return {}; }
 }
 
 export function setGeoCache(cache: Record<string, GeoCacheEntry>) {
   try {
-    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ...cache, _v: GEO_CACHE_VERSION }));
   } catch { /* quota exceeded — ignore */ }
 }
 
@@ -130,11 +144,12 @@ export async function geocodeQuery(
   return null;
 }
 
-// Geocode a city and return its coordinates + country code for constraining place queries
+// Geocode a city and return its coordinates + country info for constraining place queries
 export interface CityGeoResult {
   lat: number;
   lng: number;
   countryCode?: string;
+  country?: string;
 }
 
 export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
@@ -153,6 +168,7 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
         lat: parseFloat(data[0].lat),
         lng: parseFloat(data[0].lon),
         countryCode: data[0].address?.country_code || undefined,
+        country: data[0].address?.country || undefined,
       };
     }
   } catch { /* timeout or network error */ }
@@ -170,7 +186,8 @@ export async function geocode(
   place: string,
   city: string,
   cityCoords?: { lat: number; lng: number },
-  countryCode?: string
+  countryCode?: string,
+  country?: string
 ): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
   if (cached) {
@@ -187,8 +204,12 @@ export async function geocode(
     options.countrycodes = countryCode;
   }
 
+  // Include the country name in the query for maximum specificity
+  // e.g. "Eiffel Tower, Paris, France" instead of just "Eiffel Tower, Paris"
+  const query = country ? `${place}, ${city}, ${country}` : `${place}, ${city}`;
+
   const coords = await geocodeQuery(
-    `${place}, ${city}`,
+    query,
     Object.keys(options).length > 0 ? options : undefined
   );
   if (coords) {

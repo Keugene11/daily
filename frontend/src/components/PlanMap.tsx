@@ -243,6 +243,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         const cityCoords = cityResult ? { lat: cityResult.lat, lng: cityResult.lng } : null;
         const countryCode = cityResult?.countryCode;
+        const country = cityResult?.country;
 
         if (!(window as any).L) {
           console.error('[PlanMap] Leaflet failed to load');
@@ -250,12 +251,15 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Step 2: Create the map immediately with the city center
-        // The map container div is ALWAYS in the DOM, so this always works
-        const center: [number, number] = cityCoords
-          ? [cityCoords.lat, cityCoords.lng]
-          : [40.7128, -74.006]; // fallback to NYC if city geocode fails
-        const created = createMap(center, cityCoords ? 12 : 3);
+        // If city geocode failed, don't show a map at all — avoids showing wrong location
+        if (!cityCoords) {
+          setLoading(false);
+          return;
+        }
+
+        // Step 2: Create the map centered on the city
+        const center: [number, number] = [cityCoords.lat, cityCoords.lng];
+        const created = createMap(center, 12);
         if (!created) {
           console.error('[PlanMap] Failed to create map — container not ready');
           setLoading(false);
@@ -325,7 +329,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           if (cancelled) return;
           if (i > 0) await new Promise(r => setTimeout(r, 1100));
 
-          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode);
+          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode, country);
           if (cancelled) return;
 
           if (coords && isNearCity(coords)) {
