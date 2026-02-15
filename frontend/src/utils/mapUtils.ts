@@ -84,6 +84,23 @@ export function optimizeRoute(locs: MapLocation[]): MapLocation[] {
   return ordered;
 }
 
+// Max distance (km) a geocoded place can be from the city center before we discard it
+export const MAX_DISTANCE_KM = 80;
+
+// Haversine distance in km between two lat/lng points
+export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // Geocode a single query string using Nominatim
 export async function geocodeQuery(query: string): Promise<{ lat: number; lng: number } | null> {
   try {

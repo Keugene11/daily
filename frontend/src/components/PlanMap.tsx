@@ -7,6 +7,8 @@ import {
   geocodeQuery,
   optimizeRoute,
   detectDayCount,
+  distanceKm,
+  MAX_DISTANCE_KM,
   MARKER_COLORS,
 } from '../utils/mapUtils';
 
@@ -256,13 +258,19 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
+        // Helper: check if coords are within range of city center
+        const isNearCity = (coords: { lat: number; lng: number }) =>
+          !cityCoords || distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
+
         // Separate cached (instant) from uncached (needs API) places
         const cached: MapLocation[] = [];
         const uncachedPlaces: string[] = [];
         for (const place of places) {
           const coords = getCachedGeocode(place, city);
           if (coords) {
-            cached.push({ name: place, ...coords });
+            if (isNearCity(coords)) {
+              cached.push({ name: place, ...coords });
+            }
           } else {
             uncachedPlaces.push(place);
           }
@@ -285,7 +293,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           const coords = await geocode(uncachedPlaces[i], city);
           if (cancelled) return;
 
-          if (coords) {
+          if (coords && isNearCity(coords)) {
             allResults.push({ name: uncachedPlaces[i], ...coords });
             const routed = optimizeRoute([...allResults]);
             setLocations(routed);

@@ -208,7 +208,7 @@ ${timeSections}
 [Include 3-4 accommodation options from get_accommodations tool data. For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description highlighting what makes it special. Mix budget levels. Use the "link" field from tool data for the markdown link.]
 
 ## Soundtrack
-[Include the playlist name and each track as a markdown link: [Track Title - Artist](spotifyUrl). Use the spotifyUrl from the tool data. Include the playlistUrl as an "Open in Spotify" link.]
+[Include the playlist name and EXACTLY 5 tracks as markdown links: [Track Title - Artist](spotifyUrl). Use the spotifyUrl from the tool data. Do NOT add extra songs beyond the 5 returned by the playlist tool. Include the playlistUrl as an "Open in Spotify" link.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
