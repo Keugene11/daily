@@ -175,9 +175,10 @@ function capSoundtrackTracks(text: string): string {
   let trackCount = 0;
   const kept: string[] = [];
   for (const line of lines) {
-    // Track lines are markdown links with spotify URLs or numbered/bulleted song entries
-    const isTrackLine = /\[.+?\]\(https?:\/\/open\.spotify\.com/.test(line) ||
-      /^\s*(\d+\.|[-•*])\s*\[/.test(line);
+    // Any numbered or bulleted line inside Soundtrack is a track entry
+    // (covers links, plain text, bold, etc.)
+    const isTrackLine = /^\s*(\d+\.|[-•*])\s+/.test(line) ||
+      /\[.+?\]\(https?:\/\/open\.spotify\.com/.test(line);
     if (isTrackLine) {
       trackCount++;
       if (trackCount > 5) continue; // drop extra tracks
