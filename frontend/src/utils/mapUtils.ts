@@ -117,7 +117,7 @@ export async function geocodeQuery(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=dailyplanner@app.dev`;
-    if (options?.viewbox) url += `&viewbox=${options.viewbox}&bounded=0`;
+    if (options?.viewbox) url += `&viewbox=${options.viewbox}&bounded=1`;
     if (options?.countrycodes) url += `&countrycodes=${options.countrycodes}`;
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
@@ -159,8 +159,13 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
   return null;
 }
 
+// Check if coords are within MAX_DISTANCE_KM of a reference point
+function isWithinRange(coords: { lat: number; lng: number }, ref: { lat: number; lng: number }): boolean {
+  return distanceKm(ref.lat, ref.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
+}
+
 // Geocode a place within a city. Uses viewbox + country code to constrain results
-// to the correct geographic area.
+// to the correct geographic area. Validates distance before caching.
 export async function geocode(
   place: string,
   city: string,
@@ -168,7 +173,11 @@ export async function geocode(
   countryCode?: string
 ): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
-  if (cached) return cached;
+  if (cached) {
+    // Validate cached results against city coords — reject stale bad entries
+    if (cityCoords && !isWithinRange(cached, cityCoords)) return null;
+    return cached;
+  }
 
   const options: { viewbox?: string; countrycodes?: string } = {};
   if (cityCoords) {
@@ -183,6 +192,8 @@ export async function geocode(
     Object.keys(options).length > 0 ? options : undefined
   );
   if (coords) {
+    // Validate distance before caching — never store bad results
+    if (cityCoords && !isWithinRange(coords, cityCoords)) return null;
     cacheGeocode(place, city, coords);
     return coords;
   }

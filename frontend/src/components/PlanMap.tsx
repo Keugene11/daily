@@ -5,6 +5,8 @@ import {
   getCachedGeocode,
   geocode,
   geocodeCity,
+  getGeoCache,
+  setGeoCache,
   optimizeRoute,
   detectDayCount,
   distanceKm,
@@ -260,6 +262,23 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
         setMapReady(true);
+
+        // Purge cached geocodes that are far from this city (clears pre-fix bad entries)
+        if (cityCoords) {
+          const cache = getGeoCache();
+          const cityKey = `|||${city.toLowerCase()}`;
+          let purged = false;
+          for (const key of Object.keys(cache)) {
+            if (key.toLowerCase().endsWith(cityKey)) {
+              const entry = cache[key];
+              if (distanceKm(cityCoords.lat, cityCoords.lng, entry.lat, entry.lng) > MAX_DISTANCE_KM) {
+                delete cache[key];
+                purged = true;
+              }
+            }
+          }
+          if (purged) setGeoCache(cache);
+        }
 
         // Step 3: Extract places and geocode them, adding markers progressively
         const dayCount = detectDayCount(content);
