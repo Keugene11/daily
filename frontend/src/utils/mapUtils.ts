@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 4;
+const GEO_CACHE_VERSION = 5;
 
 interface GeoCacheEntry {
   lat: number;
@@ -242,10 +242,29 @@ export async function geocode(
     Object.keys(queryOptions).length > 0 ? queryOptions : undefined
   );
   if (coords) {
-    // Validate distance before caching — never store bad results
-    if (cityCoords && !isWithinRange(coords, cityCoords, maxDistKm)) return null;
-    cacheGeocode(place, city, coords);
-    return coords;
+    if (!cityCoords || isWithinRange(coords, cityCoords, maxDistKm)) {
+      cacheGeocode(place, city, coords);
+      return coords;
+    }
+    // Result was out of range — fall through to fallback
   }
+
+  // Fallback: query with just the place name + viewbox/countrycodes.
+  // Helps when the city name isn't a recognized city (e.g. "Yosemite" is a park,
+  // so "Half Dome, Yosemite, United States" returns wrong results, but
+  // "Half Dome" with the viewbox constraint returns the correct one).
+  if (options.viewbox || options.countrycodes) {
+    const fallbackOptions: { viewbox?: string; countrycodes?: string } = {};
+    if (options.viewbox) fallbackOptions.viewbox = options.viewbox;
+    if (options.countrycodes) fallbackOptions.countrycodes = options.countrycodes;
+    const fallback = await geocodeQuery(place, fallbackOptions);
+    if (fallback) {
+      if (!cityCoords || isWithinRange(fallback, cityCoords, maxDistKm)) {
+        cacheGeocode(place, city, fallback);
+        return fallback;
+      }
+    }
+  }
+
   return null;
 }
