@@ -169,6 +169,24 @@ function RichText({ text }: { text: string }) {
   return <>{renderInline(text)}</>;
 }
 
+/** Cap a Soundtrack section to at most 5 track lines */
+function capSoundtrackTracks(text: string): string {
+  const lines = text.split('\n');
+  let trackCount = 0;
+  const kept: string[] = [];
+  for (const line of lines) {
+    // Track lines are markdown links with spotify URLs or numbered/bulleted song entries
+    const isTrackLine = /\[.+?\]\(https?:\/\/open\.spotify\.com/.test(line) ||
+      /^\s*(\d+\.|[-•*])\s*\[/.test(line);
+    if (isTrackLine) {
+      trackCount++;
+      if (trackCount > 5) continue; // drop extra tracks
+    }
+    kept.push(line);
+  }
+  return kept.join('\n');
+}
+
 function FormattedContent({ text }: { text: string }) {
   const lines = text.split('\n');
   return (
@@ -437,7 +455,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
                     mediaData={mediaData}
                   />
                 ) : (
-                  <FormattedContent text={slot.content} />
+                  <FormattedContent text={isSoundtrack ? capSoundtrackTracks(slot.content) : slot.content} />
                 )}
                 {!isSoundtrack && city && (
                   <InstagramCaption

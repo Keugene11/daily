@@ -51,7 +51,9 @@ function loadYouTubeApi(): Promise<void> {
   return _ytApiReady;
 }
 
-export const MusicPlayer: React.FC<Props> = ({ playlist }) => {
+export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
+  // Always cap at 5 tracks regardless of what the backend returns
+  const playlist = { ...rawPlaylist, tracks: rawPlaylist.tracks.slice(0, 5) };
   const [currentTrack, setCurrentTrack] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(4); // 0-100 for YT API
