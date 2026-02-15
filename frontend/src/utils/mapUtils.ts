@@ -103,23 +103,34 @@ export const MAX_DISTANCE_KM = 80;
 
 /**
  * Remove outlier locations that are far from the main cluster.
- * A hotel that geocoded to the wrong country shows up as a lone pin
- * hundreds of km from everything else — this filters those out.
+ * Uses an iterative approach: remove the worst outlier, recompute
+ * centroid and median, repeat. This handles multiple outliers because
+ * after removing the first, the centroid and median better represent
+ * the true cluster (a single pass fails when 2+ outliers pull the
+ * centroid and inflate the median).
  */
 export function removeOutliers(locs: MapLocation[]): MapLocation[] {
-  if (locs.length <= 3) return locs;
-  // Compute centroid
-  const cLat = locs.reduce((s, l) => s + l.lat, 0) / locs.length;
-  const cLng = locs.reduce((s, l) => s + l.lng, 0) / locs.length;
-  // Distance of each location from centroid
-  const dists = locs.map(l => distanceKm(cLat, cLng, l.lat, l.lng));
-  // Median distance
-  const sorted = [...dists].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  // Keep locations within 3× the median distance (or at least 30km to avoid
-  // filtering tight clusters where median ≈ 0)
-  const threshold = Math.max(median * 3, 30);
-  return locs.filter((_, i) => dists[i] <= threshold);
+  let current = [...locs];
+  while (current.length > 3) {
+    const n = current.length;
+    const cLat = current.reduce((s, l) => s + l.lat, 0) / n;
+    const cLng = current.reduce((s, l) => s + l.lng, 0) / n;
+    const dists = current.map(l => distanceKm(cLat, cLng, l.lat, l.lng));
+    const sorted = [...dists].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.max(median * 3, 30);
+    // Find the farthest point
+    let maxDist = 0;
+    let maxIdx = -1;
+    for (let i = 0; i < dists.length; i++) {
+      if (dists[i] > maxDist) { maxDist = dists[i]; maxIdx = i; }
+    }
+    // If the farthest point is within threshold, we're done
+    if (maxDist <= threshold) break;
+    // Remove the worst outlier and repeat
+    current.splice(maxIdx, 1);
+  }
+  return current;
 }
 
 // Haversine distance in km between two lat/lng points

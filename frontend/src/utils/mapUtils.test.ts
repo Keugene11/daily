@@ -394,4 +394,35 @@ describe('removeOutliers', () => {
     const result = removeOutliers(locs);
     expect(result.map(l => l.name)).not.toContain('Outlier');
   });
+
+  it('removes TWO outliers iteratively (Hungary scenario)', () => {
+    // 6 locations in Budapest + 2 far-away mis-geocoded places
+    const locs: MapLocation[] = [
+      { name: 'Parliament', lat: 47.507, lng: 19.045 },
+      { name: 'Buda Castle', lat: 47.496, lng: 19.039 },
+      { name: 'Széchenyi Baths', lat: 47.519, lng: 19.082 },
+      { name: 'Heroes Square', lat: 47.515, lng: 19.077 },
+      { name: 'Fishermans Bastion', lat: 47.502, lng: 19.035 },
+      { name: 'Great Market Hall', lat: 47.487, lng: 19.057 },
+      { name: 'Wrong Place 1', lat: 52.52, lng: 13.40 },  // Berlin — ~650km
+      { name: 'Wrong Place 2', lat: 41.90, lng: 12.50 },  // Rome — ~810km
+    ];
+    const result = removeOutliers(locs);
+    expect(result.map(l => l.name)).not.toContain('Wrong Place 1');
+    expect(result.map(l => l.name)).not.toContain('Wrong Place 2');
+    expect(result).toHaveLength(6);
+  });
+
+  it('does not over-remove from a genuine multi-city route', () => {
+    // Budapest + Vienna trip (~215km apart) — both clusters are legitimate
+    const locs: MapLocation[] = [
+      { name: 'Parliament', lat: 47.507, lng: 19.045 },
+      { name: 'Buda Castle', lat: 47.496, lng: 19.039 },
+      { name: 'Széchenyi Baths', lat: 47.519, lng: 19.082 },
+      { name: 'St Stephens', lat: 48.209, lng: 16.373 },  // Vienna
+      { name: 'Schönbrunn', lat: 48.185, lng: 16.312 },   // Vienna
+      { name: 'Belvedere', lat: 48.191, lng: 16.381 },    // Vienna
+    ];
+    expect(removeOutliers(locs)).toHaveLength(6);
+  });
 });
