@@ -4,7 +4,7 @@ import {
   MapLocation,
   getCachedGeocode,
   geocode,
-  geocodeQuery,
+  geocodeCity,
   optimizeRoute,
   detectDayCount,
   distanceKm,
@@ -232,12 +232,15 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         setLocations([]);
         setResolvedCount(0);
 
-        // Step 1: Load Leaflet + geocode the CITY to get a map center immediately
-        const [, cityCoords] = await Promise.all([
+        // Step 1: Load Leaflet + geocode the CITY to get a map center + country code
+        const [, cityResult] = await Promise.all([
           loadLeaflet(),
-          geocodeQuery(city),
+          geocodeCity(city),
         ]);
         if (cancelled) return;
+
+        const cityCoords = cityResult ? { lat: cityResult.lat, lng: cityResult.lng } : null;
+        const countryCode = cityResult?.countryCode;
 
         if (!(window as any).L) {
           console.error('[PlanMap] Leaflet failed to load');
@@ -268,9 +271,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Helper: check if coords are within range of city center
+        // Helper: check if coords are within range of city center.
+        // If city geocode failed, reject ALL results — we can't verify they're correct.
         const isNearCity = (coords: { lat: number; lng: number }) =>
-          !cityCoords || distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
+          !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= MAX_DISTANCE_KM;
 
         // Separate cached (instant) from uncached (needs API) places
         const cached: MapLocation[] = [];
@@ -302,7 +306,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           if (cancelled) return;
           if (i > 0) await new Promise(r => setTimeout(r, 1100));
 
-          const coords = await geocode(uncachedPlaces[i], city);
+          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode);
           if (cancelled) return;
 
           if (coords && isNearCity(coords)) {

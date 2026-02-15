@@ -101,15 +101,25 @@ export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Convert center + radius to Nominatim viewbox string (lon1,lat1,lon2,lat2)
+function toViewbox(lat: number, lng: number, radiusKm: number): string {
+  const latDeg = radiusKm / 111;
+  const lngDeg = radiusKm / (111 * Math.cos((lat * Math.PI) / 180));
+  return `${lng - lngDeg},${lat + latDeg},${lng + lngDeg},${lat - latDeg}`;
+}
+
 // Geocode a single query string using Nominatim
-export async function geocodeQuery(query: string): Promise<{ lat: number; lng: number } | null> {
+export async function geocodeQuery(
+  query: string,
+  options?: { viewbox?: string; countrycodes?: string }
+): Promise<{ lat: number; lng: number } | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=dailyplanner@app.dev`,
-      { signal: controller.signal }
-    );
+    let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=dailyplanner@app.dev`;
+    if (options?.viewbox) url += `&viewbox=${options.viewbox}&bounded=0`;
+    if (options?.countrycodes) url += `&countrycodes=${options.countrycodes}`;
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
@@ -120,13 +130,58 @@ export async function geocodeQuery(query: string): Promise<{ lat: number; lng: n
   return null;
 }
 
-// Geocode a place within a city. Only tries "place, city" — never falls back to
-// place alone, which can return locations anywhere in the world.
-export async function geocode(place: string, city: string): Promise<{ lat: number; lng: number } | null> {
+// Geocode a city and return its coordinates + country code for constraining place queries
+export interface CityGeoResult {
+  lat: number;
+  lng: number;
+  countryCode?: string;
+}
+
+export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1&addressdetails=1&email=dailyplanner@app.dev`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+        countryCode: data[0].address?.country_code || undefined,
+      };
+    }
+  } catch { /* timeout or network error */ }
+  return null;
+}
+
+// Geocode a place within a city. Uses viewbox + country code to constrain results
+// to the correct geographic area.
+export async function geocode(
+  place: string,
+  city: string,
+  cityCoords?: { lat: number; lng: number },
+  countryCode?: string
+): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
   if (cached) return cached;
 
-  const coords = await geocodeQuery(`${place}, ${city}`);
+  const options: { viewbox?: string; countrycodes?: string } = {};
+  if (cityCoords) {
+    options.viewbox = toViewbox(cityCoords.lat, cityCoords.lng, MAX_DISTANCE_KM);
+  }
+  if (countryCode) {
+    options.countrycodes = countryCode;
+  }
+
+  const coords = await geocodeQuery(
+    `${place}, ${city}`,
+    Object.keys(options).length > 0 ? options : undefined
+  );
   if (coords) {
     cacheGeocode(place, city, coords);
     return coords;
