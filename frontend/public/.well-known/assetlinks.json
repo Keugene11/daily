@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.daily.planner",
+    "sha256_cert_fingerprints": [
+      "FE:CD:5B:2B:7D:E5:A7:27:EE:D5:29:12:BD:93:D7:73:D5:57:10:C9:08:3E:FA:EA:3A:85:D5:4F:07:E2:89:F8"
+    ]
+  }
+}]
