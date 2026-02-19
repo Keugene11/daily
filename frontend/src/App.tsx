@@ -285,8 +285,7 @@ function App() {
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
-          {user && <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>}
-          <span>about</span>
+          <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
 
           <button
             onClick={() => setDark(!dark)}
@@ -303,37 +302,6 @@ function App() {
               </svg>
             )}
           </button>
-
-          {/* User avatar — links to profile */}
-          {user && (
-            <button
-              onClick={() => { setView('profile'); reset(); }}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              title="Profile"
-            >
-              {user.user_metadata?.avatar_url ? (
-                <img
-                  src={user.user_metadata.avatar_url}
-                  alt=""
-                  className="w-7 h-7 rounded-full"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-on-surface/10 flex items-center justify-center text-xs text-on-surface/50">
-                  {(user.email || '?')[0]?.toUpperCase()}
-                </div>
-              )}
-            </button>
-          )}
-
-          <a
-            href="https://www.dedaluslabs.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-1.5 border border-on-surface/20 rounded-full text-on-surface/80 hover:bg-on-surface/5 transition-colors"
-          >
-            Dedalus SDK
-          </a>
         </div>
       </nav>
 
@@ -348,7 +316,7 @@ function App() {
       )}
 
       {/* Profile View */}
-      {view === 'profile' && user && (
+      {view === 'profile' && (
         <ProfilePage
           user={user}
           planCount={savedPlans.length}

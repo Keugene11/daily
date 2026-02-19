@@ -2,21 +2,23 @@ import React from 'react';
 import { User } from '@supabase/supabase-js';
 
 interface Props {
-  user: User;
+  user: User | null;
   planCount: number;
   onClose: () => void;
   onSignOut: () => void;
 }
 
 export const ProfilePage: React.FC<Props> = ({ user, planCount, onClose, onSignOut }) => {
-  const name = user.user_metadata?.full_name || user.user_metadata?.name || null;
-  const email = user.email || 'No email';
-  const avatar = user.user_metadata?.avatar_url || null;
-  const createdAt = new Date(user.created_at).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const name = user?.user_metadata?.full_name || user?.user_metadata?.name || null;
+  const email = user?.email || 'Guest';
+  const avatar = user?.user_metadata?.avatar_url || null;
+  const createdAt = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null;
 
   return (
     <div className="max-w-md mx-auto px-6 py-16">
@@ -45,26 +47,32 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, onClose, onSignO
       </div>
 
       <div className="space-y-4 mb-10">
-        <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
-          <span className="text-sm text-on-surface/50">Member since</span>
-          <span className="text-sm">{createdAt}</span>
-        </div>
+        {createdAt && (
+          <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
+            <span className="text-sm text-on-surface/50">Member since</span>
+            <span className="text-sm">{createdAt}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
           <span className="text-sm text-on-surface/50">Plans created</span>
           <span className="text-sm">{planCount}</span>
         </div>
-        <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
-          <span className="text-sm text-on-surface/50">Sign-in method</span>
-          <span className="text-sm">Google</span>
-        </div>
+        {user && (
+          <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
+            <span className="text-sm text-on-surface/50">Sign-in method</span>
+            <span className="text-sm">Google</span>
+          </div>
+        )}
       </div>
 
-      <button
-        onClick={onSignOut}
-        className="w-full py-3 border border-red-500/30 text-red-400 rounded-full text-sm hover:bg-red-500/10 transition-colors"
-      >
-        Sign out
-      </button>
+      {user && (
+        <button
+          onClick={onSignOut}
+          className="w-full py-3 border border-red-500/30 text-red-400 rounded-full text-sm hover:bg-red-500/10 transition-colors"
+        >
+          Sign out
+        </button>
+      )}
     </div>
   );
 };
