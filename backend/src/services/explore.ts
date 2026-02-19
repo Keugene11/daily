@@ -34,20 +34,20 @@ function getClient(): Dedalus {
   if (!client) {
     client = new Dedalus({
       apiKey: process.env.DEDALUS_API_KEY || '',
-      timeout: 45000,
+      timeout: 30000,
     });
   }
   return client;
 }
 
 async function generateExplorePost(query: string, location: string, places: ExplorePlace[]): Promise<string> {
-  const placesWithReviews = places.filter(p => p.reviews.length > 0);
+  const placesWithReviews = places.filter(p => p.reviews.length > 0).slice(0, 6);
   if (placesWithReviews.length === 0) {
     return `No detailed reviews available for ${query} in ${location}.`;
   }
 
   const placeDescriptions = placesWithReviews.map((p, i) => {
-    const reviewBlock = p.reviews.map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
+    const reviewBlock = p.reviews.slice(0, 3).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
     const status = p.isOpen === true ? 'Open now' : p.isOpen === false ? 'Closed' : '';
     const price = p.priceLevel ? `Price level: ${p.priceLevel}` : '';
     const mapsLink = p.googleMapsUrl;
@@ -58,7 +58,7 @@ async function generateExplorePost(query: string, location: string, places: Expl
 
   try {
     const response = await dedalus.chat.completions.create({
-      model: 'anthropic/claude-sonnet-4-5',
+      model: 'anthropic/claude-haiku-4-5',
       messages: [
         {
           role: 'system',
@@ -70,7 +70,7 @@ async function generateExplorePost(query: string, location: string, places: Expl
         },
       ],
       temperature: 0.7,
-      max_tokens: 3000,
+      max_tokens: 1500,
     });
 
     return response.choices?.[0]?.message?.content || '';
