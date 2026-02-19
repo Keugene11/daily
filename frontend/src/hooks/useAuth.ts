@@ -3,7 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 // Skip auth when Supabase isn't configured OR in dev mode
-const SKIP_AUTH = !supabase || import.meta.env.DEV;
+const SKIP_AUTH = !supabase;
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);

@@ -14,6 +14,7 @@ import { OutfitSuggestion } from './components/OutfitSuggestion';
 import { usePlanStream } from './hooks/usePlanStream';
 import { useMediaEnrichment } from './hooks/useMediaEnrichment';
 import { useAuth } from './hooks/useAuth';
+import { usePlans } from './hooks/usePlans';
 import { LoginScreen } from './components/LoginScreen';
 import './styles/index.css';
 
@@ -40,11 +41,7 @@ function App() {
 
   // New feature state
   const [view, setView] = useState<'home' | 'history'>('home');
-  const [savedPlans, setSavedPlans] = useState<SavedPlan[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('daily_plans') || '[]');
-    } catch { return []; }
-  });
+  const { plans: savedPlans, savePlan, deletePlan } = usePlans(user);
   const planSavedRef = useRef(false);
 
   // New feature inputs
@@ -100,23 +97,15 @@ function App() {
         timestamp: Date.now(),
         days: tripDays > 1 ? tripDays : undefined,
       };
-      setSavedPlans(prev => {
-        const updated = [newPlan, ...prev].slice(0, 50);
-        localStorage.setItem('daily_plans', JSON.stringify(updated));
-        return updated;
-      });
+      savePlan(newPlan);
     }
     if (state.isStreaming) {
       planSavedRef.current = false;
     }
-  }, [state.isStreaming, state.content, city, interests, budget]);
+  }, [state.isStreaming, state.content, city, interests, budget, savePlan]);
 
   const handleDeletePlan = (id: string) => {
-    setSavedPlans(prev => {
-      const updated = prev.filter(p => p.id !== id);
-      localStorage.setItem('daily_plans', JSON.stringify(updated));
-      return updated;
-    });
+    deletePlan(id);
   };
 
   const handleSelectPlan = (plan: SavedPlan) => {
