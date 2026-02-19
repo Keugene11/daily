@@ -52,7 +52,7 @@ const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s
 const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:ing)?|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list|live stream|livestream|shorts|tiktok|compilation|meme|funny|cringe|exposed|canceled|cancelled|apology|rant|vent|asmr|gameplay|playthrough|let'?s play|blippi|cocomelon|peppa|paw patrol|sesame street|kids|for children|educational.*kids|nursery rhyme|cartoon|countdown|ball drop|new year'?s eve)\b/i;
 
 // Entertainment/celebrity content — not place-discovery content
-const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime)\b/i;
+const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime|broadway cast|original cast|musical|soundtrack|karaoke|sing along|lyrics?|remix|cover song|acoustic version)\b/i;
 
 // News/current-affairs content — not what we want for place discovery
 const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation)\b/i;
