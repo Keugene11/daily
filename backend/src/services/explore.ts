@@ -42,7 +42,9 @@ async function generateExplorePost(query: string, location: string, places: Expl
   const placeDescriptions = placesWithReviews.map((p, i) => {
     const reviewBlock = p.reviews.map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
     const status = p.isOpen === true ? 'Open now' : p.isOpen === false ? 'Closed' : '';
-    return `${i + 1}. "${p.name}" — ${p.rating ?? 'no'} stars, ${p.userRatingCount} reviews${status ? ', ' + status : ''}\n   ${p.address}\n${reviewBlock}`;
+    const price = p.priceLevel ? `Price level: ${p.priceLevel}` : '';
+    const mapsLink = p.googleMapsUrl;
+    return `${i + 1}. "${p.name}" — ${p.rating ?? 'no'} stars, ${p.userRatingCount} reviews${status ? ', ' + status : ''}${price ? ', ' + price : ''}\n   ${p.address}\n   Google Maps: ${mapsLink}\n${reviewBlock}`;
   }).join('\n\n');
 
   const dedalus = getClient();
@@ -53,7 +55,7 @@ async function generateExplorePost(query: string, location: string, places: Expl
       messages: [
         {
           role: 'system',
-          content: `You write honest, helpful local guides. Your tone is casual and knowledgeable — like a friend who actually lives in the area. Be specific: mention standout details from reviews (a particular barber, a signature dish, the vibe of the place). If there are complaints, include them honestly. Never use generic filler like "highly recommended" or "a must-visit". Bold each place name with **Name**. Write 2-3 sentences per place. Start with a 1-2 sentence intro. Write it as one continuous flowing text — no bullet points, no numbered lists, no headings.`,
+          content: `You write honest, helpful local guides. Your tone is casual and knowledgeable — like a friend who actually lives in the area. Be specific: mention standout details from reviews (a particular barber, a signature dish, the vibe of the place). If reviews mention specific prices (e.g. "$30 haircuts", "$15 for a fade", "$45 for cut and beard"), always include those exact prices. If a price level is provided ($, $$, $$$), mention it. If there are complaints, include them honestly. Never use generic filler like "highly recommended" or "a must-visit". Bold each place name as a link: **[Name](google maps url)**. Write 2-3 sentences per place. Start with a 1-2 sentence intro. Write it as one continuous flowing text — no bullet points, no numbered lists, no headings.`,
         },
         {
           role: 'user',
