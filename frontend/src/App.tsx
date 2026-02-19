@@ -7,6 +7,7 @@ import { WeatherCard } from './components/WeatherCard';
 import { MusicPlayer } from './components/MusicPlayer';
 import { CherryBlossoms } from './components/CherryBlossoms';
 import { PlanHistory, SavedPlan } from './components/PlanHistory';
+import { ProfilePage } from './components/ProfilePage';
 import { PlanGallery } from './components/PlanGallery';
 import { VoiceInput } from './components/VoiceInput';
 import { PlanMap } from './components/PlanMap';
@@ -40,7 +41,7 @@ function App() {
   });
 
   // New feature state
-  const [view, setView] = useState<'home' | 'history'>('home');
+  const [view, setView] = useState<'home' | 'history' | 'profile'>('home');
   const { plans: savedPlans, savePlan, deletePlan } = usePlans(user);
   const planSavedRef = useRef(false);
 
@@ -302,23 +303,27 @@ function App() {
             )}
           </button>
 
-          {/* User avatar + sign out */}
-          <div className="flex items-center gap-3">
-            {user?.user_metadata?.avatar_url && (
-              <img
-                src={user.user_metadata.avatar_url}
-                alt=""
-                className="w-7 h-7 rounded-full"
-                referrerPolicy="no-referrer"
-              />
-            )}
+          {/* User avatar — links to profile */}
+          {user && (
             <button
-              onClick={signOut}
-              className="text-on-surface/40 hover:text-on-surface/70 transition-colors"
+              onClick={() => { setView('profile'); reset(); }}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              title="Profile"
             >
-              Sign out
+              {user.user_metadata?.avatar_url ? (
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt=""
+                  className="w-7 h-7 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-on-surface/10 flex items-center justify-center text-xs text-on-surface/50">
+                  {(user.email || '?')[0]?.toUpperCase()}
+                </div>
+              )}
             </button>
-          </div>
+          )}
 
           <a
             href="https://www.dedaluslabs.ai"
@@ -338,6 +343,16 @@ function App() {
           onSelect={handleSelectPlan}
           onDelete={handleDeletePlan}
           onClose={() => setView('home')}
+        />
+      )}
+
+      {/* Profile View */}
+      {view === 'profile' && user && (
+        <ProfilePage
+          user={user}
+          planCount={savedPlans.length}
+          onClose={() => setView('home')}
+          onSignOut={signOut}
         />
       )}
 
