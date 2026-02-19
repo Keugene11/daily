@@ -285,6 +285,7 @@ function App() {
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
+          {user && <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>}
           <span>about</span>
 
           <button
