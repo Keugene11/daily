@@ -48,7 +48,6 @@ function App() {
 
   // New feature inputs
   const [mood, setMood] = useState('');
-  const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high' | ''>('');
   const [dietary, setDietary] = useState<string[]>([]);
   const [accessible, setAccessible] = useState(false);
   const [dateNight, setDateNight] = useState(false);
@@ -131,7 +130,6 @@ function App() {
     const extras: Record<string, any> = {};
     if (mood.trim()) extras.mood = mood.trim();
     extras.currentHour = new Date().getHours();
-    if (energyLevel) extras.energyLevel = energyLevel;
     if (dietary.length > 0) extras.dietary = dietary;
     if (accessible) extras.accessible = true;
     if (dateNight) extras.dateNight = true;
@@ -192,7 +190,6 @@ function App() {
     setInterests([]);
     setBudget('any');
     setMood('');
-    setEnergyLevel('');
     setDietary([]);
     setAccessible(false);
     setDateNight(false);
@@ -435,7 +432,7 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
               More options
-              {(energyLevel || dietary.length > 0 || accessible || dateNight || antiRoutine || recurring || tripDays > 1) && (
+              {(dietary.length > 0 || accessible || dateNight || antiRoutine || recurring || tripDays > 1) && (
                 <span className="w-1.5 h-1.5 rounded-full bg-accent" />
               )}
             </button>
@@ -443,35 +440,6 @@ function App() {
             {/* Collapsible Options */}
             {showMoreOptions && (
               <div className="space-y-5 animate-fadeIn">
-                {/* Energy Level */}
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-on-surface/40 mb-3">
-                    Energy Level
-                  </label>
-                  <div className="flex gap-2">
-                    {([
-                      { id: 'low', label: 'Exhausted', icon: '~' },
-                      { id: 'medium', label: 'Moderate', icon: '-' },
-                      { id: 'high', label: 'Wired', icon: '+' },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setEnergyLevel(energyLevel === opt.id ? '' : opt.id)}
-                        disabled={state.isStreaming}
-                        className={`px-4 py-1.5 rounded-full text-sm transition-all disabled:opacity-30 ${
-                          energyLevel === opt.id
-                            ? opt.id === 'low' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            : opt.id === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                            : 'bg-accent/20 text-accent border border-accent/30'
-                            : 'border border-on-surface/15 text-on-surface/50 hover:border-on-surface/30'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Dietary Restrictions */}
                 <div>
                   <label className="block text-[11px] uppercase tracking-[0.15em] text-on-surface/40 mb-3">
