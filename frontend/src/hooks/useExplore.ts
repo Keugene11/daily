@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export interface ExploreResult {
+export interface ExplorePlace {
   id: string;
   name: string;
   address: string;
@@ -12,18 +12,14 @@ export interface ExploreResult {
   userRatingCount: number;
   priceLevel: string | null;
   photoUrl: string | null;
-  summary: string;
   googleMapsUrl: string;
   types: string[];
   isOpen: boolean | null;
-  resultType?: 'place' | 'event';
-  time?: string;
-  isFree?: boolean;
-  category?: string;
 }
 
 interface UseExploreReturn {
-  results: ExploreResult[];
+  post: string;
+  places: ExplorePlace[];
   loading: boolean;
   error: string | null;
   searched: boolean;
@@ -32,7 +28,8 @@ interface UseExploreReturn {
 }
 
 export function useExplore(getAccessToken: () => Promise<string | null>): UseExploreReturn {
-  const [results, setResults] = useState<ExploreResult[]>([]);
+  const [post, setPost] = useState('');
+  const [places, setPlaces] = useState<ExplorePlace[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -47,7 +44,8 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
     setLoading(true);
     setError(null);
     setSearched(true);
-    setResults([]);
+    setPost('');
+    setPlaces([]);
 
     try {
       const token = await getAccessToken();
@@ -68,7 +66,8 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
       }
 
       const data = await res.json();
-      setResults(data.results || []);
+      setPost(data.post || '');
+      setPlaces(data.places || []);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setError(err.message || 'Something went wrong');
@@ -81,11 +80,12 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
-    setResults([]);
+    setPost('');
+    setPlaces([]);
     setLoading(false);
     setError(null);
     setSearched(false);
   }, []);
 
-  return { results, loading, error, searched, search, reset };
+  return { post, places, loading, error, searched, search, reset };
 }

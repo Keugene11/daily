@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { ExploreResult } from '../hooks/useExplore';
+import { ExplorePlace } from '../hooks/useExplore';
 import { MARKER_COLORS } from '../utils/mapUtils';
 
 interface Props {
-  results: ExploreResult[];
+  results: ExplorePlace[];
 }
 
 let _leafletPromise: Promise<void> | null = null;

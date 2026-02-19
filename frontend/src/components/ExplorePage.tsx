@@ -9,10 +9,69 @@ interface Props {
   onClose: () => void;
 }
 
+/** Render markdown-ish text: **bold**, [links](url), and paragraphs */
+function RenderPost({ text }: { text: string }) {
+  const paragraphs = text.split(/\n{2,}/);
+
+  return (
+    <>
+      {paragraphs.map((para, pi) => (
+        <p key={pi} className="mb-4 last:mb-0">
+          {renderInline(para.replace(/\n/g, ' '), pi)}
+        </p>
+      ))}
+    </>
+  );
+}
+
+function renderInline(text: string, keyBase: number): React.ReactNode[] {
+  // Match **bold-link** **[text](url)**, [link](url), or **bold**
+  const TOKEN = /\*\*\[([^\]]+)\]\(([^)]+)\)\*\*|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
+  const elements: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let i = 0;
+
+  while ((match = TOKEN.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      elements.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[1] !== undefined) {
+      // Bold link: **[text](url)**
+      elements.push(
+        <a key={`${keyBase}-${i++}`} href={match[2]} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+          <strong className="font-semibold text-on-surface/80">{match[1]}</strong>
+        </a>
+      );
+    } else if (match[3] !== undefined) {
+      // Link: [text](url)
+      elements.push(
+        <a key={`${keyBase}-${i++}`} href={match[4]} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+          {match[3]}
+        </a>
+      );
+    } else if (match[5] !== undefined) {
+      // Bold: **text**
+      elements.push(
+        <strong key={`${keyBase}-${i++}`} className="font-semibold text-on-surface/80">{match[5]}</strong>
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    elements.push(text.slice(lastIndex));
+  }
+
+  return elements;
+}
+
 export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
-  const { results, loading, error, searched, search } = useExplore(getAccessToken);
+  const { post, places, loading, error, searched, search } = useExplore(getAccessToken);
 
   // Save location to localStorage when it changes
   useEffect(() => {
@@ -87,23 +146,21 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
         </div>
       </div>
 
-      {/* Loading skeleton — flowing post style */}
+      {/* Loading skeleton */}
       {loading && (
-        <div className="animate-fadeIn">
-          <div className="h-7 bg-on-surface/5 rounded animate-pulse w-2/3 mb-3" />
-          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-1/3 mb-10" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i}>
-              {i > 0 && <div className="border-t border-on-surface/[0.06]" />}
-              <div className="py-8 space-y-3">
-                <div className="w-full h-48 bg-on-surface/5 rounded-xl animate-pulse" />
-                <div className="h-4 bg-on-surface/5 rounded animate-pulse w-1/2" />
-                <div className="h-3 bg-on-surface/5 rounded animate-pulse w-1/4" />
-                <div className="h-3 bg-on-surface/5 rounded animate-pulse w-full" />
-                <div className="h-3 bg-on-surface/5 rounded animate-pulse w-5/6" />
-              </div>
-            </div>
-          ))}
+        <div className="animate-fadeIn space-y-3">
+          <div className="h-7 bg-on-surface/5 rounded animate-pulse w-2/3 mb-6" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-5/6" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-0 mb-2" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-0 mb-2" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-on-surface/5 rounded animate-pulse w-2/3" />
         </div>
       )}
 
@@ -115,97 +172,23 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
         </div>
       )}
 
-      {/* Results — flowing post layout */}
-      {!loading && results.length > 0 && (
+      {/* Results — single flowing text block */}
+      {!loading && post && (
         <div className="animate-fadeIn">
-          <h2 className="text-2xl font-semibold tracking-tight mb-2">
+          <h2 className="text-2xl font-semibold tracking-tight mb-8">
             {query.charAt(0).toUpperCase() + query.slice(1)} in {location}
           </h2>
-          <p className="text-sm text-on-surface/40 mb-10">
-            {results.length} places
-          </p>
 
-          <div className="space-y-0">
-            {results.map((place, i) => (
-              <div
-                key={place.id}
-                className="animate-slideInUp"
-                style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}
-              >
-                {i > 0 && <div className="border-t border-on-surface/[0.06]" />}
-                <div className="py-8">
-                  {/* Photo */}
-                  {place.photoUrl && (
-                    <div className="rounded-xl overflow-hidden mb-4">
-                      <img
-                        src={place.photoUrl}
-                        alt={place.name}
-                        className="w-full h-52 object-cover"
-                        loading="lazy"
-                        onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Name */}
-                  <p className="text-sm font-medium text-on-surface/90 mb-1">
-                    <strong className="font-semibold text-on-surface/80">{place.name}</strong>
-                  </p>
-
-                  {/* Rating + status line */}
-                  <div className="flex items-center gap-2 text-xs text-on-surface/40 mb-3">
-                    {place.rating && (
-                      <span className="flex items-center gap-1">
-                        <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                        {place.rating.toFixed(1)}
-                        {place.userRatingCount > 0 && (
-                          <span className="text-on-surface/30">({place.userRatingCount.toLocaleString()})</span>
-                        )}
-                      </span>
-                    )}
-                    {place.rating && place.priceLevel && <span className="text-on-surface/20">·</span>}
-                    {place.priceLevel && <span>{place.priceLevel}</span>}
-                    {(place.rating || place.priceLevel) && place.isOpen !== null && <span className="text-on-surface/20">·</span>}
-                    {place.isOpen !== null && (
-                      <span className={place.isOpen ? 'text-green-500' : 'text-red-400'}>
-                        {place.isOpen ? 'Open now' : 'Closed'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Summary */}
-                  {place.summary && (
-                    <p className="text-[15px] leading-relaxed text-on-surface/60 mb-3">
-                      {place.summary}
-                    </p>
-                  )}
-
-                  {/* Address + Maps link */}
-                  <p className="text-[11px] text-on-surface/30">
-                    {place.address}
-                    {' · '}
-                    <a
-                      href={place.googleMapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      View on Maps
-                    </a>
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="text-[15px] leading-relaxed text-on-surface/60">
+            <RenderPost text={post} />
           </div>
 
-          <ExploreMap results={results} />
+          <ExploreMap results={places} />
         </div>
       )}
 
       {/* Empty state */}
-      {!loading && searched && results.length === 0 && !error && (
+      {!loading && searched && !post && !error && (
         <div className="text-center py-16 animate-fadeIn">
           <div className="text-4xl mb-4">~</div>
           <h2 className="text-xl font-semibold mb-2">No results found</h2>
