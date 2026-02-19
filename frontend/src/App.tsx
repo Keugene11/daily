@@ -704,13 +704,7 @@ function App() {
 
       {/* Footer */}
       <footer className="border-t border-on-surface/10 mt-auto px-8 py-6 text-center">
-        <p className="text-xs text-on-surface/30">
-          Powered by{' '}
-          <a href="https://www.dedaluslabs.ai" target="_blank" rel="noopener noreferrer" className="text-on-surface/50 hover:text-on-surface/70 transition-colors">
-            Dedalus
-          </a>
-          {' '}&middot; Real-time AI tool calling demo
-        </p>
+        <p className="text-xs text-on-surface/30">AI-powered daily planning</p>
       </footer>
     </div>
   );
