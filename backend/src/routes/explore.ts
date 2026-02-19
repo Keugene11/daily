@@ -5,7 +5,7 @@ const router = Router();
 
 /**
  * POST /api/explore
- * Search for places using Google Places API + AI summaries
+ * Search local events + Google Places (if configured) with AI summaries
  */
 router.post('/explore', async (req: Request, res: Response) => {
   const { query, location } = req.body;
@@ -16,10 +16,6 @@ router.post('/explore', async (req: Request, res: Response) => {
 
   if (!location || typeof location !== 'string' || location.trim().length === 0) {
     return res.status(400).json({ error: 'Location is required' });
-  }
-
-  if (!process.env.GOOGLE_PLACES_API_KEY) {
-    return res.status(503).json({ error: 'Google Places API not configured' });
   }
 
   console.log(`[Explore] Searching: "${query.trim()}" in "${location.trim()}"`);

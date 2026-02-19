@@ -16,6 +16,10 @@ export interface ExploreResult {
   googleMapsUrl: string;
   types: string[];
   isOpen: boolean | null;
+  resultType?: 'place' | 'event';
+  time?: string;
+  isFree?: boolean;
+  category?: string;
 }
 
 interface UseExploreReturn {

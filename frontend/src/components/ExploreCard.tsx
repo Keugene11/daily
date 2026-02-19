@@ -6,13 +6,33 @@ interface Props {
   index: number;
 }
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Event: '#8b5cf6',
+  Meetup: '#3b82f6',
+  Hackathon: '#f59e0b',
+  Workshop: '#10b981',
+  Networking: '#6366f1',
+  Coworking: '#14b8a6',
+  Concert: '#ec4899',
+  Museum: '#8b5cf6',
+  Park: '#22c55e',
+  Tour: '#f97316',
+  Festival: '#e11d48',
+  Library: '#6366f1',
+  Class: '#14b8a6',
+  Free: '#22c55e',
+};
+
 export const ExploreCard: React.FC<Props> = ({ place, index }) => {
+  const isEvent = place.resultType === 'event';
+  const categoryColor = CATEGORY_COLORS[place.category || ''] || '#6366f1';
+
   return (
     <div
       className="border border-on-surface/10 rounded-xl overflow-hidden hover:border-on-surface/25 transition-all animate-fadeIn"
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      {/* Photo */}
+      {/* Photo or event header */}
       {place.photoUrl ? (
         <img
           src={place.photoUrl}
@@ -20,6 +40,18 @@ export const ExploreCard: React.FC<Props> = ({ place, index }) => {
           className="w-full h-44 object-cover"
           loading="lazy"
         />
+      ) : isEvent ? (
+        <div
+          className="w-full h-24 flex items-center justify-center"
+          style={{ background: `${categoryColor}15` }}
+        >
+          <span
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: categoryColor }}
+          >
+            {place.category || 'Event'}
+          </span>
+        </div>
       ) : (
         <div className="w-full h-44 bg-on-surface/5 flex items-center justify-center">
           <svg className="w-8 h-8 text-on-surface/15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -31,10 +63,15 @@ export const ExploreCard: React.FC<Props> = ({ place, index }) => {
 
       {/* Content */}
       <div className="p-4">
-        {/* Name + rating */}
+        {/* Name + rating or category tag */}
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <h3 className="font-medium text-sm leading-tight">{place.name}</h3>
-          {place.rating && (
+          {isEvent && place.isFree && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full shrink-0">
+              Free
+            </span>
+          )}
+          {!isEvent && place.rating && (
             <div className="flex items-center gap-1 shrink-0">
               <span className="text-sm font-medium">{place.rating.toFixed(1)}</span>
               <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -47,18 +84,29 @@ export const ExploreCard: React.FC<Props> = ({ place, index }) => {
           )}
         </div>
 
-        {/* Price + open status */}
-        <div className="flex items-center gap-2 text-xs text-on-surface/40 mb-3">
-          {place.priceLevel && <span>{place.priceLevel}</span>}
-          {place.priceLevel && place.isOpen !== null && <span>·</span>}
-          {place.isOpen !== null && (
-            <span className={place.isOpen ? 'text-green-500' : 'text-red-400'}>
-              {place.isOpen ? 'Open now' : 'Closed'}
-            </span>
-          )}
-        </div>
+        {/* Event: time + price */}
+        {isEvent && (
+          <div className="flex items-center gap-2 text-xs text-on-surface/40 mb-3">
+            {place.time && <span>{place.time}</span>}
+            {place.time && place.priceLevel && !place.isFree && <span>·</span>}
+            {place.priceLevel && !place.isFree && <span>{place.priceLevel}</span>}
+          </div>
+        )}
 
-        {/* AI Summary */}
+        {/* Place: price + open status */}
+        {!isEvent && (
+          <div className="flex items-center gap-2 text-xs text-on-surface/40 mb-3">
+            {place.priceLevel && <span>{place.priceLevel}</span>}
+            {place.priceLevel && place.isOpen !== null && <span>·</span>}
+            {place.isOpen !== null && (
+              <span className={place.isOpen ? 'text-green-500' : 'text-red-400'}>
+                {place.isOpen ? 'Open now' : 'Closed'}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Summary / description */}
         {place.summary && (
           <p className="text-sm text-on-surface/55 leading-relaxed mb-3">{place.summary}</p>
         )}

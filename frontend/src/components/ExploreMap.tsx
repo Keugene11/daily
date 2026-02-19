@@ -124,7 +124,9 @@ export const ExploreMap: React.FC<Props> = ({ results }) => {
     };
   }, [results]);
 
-  if (results.length === 0) return null;
+  // Hide map if no results have coordinates (e.g. all events)
+  const hasCoords = results.some(r => r.lat !== 0 || r.lng !== 0);
+  if (results.length === 0 || !hasCoords) return null;
 
   return (
     <div className="mt-8 mb-4">
