@@ -13,7 +13,7 @@ interface Props {
 export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
-  const { results, loading, error, searched, fallback, search } = useExplore(getAccessToken);
+  const { results, loading, error, searched, search } = useExplore(getAccessToken);
 
   // Save location to localStorage when it changes
   useEffect(() => {
@@ -37,7 +37,7 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold mb-1">Explore</h1>
-          <p className="text-sm text-on-surface/40">Find anything, anywhere.</p>
+          <p className="text-sm text-on-surface/40">Find events, meetups, and activities.</p>
         </div>
         <button onClick={onClose} className="text-sm text-on-surface/50 hover:text-on-surface transition-colors">Back</button>
       </div>
@@ -51,7 +51,7 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Parks, barbers, restaurants, concerts..."
+            placeholder="Concerts, hackathons, markets, comedy..."
             className="w-full bg-transparent border-b border-on-surface/20 focus:border-on-surface/50 outline-none py-2 text-on-surface placeholder-on-surface/20 transition-colors"
             autoFocus
           />
@@ -116,27 +116,7 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
       {/* Results */}
       {!loading && results.length > 0 && (
         <>
-          {fallback && (
-            <div className="border border-on-surface/10 rounded-lg p-4 mb-6 animate-fadeIn">
-              <p className="text-sm text-on-surface/50 mb-2">
-                No local results for "<span className="text-on-surface/70">{query}</span>" in {location}
-              </p>
-              <a
-                href={`https://www.google.com/maps/search/${encodeURIComponent(query + ' in ' + location)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-accent hover:underline"
-              >
-                Search "{query}" on Google Maps
-              </a>
-            </div>
-          )}
-          <p className="text-xs text-on-surface/30 mb-4">
-            {fallback
-              ? `Happening today in ${location}`
-              : `${results.length} results for "${query}" in ${location}`
-            }
-          </p>
+          <p className="text-xs text-on-surface/30 mb-4">{results.length} results for "{query}" in {location}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
             {results.map((place, i) => (
               <ExploreCard key={place.id} place={place} index={i} />
@@ -151,7 +131,15 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
         <div className="text-center py-16 animate-fadeIn">
           <div className="text-4xl mb-4">~</div>
           <h2 className="text-xl font-semibold mb-2">No results found</h2>
-          <p className="text-on-surface/40 text-sm">Try a different search term or location.</p>
+          <p className="text-on-surface/40 text-sm mb-4">Try searching for events, concerts, hackathons, or markets.</p>
+          <a
+            href={`https://www.google.com/maps/search/${encodeURIComponent(query + ' in ' + location)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-accent hover:underline"
+          >
+            Search "{query}" on Google Maps instead
+          </a>
         </div>
       )}
     </div>

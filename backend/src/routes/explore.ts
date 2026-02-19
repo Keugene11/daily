@@ -21,9 +21,9 @@ router.post('/explore', async (req: Request, res: Response) => {
   console.log(`[Explore] Searching: "${query.trim()}" in "${location.trim()}"`);
 
   try {
-    const { results, fallback } = await exploreSearch(query.trim(), location.trim());
-    console.log(`[Explore] Found ${results.length} results${fallback ? ' (fallback)' : ''}`);
-    res.json({ results, fallback });
+    const results = await exploreSearch(query.trim(), location.trim());
+    console.log(`[Explore] Found ${results.length} results`);
+    res.json({ results });
   } catch (err) {
     console.error('[Explore] Error:', err);
     res.status(500).json({
