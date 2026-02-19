@@ -151,7 +151,11 @@ function scoreCandidate(
  */
 async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
   try {
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    // Append "travel" to bias YouTube's search toward travel/tourism content.
+    // Score candidates against the original query (without "travel") so that
+    // title-relevance scoring isn't diluted by the extra term.
+    const searchQuery = `${query} travel`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
     const res = await fetchWithTimeout(url, {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9',
