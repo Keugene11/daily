@@ -34,7 +34,7 @@ function getClient(): Dedalus {
   if (!client) {
     client = new Dedalus({
       apiKey: process.env.DEDALUS_API_KEY || '',
-      timeout: 30000,
+      timeout: 45000,
     });
   }
   return client;
@@ -91,18 +91,25 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
   }
 
   try {
-    // Fetch places and YouTube videos in parallel
-    const videoQuery = `best ${query} in ${location}`;
-    const [rawPlaces, videos] = await Promise.all([
-      searchPlaces(query, location),
-      searchYouTubeVideos(videoQuery, 4).catch(() => []),
-    ]);
+    // Fetch places first (needed for AI post generation)
+    const rawPlaces = await searchPlaces(query, location);
 
     if (rawPlaces.length === 0) {
-      return { post: '', places: [], videos };
+      return { post: '', places: [], videos: [] };
     }
 
-    const post = await generateExplorePost(query, location, rawPlaces);
+    // Run AI post generation and YouTube search in parallel
+    // YouTube has a 8s timeout so it won't block the response
+    const videoQuery = `best ${query} in ${location}`;
+    const ytWithTimeout = Promise.race([
+      searchYouTubeVideos(videoQuery, 4),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('yt timeout')), 8000)),
+    ]).catch(() => [] as { videoId: string; title: string }[]);
+
+    const [post, videos] = await Promise.all([
+      generateExplorePost(query, location, rawPlaces),
+      ytWithTimeout,
+    ]);
 
     const places: ExplorePlace_out[] = rawPlaces.map(p => ({
       id: p.id,
