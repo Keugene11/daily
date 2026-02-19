@@ -50,8 +50,9 @@ async function generateExplorePost(query: string, location: string, places: Expl
     const reviewBlock = p.reviews.slice(0, 5).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
     const status = p.isOpen === true ? 'Open now' : p.isOpen === false ? 'Closed' : '';
     const price = p.priceLevel ? `Price level: ${p.priceLevel}` : '';
+    const range = p.priceRange ? `Price range: ${p.priceRange}` : '';
     const mapsLink = p.googleMapsUrl;
-    return `${i + 1}. "${p.name}" — ${p.rating ?? 'no'} stars, ${p.userRatingCount} reviews${status ? ', ' + status : ''}${price ? ', ' + price : ''}\n   ${p.address}\n   Google Maps: ${mapsLink}\n${reviewBlock}`;
+    return `${i + 1}. "${p.name}" — ${p.rating ?? 'no'} stars, ${p.userRatingCount} reviews${status ? ', ' + status : ''}${price ? ', ' + price : ''}${range ? ', ' + range : ''}\n   ${p.address}\n   Google Maps: ${mapsLink}\n${reviewBlock}`;
   }).join('\n\n');
 
   const dedalus = getClient();
@@ -62,7 +63,7 @@ async function generateExplorePost(query: string, location: string, places: Expl
       messages: [
         {
           role: 'system',
-          content: `You write honest, helpful local guides. Your tone is casual and knowledgeable — like a friend who actually lives in the area. Be specific: mention standout details from reviews (a particular barber, a signature dish, the vibe of the place). IMPORTANT: Always include prices. Scan every review for dollar amounts, price ranges, or cost mentions (e.g. "$30 haircuts", "$15 fades", "$50 for cut and beard", "around $40"). Include every price you find. If a price level is provided ($, $$, $$$), mention it. If no prices are found in reviews, say "prices not listed." If there are complaints, include them honestly. Never use generic filler like "highly recommended" or "a must-visit". Bold each place name as a link: **[Name](google maps url)**. Write 2-3 sentences per place. Start with a short intro paragraph. Use separate paragraphs to group related places or themes — keep it readable and well-spaced. No bullet points, no numbered lists, no markdown headings.`,
+          content: `You write honest, helpful local guides. Your tone is casual and knowledgeable — like a friend who actually lives in the area. Be specific: mention standout details from reviews (a particular barber, a signature dish, the vibe of the place). IMPORTANT: Always include pricing. If a price range is provided (e.g. "$10–$50"), always mention it. If a price level is provided ($, $$, $$$, $$$$), always mention it. Also scan reviews for any dollar amounts or cost mentions and include them. If no pricing info exists at all, say "prices not listed." If there are complaints, include them honestly. Never use generic filler like "highly recommended" or "a must-visit". Bold each place name as a link: **[Name](google maps url)**. Write 2-3 sentences per place. Start with a short intro paragraph. Use separate paragraphs to group related places or themes — keep it readable and well-spaced. No bullet points, no numbered lists, no markdown headings.`,
         },
         {
           role: 'user',

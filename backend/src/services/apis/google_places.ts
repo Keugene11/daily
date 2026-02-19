@@ -7,6 +7,7 @@ export interface ExplorePlace {
   rating: number | null;
   userRatingCount: number;
   priceLevel: string | null;
+  priceRange: string | null;
   photoUrl: string | null;
   reviews: string[];
   googleMapsUrl: string;
@@ -50,6 +51,7 @@ export async function searchPlaces(query: string, location: string): Promise<Exp
     'places.rating',
     'places.userRatingCount',
     'places.priceLevel',
+    'places.priceRange',
     'places.photos',
     'places.reviews',
     'places.regularOpeningHours',
@@ -92,6 +94,20 @@ export async function searchPlaces(query: string, location: string): Promise<Exp
         .map((r: any) => r.text?.text || '')
         .filter((t: string) => t.length > 0);
 
+      // Parse priceRange: { startPrice: { currencyCode, units }, endPrice: { ... } }
+      let priceRange: string | null = null;
+      if (place.priceRange) {
+        const start = place.priceRange.startPrice;
+        const end = place.priceRange.endPrice;
+        if (start?.units && end?.units) {
+          priceRange = `$${start.units}–$${end.units}`;
+        } else if (start?.units) {
+          priceRange = `from $${start.units}`;
+        } else if (end?.units) {
+          priceRange = `up to $${end.units}`;
+        }
+      }
+
       return {
         id: place.id || '',
         name: place.displayName?.text || 'Unknown',
@@ -101,6 +117,7 @@ export async function searchPlaces(query: string, location: string): Promise<Exp
         rating: place.rating ?? null,
         userRatingCount: place.userRatingCount || 0,
         priceLevel: PRICE_MAP[place.priceLevel] || null,
+        priceRange,
         photoUrl,
         reviews,
         googleMapsUrl: place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(place.displayName?.text || '')}`,
