@@ -24,9 +24,13 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   const token = authHeader.slice(7);
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
-      algorithms: ['HS256'],
-    }) as jwt.JwtPayload;
+    // Try verifying with the secret as-is first, then base64-decoded
+    let decoded: jwt.JwtPayload | null = null;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET!.trim(), { algorithms: ['HS256'] }) as jwt.JwtPayload;
+    } catch {
+      decoded = jwt.verify(token, Buffer.from(JWT_SECRET!.trim(), 'base64'), { algorithms: ['HS256'] }) as jwt.JwtPayload;
+    }
 
     req.userId = decoded.sub;
     req.userEmail = decoded.email as string | undefined;
