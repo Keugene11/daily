@@ -182,12 +182,14 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     }
   }, [city]);
 
-  // Resolve state/region from Nominatim for geographic context
+  // Resolve state from Nominatim for geographic disambiguation.
+  // Only use state (e.g. "New York" for Ardsley), NOT country — appending
+  // "India" to "Akshardham Temple Delhi" dilutes into generic travel vlogs.
+  // Major cities don't need country-level disambiguation.
   useEffect(() => {
     if (!city) return;
     geocodeCity(city).then(result => {
       if (result?.state) regionRef.current = result.state;
-      else if (result?.country) regionRef.current = result.country;
     });
   }, [city]);
 
