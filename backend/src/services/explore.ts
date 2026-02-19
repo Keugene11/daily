@@ -102,15 +102,37 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
     // Run AI post generation and YouTube search in parallel
     // YouTube has a 8s timeout so it won't block the response
     const videoQuery = `best ${query} in ${location}`;
+    const placeNames = rawPlaces.map(p => p.name.toLowerCase());
+    const queryLower = query.toLowerCase();
+    const locationLower = location.toLowerCase();
+
     const ytWithTimeout = Promise.race([
-      searchYouTubeVideos(videoQuery, 4),
+      searchYouTubeVideos(videoQuery, 8), // fetch more, filter down
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('yt timeout')), 8000)),
     ]).catch(() => [] as { videoId: string; title: string }[]);
 
-    const [post, videos] = await Promise.all([
+    const [post, rawVideos] = await Promise.all([
       generateExplorePost(query, location, rawPlaces),
       ytWithTimeout,
     ]);
+
+    // Only keep videos that are clearly relevant:
+    // 1. Title mentions a specific place from the results, OR
+    // 2. Title contains BOTH the query term AND location
+    const videos = rawVideos.filter(v => {
+      const titleLower = v.title.toLowerCase();
+      const mentionsPlace = placeNames.some(name => {
+        // Check if any significant word from the place name appears
+        const words = name.split(/\s+/).filter(w => w.length > 3);
+        return words.some(w => titleLower.includes(w));
+      });
+      const mentionsQuery = titleLower.includes(queryLower) ||
+        titleLower.includes(queryLower + 's') || // barber -> barbers
+        titleLower.includes(queryLower.replace(/s$/, '')); // barbers -> barber
+      const mentionsLocation = titleLower.includes(locationLower) ||
+        titleLower.includes(locationLower.replace(/\s+/g, ''));
+      return mentionsPlace || (mentionsQuery && mentionsLocation);
+    }).slice(0, 4);
 
     const places: ExplorePlace_out[] = rawPlaces.map(p => ({
       id: p.id,
