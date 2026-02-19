@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import planRouter from './routes/plan';
+import exploreRouter from './routes/explore';
 import { requireAuth } from './middleware/auth';
 
 const app = express();
@@ -27,6 +28,7 @@ app.get('/health', (_req, res) => {
 
 // API routes
 app.use('/api', requireAuth, planRouter);
+app.use('/api', requireAuth, exploreRouter);
 
 // 404 handler
 app.use((_req, res) => {

@@ -8,6 +8,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { CherryBlossoms } from './components/CherryBlossoms';
 import { PlanHistory, SavedPlan } from './components/PlanHistory';
 import { ProfilePage } from './components/ProfilePage';
+import { ExplorePage } from './components/ExplorePage';
 import { PlanGallery } from './components/PlanGallery';
 import { VoiceInput } from './components/VoiceInput';
 import { PlanMap } from './components/PlanMap';
@@ -41,7 +42,7 @@ function App() {
   });
 
   // New feature state
-  const [view, setView] = useState<'home' | 'history' | 'profile'>('home');
+  const [view, setView] = useState<'home' | 'history' | 'profile' | 'explore'>('home');
   const { plans: savedPlans, savePlan, deletePlan } = usePlans(user);
   const planSavedRef = useRef(false);
 
@@ -284,6 +285,7 @@ function App() {
       <nav className="flex items-center justify-between px-8 py-5 border-b border-on-surface/10">
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
+          <button onClick={() => { setView('explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
           <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
           <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
 
@@ -322,6 +324,14 @@ function App() {
           planCount={savedPlans.length}
           onClose={() => setView('home')}
           onSignOut={signOut}
+        />
+      )}
+
+      {/* Explore View */}
+      {view === 'explore' && (
+        <ExplorePage
+          getAccessToken={getAccessToken}
+          onClose={() => setView('home')}
         />
       )}
 
