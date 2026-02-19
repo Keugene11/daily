@@ -9,23 +9,24 @@ interface Props {
   onClose: () => void;
 }
 
-/** Render markdown text as one continuous block — **bold** and [links](url) */
+/** Render markdown text with paragraphs — **bold** and [links](url) */
 function RenderPost({ text }: { text: string }) {
-  // Split on any newlines, render as one flowing block with <br/> between lines
-  const lines = text.split(/\n/);
-  const elements: React.ReactNode[] = [];
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
 
-  lines.forEach((line, li) => {
-    if (li > 0) elements.push(<br key={`br-${li}`} />);
-    if (line.trim() === '') {
-      // Empty line = paragraph break (just an extra br)
-      elements.push(<br key={`br2-${li}`} />);
-    } else {
-      elements.push(...renderInline(line, li));
-    }
-  });
-
-  return <>{elements}</>;
+  return (
+    <>
+      {paragraphs.map((para, pi) => (
+        <p key={pi} className="mb-5">
+          {para.split(/\n/).map((line, li) => (
+            <React.Fragment key={`${pi}-${li}`}>
+              {li > 0 && <br />}
+              {renderInline(line, pi * 100 + li)}
+            </React.Fragment>
+          ))}
+        </p>
+      ))}
+    </>
+  );
 }
 
 function renderInline(text: string, keyBase: number): React.ReactNode[] {
