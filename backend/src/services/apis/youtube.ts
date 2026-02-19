@@ -58,31 +58,41 @@ const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyer
 const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation)\b/i;
 
 /**
- * Score a video candidate. View count is the dominant signal —
- * popular videos from big creators are almost always better.
+ * Score a video candidate. Relevance (does the title match the query?)
+ * is the dominant signal, with view count as a secondary quality indicator.
+ * This ensures small-town content beats big-city travel vlogs.
  */
 function scoreCandidate(
   c: { title: string; views: number; durationSec: number; isVerified: boolean; channel: string },
   position: number,
-  poolSize: number
+  poolSize: number,
+  query: string
 ): number {
   let score = 0;
+  const titleLower = c.title.toLowerCase();
 
-  // ── View count (dominant factor) ──────────────────────────────
-  // Tier-based scoring with large gaps so views actually matter.
-  // A 5M-view video should almost always beat a 10K-view video.
-  if (c.views >= 10_000_000) score += 20;
-  else if (c.views >= 1_000_000) score += 16;
-  else if (c.views >= 500_000) score += 13;
-  else if (c.views >= 100_000) score += 10;
-  else if (c.views >= 50_000) score += 7;
-  else if (c.views >= 10_000) score += 4;
-  else if (c.views >= 1_000) score += 1;
-  else score -= 5; // under 1K views — likely low effort or brand new
+  // ── Title relevance (dominant factor) ─────────────────────────
+  // Check how many meaningful query terms appear in the title.
+  // A video about "Ardsley" should beat a generic "travel" video.
+  const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+  if (queryTerms.length > 0) {
+    const matched = queryTerms.filter(t => titleLower.includes(t));
+    const relevance = matched.length / queryTerms.length;
+    score += relevance * 10; // up to 10 points for full match
+  }
+
+  // ── View count (logarithmic — secondary signal) ───────────────
+  // Log scale prevents mega-viral videos from dominating over
+  // relevant small-town content. 1K→3, 10K→4, 100K→5, 1M→6.
+  if (c.views > 0) {
+    score += Math.log10(c.views);
+  } else {
+    score -= 2;
+  }
 
   // ── Channel quality signals ───────────────────────────────────
   if (c.isVerified) {
-    score += 4; // verified badge = established creator
+    score += 3;
   }
 
   // ── Duration sweet spot ───────────────────────────────────────
@@ -204,10 +214,18 @@ async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
     // Score and rank
     const scored = pool.map((c, i) => ({
       ...c,
-      score: scoreCandidate(c, i, pool.length)
+      score: scoreCandidate(c, i, pool.length, query)
     }));
 
     scored.sort((a, b) => b.score - a.score);
+
+    // Minimum relevance check — don't return a video if the best candidate
+    // doesn't contain ANY meaningful query terms in its title. Better to show
+    // no video than a completely irrelevant one.
+    const bestTitle = scored[0].title.toLowerCase();
+    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const hasAnyMatch = terms.some(t => bestTitle.includes(t));
+    if (!hasAnyMatch) return null;
 
     return { videoId: scored[0].videoId, title: scored[0].title };
   } catch {

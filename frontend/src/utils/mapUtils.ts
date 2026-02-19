@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 5;
+const GEO_CACHE_VERSION = 6;
 
 interface GeoCacheEntry {
   lat: number;
@@ -118,7 +118,7 @@ export function removeOutliers(locs: MapLocation[]): MapLocation[] {
     const dists = current.map(l => distanceKm(cLat, cLng, l.lat, l.lng));
     const sorted = [...dists].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const threshold = Math.max(median * 3, 30);
+    const threshold = Math.max(median * 3, 5);
     // Find the farthest point
     let maxDist = 0;
     let maxIdx = -1;
@@ -182,6 +182,8 @@ export interface CityGeoResult {
   lng: number;
   countryCode?: string;
   country?: string;
+  /** State/province/region from Nominatim addressdetails */
+  state?: string;
   /** Nominatim bounding box [south, north, west, east] */
   boundingBox?: [number, number, number, number];
 }
@@ -217,6 +219,7 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
         lng: parseFloat(best.lon),
         countryCode: best.address?.country_code || undefined,
         country: best.address?.country || undefined,
+        state: best.address?.state || undefined,
         boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
       };
     }

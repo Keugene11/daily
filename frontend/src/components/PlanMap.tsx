@@ -261,7 +261,12 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         // Compute effective radius from bounding box (for countries/regions this can be 1000+ km)
         const bboxRadius = cityResult?.boundingBox ? boundingBoxRadiusKm(cityResult.boundingBox) : 0;
-        const effectiveRadius = Math.max(bboxRadius, MAX_DISTANCE_KM);
+        // Scale radius with actual area: small towns get tight radius, countries get wide.
+        // bboxRadius * 3 gives reasonable padding; 25km minimum for tiny villages
+        // (covers nearby towns the AI might recommend).
+        const effectiveRadius = bboxRadius > 0
+          ? Math.max(bboxRadius * 3, 25)
+          : MAX_DISTANCE_KM;
 
         if (!(window as any).L) {
           console.error('[PlanMap] Leaflet failed to load');

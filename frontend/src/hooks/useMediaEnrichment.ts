@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { extractPlaces } from '../utils/extractPlaces';
+import { geocodeCity } from '../utils/mapUtils';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -12,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 3;
+const MEDIA_CACHE_VERSION = 5;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -137,13 +138,14 @@ async function fetchCommonsImage(place: string, city: string): Promise<string | 
   return null;
 }
 
-async function fetchYouTubeVideoId(place: string, city: string, token?: string | null): Promise<string | null> {
+async function fetchYouTubeVideoId(place: string, city: string, region: string, token?: string | null): Promise<string | null> {
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // "travel" biases YouTube toward travel/guide content without being
-    // as restrictive as "walking tour" — backend scoring handles the rest
-    const query = `${place} ${city} travel`;
+    // Include region (state/country) to disambiguate small towns.
+    // e.g., "Ardsley Park Ardsley New York" instead of just "Ardsley Park Ardsley"
+    // which would return Savannah, GA results.
+    const query = region ? `${place} ${city} ${region}` : `${place} ${city}`;
     const res = await fetch(
       `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
       { headers }
@@ -166,14 +168,27 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
   const [data, setData] = useState<Map<string, PlaceMediaData>>(new Map());
   const fetchedRef = useRef<Set<string>>(new Set());
   const prevCityRef = useRef(city);
+  // Resolved state/region for geographic disambiguation in YouTube queries
+  // e.g., "New York" for Ardsley — prevents returning Savannah, GA results
+  const regionRef = useRef<string>('');
 
   // Reset everything when the city changes (new plan)
   useEffect(() => {
     if (city !== prevCityRef.current) {
       prevCityRef.current = city;
       fetchedRef.current.clear();
+      regionRef.current = '';
       setData(new Map());
     }
+  }, [city]);
+
+  // Resolve state/region from Nominatim for geographic context
+  useEffect(() => {
+    if (!city) return;
+    geocodeCity(city).then(result => {
+      if (result?.state) regionRef.current = result.state;
+      else if (result?.country) regionRef.current = result.country;
+    });
   }, [city]);
 
   // Debounced extraction + fetch for new places
@@ -217,7 +232,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
 
         const [wikiImage, videoId] = await Promise.all([
           fetchWikipediaImage(place, city),
-          fetchYouTubeVideoId(place, city, token),
+          fetchYouTubeVideoId(place, city, regionRef.current, token),
         ]);
 
         // Image fallback chain: Wikipedia → Wikimedia Commons → YouTube thumbnail
