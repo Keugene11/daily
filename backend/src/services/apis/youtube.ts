@@ -54,8 +54,8 @@ const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:in
 // Entertainment/celebrity content — not place-discovery content
 const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime|broadway cast|original cast|musical|soundtrack|karaoke|sing along|lyrics?|remix|cover song|acoustic version)\b/i;
 
-// News/current-affairs content — not what we want for place discovery
-const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation)\b/i;
+// News/current-affairs/disaster content — not what we want for place discovery
+const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation|flood(?:ing|ed)?|earthquake|tsunami|hurricane|tornado|cyclone|disaster|devastat|collaps|demolish|destroy|prime minister|president visit|state visit|official visit|inaugurat|summit|parliament|congress)\b/i;
 
 /**
  * Score a video candidate. Relevance (does the title match the query?)
@@ -109,7 +109,7 @@ function scoreCandidate(
 
   // ── Title quality signals ─────────────────────────────────────
   if (QUALITY_KEYWORDS.test(c.title)) {
-    score += 4;
+    score += 8;
   }
 
   if (PENALTY_KEYWORDS.test(c.title)) {
@@ -123,6 +123,11 @@ function scoreCandidate(
   // Entertainment/celebrity content — penalize hard, these dominate on views
   if (ENTERTAINMENT_KEYWORDS.test(c.title) || ENTERTAINMENT_KEYWORDS.test(c.channel)) {
     score -= 15;
+  }
+
+  // Clickbait/sensational titles — not the calm, informative travel content we want
+  if (/\b(craziest|insane|extreme|shocking|unbelievable|you won'?t believe|mind.?blow|jaw.?drop|gone wrong|impossible|alive)\b/i.test(c.title)) {
+    score -= 6;
   }
 
   // Penalize all-caps titles (clickbait signal)
