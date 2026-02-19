@@ -116,9 +116,24 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
       {/* Results */}
       {!loading && results.length > 0 && (
         <>
+          {fallback && (
+            <div className="border border-on-surface/10 rounded-lg p-4 mb-6 animate-fadeIn">
+              <p className="text-sm text-on-surface/50 mb-2">
+                No local results for "<span className="text-on-surface/70">{query}</span>" in {location}
+              </p>
+              <a
+                href={`https://www.google.com/maps/search/${encodeURIComponent(query + ' in ' + location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-accent hover:underline"
+              >
+                Search "{query}" on Google Maps
+              </a>
+            </div>
+          )}
           <p className="text-xs text-on-surface/30 mb-4">
             {fallback
-              ? `No exact matches for "${query}" — here's what's happening today in ${location}`
+              ? `Happening today in ${location}`
               : `${results.length} results for "${query}" in ${location}`
             }
           </p>
