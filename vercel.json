@@ -19,6 +19,6 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
-    { "source": "/((?!api/|.well-known/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|.well-known/|privacy\\.html).*)", "destination": "/index.html" }
   ]
 }
