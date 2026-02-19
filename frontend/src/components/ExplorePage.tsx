@@ -13,7 +13,7 @@ interface Props {
 export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
-  const { results, loading, error, searched, search } = useExplore(getAccessToken);
+  const { results, loading, error, searched, fallback, search } = useExplore(getAccessToken);
 
   // Save location to localStorage when it changes
   useEffect(() => {
@@ -116,7 +116,12 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
       {/* Results */}
       {!loading && results.length > 0 && (
         <>
-          <p className="text-xs text-on-surface/30 mb-4">{results.length} results for "{query}" in {location}</p>
+          <p className="text-xs text-on-surface/30 mb-4">
+            {fallback
+              ? `No exact matches for "${query}" — here's what's happening today in ${location}`
+              : `${results.length} results for "${query}" in ${location}`
+            }
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
             {results.map((place, i) => (
               <ExploreCard key={place.id} place={place} index={i} />

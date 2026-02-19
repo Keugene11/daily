@@ -27,6 +27,7 @@ interface UseExploreReturn {
   loading: boolean;
   error: string | null;
   searched: boolean;
+  fallback: boolean;
   search: (query: string, location: string) => Promise<void>;
   reset: () => void;
 }
@@ -36,6 +37,7 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [fallback, setFallback] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(async (query: string, location: string) => {
@@ -48,6 +50,7 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
     setError(null);
     setSearched(true);
     setResults([]);
+    setFallback(false);
 
     try {
       const token = await getAccessToken();
@@ -69,6 +72,7 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
 
       const data = await res.json();
       setResults(data.results || []);
+      setFallback(!!data.fallback);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setError(err.message || 'Something went wrong');
@@ -85,7 +89,8 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
     setLoading(false);
     setError(null);
     setSearched(false);
+    setFallback(false);
   }, []);
 
-  return { results, loading, error, searched, search, reset };
+  return { results, loading, error, searched, fallback, search, reset };
 }

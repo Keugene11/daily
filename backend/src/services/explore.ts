@@ -97,8 +97,8 @@ async function generateSummaries(places: ExplorePlace[]): Promise<string[]> {
  * Returns 0 if no match, higher = better match.
  */
 function scoreMatch(query: string, fields: string[]): number {
-  const q = query.toLowerCase();
-  const terms = q.split(/\s+/).filter(t => t.length > 2);
+  const q = query.toLowerCase().trim();
+  const terms = q.split(/\s+/).filter(t => t.length > 1);
   let score = 0;
 
   for (const field of fields) {
@@ -117,7 +117,7 @@ function scoreMatch(query: string, fields: string[]): number {
 /**
  * Search hardcoded events, meetups, and free stuff for the given query and location.
  */
-async function searchLocalEvents(query: string, location: string): Promise<ExploreResult[]> {
+async function searchLocalEvents(query: string, location: string): Promise<{ results: ExploreResult[]; fallback: boolean }> {
   // Fetch all three data sources in parallel
   const [eventsResult, meetupsResult, freeResult] = await Promise.all([
     eventsService.getEvents(location),
@@ -227,14 +227,107 @@ async function searchLocalEvents(query: string, location: string): Promise<Explo
 
   // Sort by score descending, return top 10
   results.sort((a, b) => b.score - a.score);
-  return results.slice(0, 10).map(r => r.result);
+  const matched = results.slice(0, 10).map(r => r.result);
+
+  // Fallback: if nothing matched the query, return today's highlights for the city
+  if (matched.length === 0) {
+    return { results: buildFallbackResults(eventsResult, meetupsResult, freeResult, location), fallback: true };
+  }
+
+  return { results: matched, fallback: false };
 }
 
-export async function exploreSearch(query: string, location: string): Promise<ExploreResult[]> {
+/**
+ * When no events match the search query, return a curated "happening today" list.
+ */
+function buildFallbackResults(
+  eventsResult: any,
+  meetupsResult: any,
+  freeResult: any,
+  location: string,
+): ExploreResult[] {
+  const all: ExploreResult[] = [];
+
+  if (eventsResult.success && eventsResult.data?.events) {
+    for (const event of eventsResult.data.events.slice(0, 3)) {
+      all.push({
+        id: `event-${event.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: event.name,
+        address: event.location,
+        lat: 0, lng: 0,
+        rating: null, userRatingCount: 0,
+        priceLevel: event.isFree ? 'Free' : (event.price || null),
+        photoUrl: null,
+        summary: event.description,
+        googleMapsUrl: event.url || `https://maps.google.com/?q=${encodeURIComponent(event.name + ', ' + location)}`,
+        types: [], isOpen: null,
+        resultType: 'event',
+        time: event.date,
+        isFree: event.isFree,
+        category: 'Event',
+      });
+    }
+  }
+
+  if (meetupsResult.success && meetupsResult.data?.events) {
+    for (const meetup of meetupsResult.data.events.slice(0, 3)) {
+      const categoryLabel = meetup.category
+        ? meetup.category.charAt(0).toUpperCase() + meetup.category.slice(1)
+        : 'Meetup';
+      all.push({
+        id: `meetup-${meetup.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: meetup.name,
+        address: meetup.location,
+        lat: 0, lng: 0,
+        rating: null, userRatingCount: 0,
+        priceLevel: meetup.isFree ? 'Free' : (meetup.price || null),
+        photoUrl: null,
+        summary: meetup.description,
+        googleMapsUrl: meetup.url || `https://maps.google.com/?q=${encodeURIComponent(meetup.name + ', ' + location)}`,
+        types: meetup.topics || [], isOpen: null,
+        resultType: 'event',
+        time: meetup.date,
+        isFree: meetup.isFree,
+        category: categoryLabel,
+      });
+    }
+  }
+
+  if (freeResult.success && freeResult.data?.activities) {
+    for (const activity of freeResult.data.activities.slice(0, 3)) {
+      const typeStr = (activity as any).type || '';
+      all.push({
+        id: `free-${activity.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: activity.name,
+        address: activity.location,
+        lat: 0, lng: 0,
+        rating: null, userRatingCount: 0,
+        priceLevel: 'Free',
+        photoUrl: null,
+        summary: activity.description,
+        googleMapsUrl: (activity as any).url || `https://maps.google.com/?q=${encodeURIComponent(activity.name + ', ' + location)}`,
+        types: [], isOpen: null,
+        resultType: 'event',
+        time: activity.time,
+        isFree: true,
+        category: typeStr ? typeStr.charAt(0).toUpperCase() + typeStr.slice(1) : 'Free',
+      });
+    }
+  }
+
+  return all.slice(0, 8);
+}
+
+export interface ExploreSearchResult {
+  results: ExploreResult[];
+  fallback: boolean;
+}
+
+export async function exploreSearch(query: string, location: string): Promise<ExploreSearchResult> {
   const hasPlacesApi = !!process.env.GOOGLE_PLACES_API_KEY;
 
   // Run local event search always, Google Places only if configured
-  const promises: [Promise<ExploreResult[]>, Promise<ExploreResult[]>] = [
+  const promises: [Promise<{ results: ExploreResult[]; fallback: boolean }>, Promise<ExploreResult[]>] = [
     searchLocalEvents(query, location),
     hasPlacesApi
       ? searchPlaces(query, location).then(async (places) => {
@@ -263,15 +356,11 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
       : Promise.resolve([] as ExploreResult[]),
   ];
 
-  const [localEvents, placeResults] = await Promise.all(promises);
+  const [localResult, placeResults] = await Promise.all(promises);
 
-  // Merge: interleave events and places
-  // Events first (up to 6), then places, capped at 16 total
+  // Merge: events first (up to 6), then places, capped at 16 total
   const merged: ExploreResult[] = [];
-  const eventSlice = localEvents.slice(0, 6);
-  const placeSlice = placeResults.slice(0, 10);
+  merged.push(...localResult.results.slice(0, 6), ...placeResults.slice(0, 10));
 
-  merged.push(...eventSlice, ...placeSlice);
-
-  return merged.slice(0, 16);
+  return { results: merged.slice(0, 16), fallback: localResult.fallback && placeResults.length === 0 };
 }
