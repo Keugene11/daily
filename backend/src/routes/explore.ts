@@ -21,9 +21,9 @@ router.post('/explore', async (req: Request, res: Response) => {
   console.log(`[Explore] Searching: "${query.trim()}" in "${location.trim()}"`);
 
   try {
-    const { post, places } = await exploreSearch(query.trim(), location.trim());
-    console.log(`[Explore] Found ${places.length} places, post length: ${post.length}`);
-    res.json({ post, places });
+    const { post, places, videos } = await exploreSearch(query.trim(), location.trim());
+    console.log(`[Explore] Found ${places.length} places, ${videos.length} videos, post length: ${post.length}`);
+    res.json({ post, places, videos });
   } catch (err) {
     console.error('[Explore] Error:', err);
     res.status(500).json({

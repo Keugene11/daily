@@ -1,5 +1,6 @@
 import Dedalus from 'dedalus-labs';
 import { searchPlaces, ExplorePlace } from './apis/google_places';
+import { searchYouTubeVideos } from './apis/youtube';
 
 export interface ExplorePlace_out {
   id: string;
@@ -16,9 +17,15 @@ export interface ExplorePlace_out {
   isOpen: boolean | null;
 }
 
+export interface ExploreVideo {
+  videoId: string;
+  title: string;
+}
+
 export interface ExploreSearchResult {
   post: string;
   places: ExplorePlace_out[];
+  videos: ExploreVideo[];
 }
 
 let client: Dedalus | null = null;
@@ -80,16 +87,21 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
   const hasPlacesApi = !!process.env.GOOGLE_PLACES_API_KEY;
 
   if (!hasPlacesApi) {
-    return { post: `Google Places API is not configured. Add GOOGLE_PLACES_API_KEY to enable Explore.`, places: [] };
+    return { post: `Google Places API is not configured. Add GOOGLE_PLACES_API_KEY to enable Explore.`, places: [], videos: [] };
   }
 
   try {
-    const rawPlaces = await searchPlaces(query, location);
+    // Fetch places and YouTube videos in parallel
+    const videoQuery = `best ${query} in ${location}`;
+    const [rawPlaces, videos] = await Promise.all([
+      searchPlaces(query, location),
+      searchYouTubeVideos(videoQuery, 4).catch(() => []),
+    ]);
+
     if (rawPlaces.length === 0) {
-      return { post: '', places: [] };
+      return { post: '', places: [], videos };
     }
 
-    // Generate AI post and build place data in parallel
     const post = await generateExplorePost(query, location, rawPlaces);
 
     const places: ExplorePlace_out[] = rawPlaces.map(p => ({
@@ -107,7 +119,7 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
       isOpen: p.isOpen,
     }));
 
-    return { post, places };
+    return { post, places, videos };
   } catch (err) {
     console.error('[Explore] Search failed:', err);
     throw err;

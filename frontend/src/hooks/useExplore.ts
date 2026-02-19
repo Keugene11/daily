@@ -17,9 +17,15 @@ export interface ExplorePlace {
   isOpen: boolean | null;
 }
 
+export interface ExploreVideo {
+  videoId: string;
+  title: string;
+}
+
 interface UseExploreReturn {
   post: string;
   places: ExplorePlace[];
+  videos: ExploreVideo[];
   loading: boolean;
   error: string | null;
   searched: boolean;
@@ -30,6 +36,7 @@ interface UseExploreReturn {
 export function useExplore(getAccessToken: () => Promise<string | null>): UseExploreReturn {
   const [post, setPost] = useState('');
   const [places, setPlaces] = useState<ExplorePlace[]>([]);
+  const [videos, setVideos] = useState<ExploreVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -46,6 +53,7 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
     setSearched(true);
     setPost('');
     setPlaces([]);
+    setVideos([]);
 
     try {
       const token = await getAccessToken();
@@ -68,6 +76,7 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
       const data = await res.json();
       setPost(data.post || '');
       setPlaces(data.places || []);
+      setVideos(data.videos || []);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setError(err.message || 'Something went wrong');
@@ -82,10 +91,11 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
     abortRef.current?.abort();
     setPost('');
     setPlaces([]);
+    setVideos([]);
     setLoading(false);
     setError(null);
     setSearched(false);
   }, []);
 
-  return { post, places, loading, error, searched, search, reset };
+  return { post, places, videos, loading, error, searched, search, reset };
 }

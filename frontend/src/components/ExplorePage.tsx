@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useExplore } from '../hooks/useExplore';
+import { useExplore, ExploreVideo } from '../hooks/useExplore';
 import { ExploreMap } from './ExploreMap';
 
 const LOCATION_KEY = 'daily_explore_location';
@@ -73,10 +73,69 @@ function renderInline(text: string, keyBase: number): React.ReactNode[] {
   return elements;
 }
 
+function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[]; playingVideo: string | null; onPlay: (id: string | null) => void }) {
+  return (
+    <div className="mt-8 mb-4">
+      <h3 className="text-xs uppercase tracking-[0.15em] text-on-surface/40 mb-3">Videos</h3>
+
+      {/* Playing video embed */}
+      {playingVideo && (
+        <div className="rounded-xl overflow-hidden mb-3">
+          <div className="relative aspect-video bg-black">
+            <iframe
+              src={`https://www.youtube.com/embed/${playingVideo}?autoplay=1&rel=0`}
+              className="absolute inset-0 w-full h-full"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              title="YouTube video"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Thumbnail row */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {videos.map(v => {
+          const isPlaying = playingVideo === v.videoId;
+          return (
+            <button
+              key={v.videoId}
+              onClick={() => onPlay(isPlaying ? null : v.videoId)}
+              className={`relative flex-shrink-0 w-44 rounded-lg overflow-hidden group cursor-pointer ${isPlaying ? 'ring-2 ring-accent' : ''}`}
+            >
+              <div className="relative aspect-video bg-black">
+                <img
+                  src={`https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`}
+                  alt={v.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+                {!isPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-6 bg-red-600 rounded-md flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
+                      <svg className="w-3 h-3 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="px-1.5 py-1.5">
+                <p className="text-[11px] leading-tight text-on-surface/60 text-left line-clamp-2">{v.title}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
-  const { post, places, loading, error, searched, search } = useExplore(getAccessToken);
+  const { post, places, videos, loading, error, searched, search } = useExplore(getAccessToken);
+  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
   // Save location to localStorage when it changes
   useEffect(() => {
@@ -187,6 +246,10 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
           <div className="text-[15px] leading-relaxed text-on-surface/60">
             <RenderPost text={post} />
           </div>
+
+          {videos.length > 0 && (
+            <ExploreVideos videos={videos} playingVideo={playingVideo} onPlay={setPlayingVideo} />
+          )}
 
           <ExploreMap results={places} />
         </div>

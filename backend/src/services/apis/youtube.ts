@@ -145,33 +145,31 @@ function scoreCandidate(
 }
 
 /**
- * Search YouTube by scraping the search results page and extracting
- * video data from the embedded ytInitialData JSON.
- * Evaluates multiple results and picks the best one.
+ * Scrape YouTube search results and return scored candidates.
+ * @param query - The search query (used for relevance scoring)
+ * @param searchSuffix - Optional suffix appended to the YouTube search (e.g. "travel")
+ * @param count - Number of top results to return (default 1)
  */
-async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
+async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1): Promise<VideoResult[]> {
   try {
-    // Append "travel" to bias YouTube's search toward travel/tourism content.
-    // Score candidates against the original query (without "travel") so that
-    // title-relevance scoring isn't diluted by the extra term.
-    const searchQuery = `${query} travel`;
+    const searchQuery = searchSuffix ? `${query} ${searchSuffix}` : query;
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
     const res = await fetchWithTimeout(url, {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9',
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return [];
 
     const html = await res.text();
     const match = html.match(/var ytInitialData = (.+?);<\/script>/);
-    if (!match) return null;
+    if (!match) return [];
 
     const data = JSON.parse(match[1]);
     const contents = data?.contents?.twoColumnSearchResultsRenderer
       ?.primaryContents?.sectionListRenderer?.contents;
 
-    if (!contents) return null;
+    if (!contents) return [];
 
     const items = contents[0]?.itemSectionRenderer?.contents || [];
 
@@ -207,10 +205,10 @@ async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
       );
 
       candidates.push({ videoId, title, views, durationSec, isVerified, channel });
-      if (candidates.length >= 15) break; // evaluate more candidates
+      if (candidates.length >= 15) break;
     }
 
-    if (candidates.length === 0) return null;
+    if (candidates.length === 0) return [];
 
     // Filter: skip Shorts (<45s) and full-length movies/docs (>45min)
     const filtered = candidates.filter(c =>
@@ -228,21 +226,27 @@ async function scrapeYouTubeSearch(query: string): Promise<VideoResult | null> {
 
     scored.sort((a, b) => b.score - a.score);
 
-    // Minimum relevance check — don't return a video if the best candidate
-    // doesn't contain ANY meaningful query terms in its title. Better to show
-    // no video than a completely irrelevant one.
-    const bestTitle = scored[0].title.toLowerCase();
+    // Filter out results where no meaningful query term appears in the title
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    const hasAnyMatch = terms.some(t => bestTitle.includes(t));
-    if (!hasAnyMatch) return null;
+    const relevant = scored.filter(c => {
+      const titleLower = c.title.toLowerCase();
+      return terms.some(t => titleLower.includes(t));
+    });
 
-    return { videoId: scored[0].videoId, title: scored[0].title };
+    return relevant.slice(0, count).map(c => ({ videoId: c.videoId, title: c.title }));
   } catch {
-    // Scraping failed — return null
+    // Scraping failed
   }
-  return null;
+  return [];
 }
 
+/** Single best travel-biased video (used by itinerary planner) */
 export async function searchYouTubeVideo(query: string): Promise<VideoResult | null> {
-  return scrapeYouTubeSearch(query);
+  const results = await scrapeYouTubeSearch(query, 'travel', 1);
+  return results[0] || null;
+}
+
+/** Multiple relevant videos for a topic+location (used by Explore) */
+export async function searchYouTubeVideos(query: string, count = 3): Promise<VideoResult[]> {
+  return scrapeYouTubeSearch(query, '', count);
 }
