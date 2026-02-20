@@ -17,7 +17,9 @@ import { usePlanStream } from './hooks/usePlanStream';
 import { useMediaEnrichment } from './hooks/useMediaEnrichment';
 import { useAuth } from './hooks/useAuth';
 import { usePlans } from './hooks/usePlans';
+import { useSubscription } from './hooks/useSubscription';
 import { LoginScreen } from './components/LoginScreen';
+import { PricingModal } from './components/PricingModal';
 import './styles/index.css';
 
 const BUDGET_OPTIONS = [
@@ -30,6 +32,8 @@ const BUDGET_OPTIONS = [
 
 function App() {
   const { session, user, loading: authLoading, signInWithGoogle, signOut, getAccessToken } = useAuth();
+  const subscription = useSubscription(getAccessToken);
+  const [showPricing, setShowPricing] = useState(false);
   const [city, setCity] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [budget, setBudget] = useState('any');
@@ -284,6 +288,9 @@ function App() {
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={() => { setView('explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
           <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
+          <button onClick={() => setShowPricing(true)} className="hover:text-on-surface transition-colors">
+            {subscription.tier === 'free' ? 'upgrade' : subscription.tier}
+          </button>
           <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
 
           <button
@@ -329,6 +336,7 @@ function App() {
         <ExplorePage
           getAccessToken={getAccessToken}
           onClose={() => setView('home')}
+          onUpgrade={() => setShowPricing(true)}
         />
       )}
 
@@ -618,8 +626,21 @@ function App() {
             <MusicPlayer playlist={playlistData} />
           )}
 
+          {/* Upgrade prompt (subscription limit/feature lock) */}
+          {state.error && state.error.startsWith('upgrade:') && (
+            <div className="border border-accent/30 rounded-lg p-6 mb-10 animate-fadeIn">
+              <p className="text-sm text-on-surface/60 mb-2">{state.error.replace('upgrade:', '')}</p>
+              <button
+                onClick={() => setShowPricing(true)}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                View plans &rarr;
+              </button>
+            </div>
+          )}
+
           {/* Error */}
-          {state.error && (
+          {state.error && !state.error.startsWith('upgrade:') && (
             <div className="border border-red-500/30 rounded-lg p-6 mb-10 animate-fadeIn">
               <p className="text-red-500 text-sm font-medium mb-1">Something went wrong</p>
               <p className="text-on-surface/60 text-sm">{state.error}</p>
@@ -678,6 +699,15 @@ function App() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Pricing Modal */}
+      {showPricing && (
+        <PricingModal
+          currentTier={subscription.tier}
+          onCheckout={subscription.createCheckout}
+          onClose={() => setShowPricing(false)}
+        />
       )}
 
       {/* Footer */}

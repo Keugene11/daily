@@ -7,6 +7,7 @@ const LOCATION_KEY = 'daily_explore_location';
 interface Props {
   getAccessToken: () => Promise<string | null>;
   onClose: () => void;
+  onUpgrade?: () => void;
 }
 
 /** Render markdown text with paragraphs — **bold** and [links](url) */
@@ -131,7 +132,7 @@ function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[
   );
 }
 
-export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
+export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose, onUpgrade }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
   const { post, places, videos, loading, error, searched, search } = useExplore(getAccessToken);
@@ -230,10 +231,22 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
 
       {/* Error */}
       {error && (
-        <div className="border border-red-500/30 rounded-lg p-6 mb-8 animate-fadeIn">
-          <p className="text-red-500 text-sm font-medium mb-1">Search failed</p>
-          <p className="text-on-surface/60 text-sm">{error}</p>
-        </div>
+        error.startsWith('upgrade:') ? (
+          <div className="border border-accent/30 rounded-lg p-6 mb-8 animate-fadeIn">
+            <p className="text-sm text-on-surface/60 mb-2">{error.replace('upgrade:', '')}</p>
+            <button
+              onClick={onUpgrade}
+              className="text-sm font-medium text-accent hover:underline"
+            >
+              View plans &rarr;
+            </button>
+          </div>
+        ) : (
+          <div className="border border-red-500/30 rounded-lg p-6 mb-8 animate-fadeIn">
+            <p className="text-red-500 text-sm font-medium mb-1">Search failed</p>
+            <p className="text-on-surface/60 text-sm">{error}</p>
+          </div>
+        )
       )}
 
       {/* Results — single flowing text block */}

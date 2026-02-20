@@ -2,12 +2,20 @@ import express from 'express';
 import cors from 'cors';
 import planRouter from './routes/plan';
 import exploreRouter from './routes/explore';
+import stripeRouter from './routes/stripe';
+import webhookRouter from './routes/webhooks';
 import { requireAuth } from './middleware/auth';
+import { checkSubscription } from './middleware/subscription';
+import { checkUsage } from './middleware/usage';
 
 const app = express();
 
 // Middleware
 app.use(cors());
+
+// Stripe webhook needs raw body — mount BEFORE express.json()
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), webhookRouter);
+
 app.use(express.json());
 
 // Request logging
@@ -93,9 +101,12 @@ app.get('/api/privacy', (_req, res) => {
 </html>`);
 });
 
-// API routes
-app.use('/api', requireAuth, planRouter);
-app.use('/api', requireAuth, exploreRouter);
+// Stripe routes (checkout, portal, subscription status)
+app.use('/api', requireAuth, checkSubscription, stripeRouter);
+
+// API routes with subscription + usage checks
+app.use('/api', requireAuth, checkSubscription, checkUsage('plan'), planRouter);
+app.use('/api', requireAuth, checkSubscription, checkUsage('explore'), exploreRouter);
 
 // 404 handler
 app.use((_req, res) => {

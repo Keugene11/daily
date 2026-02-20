@@ -52,6 +52,12 @@ export const usePlanStream = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403 && (errorData.error === 'feature_locked' || errorData.error === 'limit_reached')) {
+          const msg = errorData.error === 'feature_locked'
+            ? `This feature requires the ${errorData.requiredTier || 'pro'} plan.`
+            : errorData.message || "You've reached your plan limit.";
+          throw new Error(`upgrade:${msg}`);
+        }
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 

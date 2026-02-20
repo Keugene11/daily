@@ -1,14 +1,27 @@
 import { Router, Request, Response } from 'express';
 import { streamPlanGeneration } from '../services/dedalus';
 import { searchYouTubeVideo } from '../services/apis/youtube';
+import { SubscriptionRequest } from '../middleware/subscription';
 
 const router = Router();
+
+// Feature → required tier mapping for error messages
+const FEATURE_TIER: Record<string, string> = {
+  multiDay: 'starter',
+  recurring: 'pro',
+  antiRoutine: 'pro',
+  dateNight: 'pro',
+  dietary: 'pro',
+  accessible: 'pro',
+  mood: 'pro',
+  energy: 'pro',
+};
 
 /**
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
-router.post('/plan', async (req: Request, res: Response) => {
+router.post('/plan', async (req: SubscriptionRequest, res: Response) => {
   const { city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
 
   // Validate input
@@ -24,6 +37,29 @@ router.post('/plan', async (req: Request, res: Response) => {
     const numDays = Number(days);
     if (!Number.isInteger(numDays) || numDays < 1 || numDays > 7) {
       return res.status(400).json({ error: 'Days must be an integer between 1 and 7' });
+    }
+  }
+
+  // Feature gate checks
+  const features = req.features || new Set();
+  const gatedChecks: [boolean, string][] = [
+    [days && Number(days) > 1, 'multiDay'],
+    [recurring, 'recurring'],
+    [antiRoutine, 'antiRoutine'],
+    [dateNight, 'dateNight'],
+    [dietary && dietary.length > 0, 'dietary'],
+    [accessible, 'accessible'],
+    [mood, 'mood'],
+    [energyLevel, 'energy'],
+  ];
+
+  for (const [isUsed, feature] of gatedChecks) {
+    if (isUsed && !features.has(feature)) {
+      return res.status(403).json({
+        error: 'feature_locked',
+        feature,
+        requiredTier: FEATURE_TIER[feature] || 'pro',
+      });
     }
   }
 
