@@ -78,12 +78,14 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   useEffect(() => {
     fetchSubscription();
 
-    // Re-fetch if returning from Stripe checkout
+    // Re-fetch aggressively if returning from Stripe checkout
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === '1') {
       window.history.replaceState({}, '', window.location.pathname);
-      // Sync again after delay to catch webhook
+      // Retry multiple times to catch the webhook update
       setTimeout(fetchSubscription, 2000);
+      setTimeout(fetchSubscription, 5000);
+      setTimeout(fetchSubscription, 10000);
     }
     if (params.get('canceled') === '1') {
       window.history.replaceState({}, '', window.location.pathname);

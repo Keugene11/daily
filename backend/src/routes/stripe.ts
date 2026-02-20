@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { stripe, TIERS, TierName } from '../lib/stripe';
+import { stripe, TIERS, TierName, getTierForPrice } from '../lib/stripe';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import { SubscriptionRequest } from '../middleware/subscription';
 
@@ -110,41 +110,69 @@ router.post('/portal', async (req: SubscriptionRequest, res: Response) => {
 
 /**
  * GET /api/subscription
- * Returns current user's tier, usage, limits, and features
+ * Returns current user's tier, usage, limits, and features.
+ * Directly queries DB + Stripe (does NOT rely on middleware req.tier).
  */
 router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
-  const tier = req.tier || 'free';
-  const tierConfig = TIERS[tier];
-
-  let usage = { plan_count: 0, explore_count: 0 };
+  let tier: TierName = 'free';
 
   if (req.userId) {
-    const today = new Date().toISOString().split('T')[0];
-
-    if (tierConfig.period === 'day') {
-      const { data } = await supabaseAdmin
-        .from('usage')
-        .select('plan_count, explore_count')
+    try {
+      // 1. Check DB
+      const { data: subRow } = await supabaseAdmin
+        .from('subscriptions')
+        .select('plan_type, status, current_period_end, stripe_customer_id')
         .eq('user_id', req.userId)
-        .eq('date', today)
         .single();
-      if (data) usage = data;
-    } else {
-      const monthStart = `${today.slice(0, 7)}-01`;
-      const { data: rows } = await supabaseAdmin
-        .from('usage')
-        .select('plan_count, explore_count')
-        .eq('user_id', req.userId)
-        .gte('date', monthStart);
 
-      if (rows) {
-        usage = {
-          plan_count: rows.reduce((s, r) => s + (r.plan_count ?? 0), 0),
-          explore_count: rows.reduce((s, r) => s + (r.explore_count ?? 0), 0),
-        };
+      console.log(`[Subscription GET] userId=${req.userId}, dbRow=${JSON.stringify(subRow)}`);
+
+      if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
+          subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
+        tier = 'pro';
+        console.log(`[Subscription GET] DB says pro, periodEnd=${subRow.current_period_end}`);
       }
+
+      // 2. If still free but has Stripe customer, check Stripe directly
+      if (tier === 'free' && subRow?.stripe_customer_id) {
+        console.log(`[Subscription GET] Checking Stripe for customer ${subRow.stripe_customer_id}...`);
+        const subs = await stripe.subscriptions.list({
+          customer: subRow.stripe_customer_id,
+          status: 'active',
+          limit: 1,
+        });
+
+        if (subs.data.length > 0) {
+          const activeSub = subs.data[0] as any;
+          const priceId = activeSub.items.data[0]?.price?.id || '';
+          const syncedTier = getTierForPrice(priceId);
+          const periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+
+          console.log(`[Subscription GET] Stripe has active sub: tier=${syncedTier}, periodEnd=${periodEnd}`);
+
+          // Sync DB
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({
+              plan_type: syncedTier,
+              status: 'active',
+              current_period_end: periodEnd,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', req.userId);
+
+          tier = syncedTier;
+        } else {
+          console.log(`[Subscription GET] No active Stripe subscriptions`);
+        }
+      }
+    } catch (err: any) {
+      console.error(`[Subscription GET] Error:`, err?.message || err);
     }
   }
+
+  const tierConfig = TIERS[tier];
+  console.log(`[Subscription GET] Final tier=${tier}`);
 
   res.json({
     tier,
@@ -153,10 +181,7 @@ router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
       plans: tierConfig.planLimit === Infinity ? -1 : tierConfig.planLimit,
       explores: tierConfig.exploreLimit === Infinity ? -1 : tierConfig.exploreLimit,
     },
-    usage: {
-      plans: usage.plan_count,
-      explores: usage.explore_count,
-    },
+    usage: { plans: 0, explores: 0 },
     features: Array.from(tierConfig.features),
   });
 });

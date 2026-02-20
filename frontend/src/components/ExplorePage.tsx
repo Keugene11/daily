@@ -231,22 +231,10 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose, onUpgrad
 
       {/* Error */}
       {error && (
-        error.startsWith('upgrade:') ? (
-          <div className="border border-accent/30 rounded-lg p-6 mb-8 animate-fadeIn">
-            <p className="text-sm text-on-surface/60 mb-2">{error.replace('upgrade:', '')}</p>
-            <button
-              onClick={onUpgrade}
-              className="text-sm font-medium text-accent hover:underline"
-            >
-              View plans &rarr;
-            </button>
-          </div>
-        ) : (
-          <div className="border border-red-500/30 rounded-lg p-6 mb-8 animate-fadeIn">
-            <p className="text-red-500 text-sm font-medium mb-1">Search failed</p>
-            <p className="text-on-surface/60 text-sm">{error}</p>
-          </div>
-        )
+        <div className="border border-red-500/30 rounded-lg p-6 mb-8 animate-fadeIn">
+          <p className="text-red-500 text-sm font-medium mb-1">Search failed</p>
+          <p className="text-on-surface/60 text-sm">{error}</p>
+        </div>
       )}
 
       {/* Results — single flowing text block */}
