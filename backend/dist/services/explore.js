@@ -18,12 +18,12 @@ function getClient() {
     return client;
 }
 async function generateExplorePost(query, location, places) {
-    const placesWithReviews = places.filter(p => p.reviews.length > 0).slice(0, 6);
+    const placesWithReviews = places.filter(p => p.reviews.length > 0).slice(0, 5);
     if (placesWithReviews.length === 0) {
         return `No detailed reviews available for ${query} in ${location}.`;
     }
     const placeDescriptions = placesWithReviews.map((p, i) => {
-        const reviewBlock = p.reviews.slice(0, 5).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
+        const reviewBlock = p.reviews.slice(0, 3).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
         const status = p.isOpen === true ? 'Open now' : p.isOpen === false ? 'Closed' : '';
         const price = p.priceLevel ? `Price level: ${p.priceLevel}` : '';
         const range = p.priceRange ? `Price range: ${p.priceRange}` : '';
@@ -37,15 +37,23 @@ async function generateExplorePost(query, location, places) {
             messages: [
                 {
                     role: 'system',
-                    content: `You write honest, helpful local guides. Your tone is casual and knowledgeable — like a friend who actually lives in the area. Be specific: mention standout details from reviews (a particular barber, a signature dish, the vibe of the place). IMPORTANT: Always include pricing. If a price range is provided (e.g. "$10–$50"), always mention it. If a price level is provided ($, $$, $$$, $$$$), always mention it. Also scan reviews for any dollar amounts or cost mentions and include them. If no pricing info exists at all, say "prices not listed." If there are complaints, include them honestly. Never use generic filler like "highly recommended" or "a must-visit". Bold each place name as a link: **[Name](google maps url)**. Write 2-3 sentences per place. Start with a short intro paragraph. Use separate paragraphs to group related places or themes — keep it readable and well-spaced. No bullet points, no numbered lists, no markdown headings.`,
+                    content: `You write short, punchy local guides. Like a friend texting you their top picks — not a travel blog essay. Rules:
+
+- One short intro sentence, max.
+- Each place gets 1-2 sentences MAX. Lead with the most interesting detail from reviews (a specific dish, a standout feature, a vibe). Skip generic praise.
+- Include pricing when available (price range, price level, or review mentions). If none, skip it — don't say "prices not listed."
+- If there are real complaints, mention them in a few words.
+- Bold each place name as a link: **[Name](google maps url)**.
+- Keep the TOTAL response under 150 words. Be ruthlessly concise.
+- No bullet points, no numbered lists, no markdown headings, no filler phrases.`,
                 },
                 {
                     role: 'user',
-                    content: `Write about the best "${query}" in ${location}. Here are ${placesWithReviews.length} places with their reviews:\n\n${placeDescriptions}`,
+                    content: `Quick guide to the best "${query}" in ${location}. Here are ${placesWithReviews.length} places with reviews:\n\n${placeDescriptions}`,
                 },
             ],
             temperature: 0.7,
-            max_tokens: 1500,
+            max_tokens: 600,
         });
         return response.choices?.[0]?.message?.content || '';
     }
