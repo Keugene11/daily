@@ -72,10 +72,6 @@ export const PricingModal: React.FC<Props> = ({ currentTier, onCheckout, onClose
                 'Unlimited plans',
                 'Unlimited explore searches',
                 'Multi-day trips',
-                'Date night mode',
-                'Dietary & accessibility filters',
-                'Mood & energy filters',
-                'Anti-routine mode',
                 'All future features',
               ].map(f => (
                 <li key={f} className="text-sm text-on-surface/60 flex items-center gap-2.5">
