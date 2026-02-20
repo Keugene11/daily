@@ -49,10 +49,14 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
         }, { onConflict: 'user_id' });
     }
 
+    // Fetch the price to determine if it's recurring or one-time
+    const price = await stripe.prices.retrieve(priceId);
+    const mode = price.type === 'recurring' ? 'subscription' : 'payment';
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      mode: 'subscription',
+      mode,
       success_url: `${req.headers.origin || 'https://daily-three-xi.vercel.app'}?success=1`,
       cancel_url: `${req.headers.origin || 'https://daily-three-xi.vercel.app'}?canceled=1`,
       metadata: { supabase_user_id: req.userId },

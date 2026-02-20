@@ -61,8 +61,32 @@ router.post('/', async (req: Request, res: Response) => {
           } else {
             console.log(`[Webhook] User ${userId} subscribed to ${tier}`);
           }
+        } else if (session.mode === 'payment') {
+          // One-time payment (e.g. yearly plan as single charge)
+          console.log(`[Webhook] One-time payment for user ${userId}`);
+
+          // Set as pro with 1-year expiry
+          const oneYearFromNow = new Date();
+          oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+          const { error: upsertError } = await supabaseAdmin
+            .from('subscriptions')
+            .upsert({
+              user_id: userId,
+              stripe_customer_id: session.customer as string,
+              plan_type: 'pro',
+              status: 'active',
+              current_period_end: oneYearFromNow.toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id' });
+
+          if (upsertError) {
+            console.error(`[Webhook] Supabase upsert failed:`, upsertError);
+          } else {
+            console.log(`[Webhook] User ${userId} activated pro (one-time payment, expires ${oneYearFromNow.toISOString()})`);
+          }
         } else {
-          console.warn('[Webhook] No subscription on session (one-time payment?)');
+          console.warn('[Webhook] Unhandled session mode:', session.mode);
         }
         break;
       }
