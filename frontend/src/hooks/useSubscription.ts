@@ -32,7 +32,10 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   const syncSubscription = useCallback(async () => {
     try {
       const token = await getAccessToken();
-      if (!token) return;
+      if (!token) {
+        console.warn('[Subscription] No token for sync');
+        return;
+      }
 
       const res = await fetch(`${API_URL}/api/sync-subscription`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -40,12 +43,13 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       if (res.ok) {
         const result = await res.json();
-        if (result.synced) {
-          console.log('[Subscription] Synced from Stripe:', result.tier);
-        }
+        console.log('[Subscription] Sync result:', result);
+      } else {
+        const text = await res.text();
+        console.error('[Subscription] Sync failed:', res.status, text);
       }
-    } catch {
-      // Silently fail — sync is best-effort
+    } catch (err) {
+      console.error('[Subscription] Sync error:', err);
     }
   }, [getAccessToken]);
 
@@ -53,6 +57,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     try {
       const token = await getAccessToken();
       if (!token) {
+        console.warn('[Subscription] No token, skipping fetch');
         setData(null);
         setLoading(false);
         return;
@@ -61,15 +66,23 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       // First sync with Stripe (fixes stale DB), then fetch full subscription data
       await syncSubscription();
 
-      const res = await fetch(`${API_URL}/api/subscription`, {
+      const res = await fetch(`${API_URL}/api/subscription?debug=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
-        setData(await res.json());
+        const result = await res.json();
+        console.log('[Subscription] Fetched:', result.tier, result);
+        if (result._debug) {
+          console.log('[Subscription] Debug steps:', result._debug);
+        }
+        setData(result);
+      } else {
+        const text = await res.text();
+        console.error('[Subscription] Fetch failed:', res.status, text);
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error('[Subscription] Fetch error:', err);
     } finally {
       setLoading(false);
     }

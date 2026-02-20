@@ -305,10 +305,12 @@ function App() {
           user={user}
           planCount={savedPlans.length}
           tier={subscription.tier}
+          loading={subscription.loading}
           onClose={() => navigate('/')}
           onSignOut={signOut}
           onManage={subscription.openPortal}
           onUpgrade={() => setShowPricing(true)}
+          onRefresh={subscription.refresh}
         />
       } />
 

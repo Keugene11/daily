@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import type { TierName } from '../hooks/useSubscription';
 
@@ -6,13 +6,27 @@ interface Props {
   user: User | null;
   planCount: number;
   tier: TierName;
+  loading: boolean;
   onClose: () => void;
   onSignOut: () => void;
   onManage: () => void;
   onUpgrade: () => void;
+  onRefresh: () => Promise<void>;
 }
 
-export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, onClose, onSignOut, onManage, onUpgrade }) => {
+export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, onClose, onSignOut, onManage, onUpgrade, onRefresh }) => {
+  const [syncing, setSyncing] = useState(false);
+
+  // Auto-refresh subscription on mount
+  useEffect(() => {
+    onRefresh();
+  }, []);
+
+  const handleRefresh = async () => {
+    setSyncing(true);
+    await onRefresh();
+    setSyncing(false);
+  };
   const name = user?.user_metadata?.full_name || user?.user_metadata?.name || null;
   const email = user?.email || 'Guest';
   const avatar = user?.user_metadata?.avatar_url || null;
@@ -54,7 +68,15 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, onClose, o
         <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
           <span className="text-sm text-on-surface/50">Plan</span>
           <span className="text-sm flex items-center gap-2">
-            {tier === 'pro' ? (
+            {(loading || syncing) ? (
+              <span className="flex items-center gap-2 text-on-surface/40">
+                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Syncing...
+              </span>
+            ) : tier === 'pro' ? (
               <>
                 <span className="text-accent font-medium">Pro</span>
                 <button onClick={onManage} className="text-xs text-on-surface/40 hover:text-on-surface underline">Manage</button>
@@ -63,6 +85,7 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, onClose, o
               <>
                 <span>Free</span>
                 <button onClick={onUpgrade} className="text-xs text-accent hover:underline">Upgrade</button>
+                <button onClick={handleRefresh} className="text-xs text-on-surface/30 hover:text-on-surface underline">Refresh</button>
               </>
             )}
           </span>
