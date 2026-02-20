@@ -70,10 +70,6 @@ export function useExplore(getAccessToken: () => Promise<string | null>): UseExp
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (res.status === 403 && (data.error === 'feature_locked' || data.error === 'limit_reached')) {
-          const msg = data.message || "You've reached your explore limit.";
-          throw new Error(`upgrade:${msg}`);
-        }
         throw new Error(data.error || `Search failed (${res.status})`);
       }
 
