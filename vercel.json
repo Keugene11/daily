@@ -14,9 +14,16 @@
       "headers": [
         { "key": "Content-Type", "value": "application/json" }
       ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Clear-Site-Data", "value": "\"cache\", \"storage\"" }
+      ]
     }
   ],
   "rewrites": [
+    { "source": "/api/explore", "destination": "/api/explore" },
     { "source": "/api/sync-subscription", "destination": "/api/sync-subscription" },
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
