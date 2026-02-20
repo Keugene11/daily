@@ -259,6 +259,7 @@ function App() {
       <nav className="flex items-center justify-between px-8 py-5 border-b border-on-surface/10">
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
+          <button onClick={handleReset} className="hover:text-on-surface transition-colors">home</button>
           <button onClick={() => { navigate('/explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
           {session && (
             <button onClick={() => { navigate('/history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
