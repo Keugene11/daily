@@ -83,7 +83,10 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   const createCheckout = useCallback(async (priceId: string) => {
     try {
       const token = await getAccessToken();
-      if (!token) return;
+      if (!token) {
+        alert('Not signed in. Please sign in first.');
+        return;
+      }
 
       const res = await fetch(`${API_URL}/api/checkout`, {
         method: 'POST',
@@ -94,16 +97,19 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         body: JSON.stringify({ priceId }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { data = { error: text }; }
+
       if (!res.ok) {
-        console.error('[Checkout] Error:', data);
-        alert(data.error || 'Failed to start checkout');
+        console.error('[Checkout] Error:', res.status, data);
+        alert(`Checkout failed (${res.status}): ${data.error || text}`);
         return;
       }
       if (data.url) window.location.href = data.url;
-    } catch (err) {
+    } catch (err: any) {
       console.error('[Checkout] Error:', err);
-      alert('Failed to start checkout. Check console for details.');
+      alert(`Checkout error: ${err.message}`);
     }
   }, [getAccessToken]);
 
