@@ -16,7 +16,6 @@ async function test() {
     console.log('='.repeat(60));
     const testRequest = {
         city: 'San Francisco',
-        interests: ['food', 'culture', 'outdoors']
     };
     console.log('Test Request:', JSON.stringify(testRequest, null, 2));
     console.log('='.repeat(60));

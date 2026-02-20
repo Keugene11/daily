@@ -16,8 +16,8 @@ export function parseHour(s: string): number | null {
  * Handles formats: "4-7 PM", "10 AM-6 PM", "5:00 - 9:00 PM",
  *   "7 PM", "All day", "Anytime", "24/7", etc.
  */
-export function isActiveNow(timeStr: string): boolean {
-  const h = new Date().getHours();
+export function isActiveNow(timeStr: string, localHour?: number): boolean {
+  const h = localHour ?? new Date().getHours();
   const windowEnd = h + 2;
 
   // Always-available patterns

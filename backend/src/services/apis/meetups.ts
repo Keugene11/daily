@@ -144,7 +144,7 @@ function matchCity(city: string): TechEvent[] {
 }
 
 export const meetupService = {
-  async getMeetups(city: string, interests?: string[], rightNow?: boolean): Promise<ToolResult> {
+  async getMeetups(city: string, rightNow?: boolean, localHour?: number): Promise<ToolResult> {
     await new Promise(r => setTimeout(r, 200));
 
     const dow = dayOfWeek();
@@ -156,7 +156,7 @@ export const meetupService = {
     // Right Now mode: only show events happening now or in the next 2 hours
     if (rightNow) {
       const { isActiveNow } = await import('./time_utils');
-      available = available.filter(e => isActiveNow(e.time));
+      available = available.filter(e => isActiveNow(e.time, localHour));
     }
 
     // Build today's highlights — events that are day-specific and available today
@@ -200,18 +200,6 @@ export const meetupService = {
       if (!a.isFree && b.isFree) return 1;
       return 0;
     });
-
-    // Interest/topic matching — boost events that match user interests
-    if (interests && interests.length > 0) {
-      const interestStr = interests.join(' ').toLowerCase();
-      events.sort((a, b) => {
-        const aTopics = (a.topics || []).join(' ').toLowerCase();
-        const bTopics = (b.topics || []).join(' ').toLowerCase();
-        const aMatch = interests.filter(i => aTopics.includes(i.toLowerCase()) || a.description.toLowerCase().includes(i.toLowerCase())).length;
-        const bMatch = interests.filter(i => bTopics.includes(i.toLowerCase()) || b.description.toLowerCase().includes(i.toLowerCase())).length;
-        return bMatch - aMatch;
-      });
-    }
 
     return {
       success: true,

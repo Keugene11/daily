@@ -3,13 +3,13 @@ import { SubscriptionRequest } from './subscription';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import { TIERS } from '../lib/stripe';
 
-type CounterField = 'plan' | 'explore';
+type CounterField = 'plan';
 
 export function checkUsage(counter: CounterField) {
   return async (req: SubscriptionRequest, res: Response, next: NextFunction) => {
     const tier = req.tier || 'free';
     const tierConfig = TIERS[tier];
-    const limit = counter === 'plan' ? tierConfig.planLimit : tierConfig.exploreLimit;
+    const limit = tierConfig.planLimit;
 
     // Unlimited — skip check
     if (limit === Infinity) {
@@ -26,7 +26,7 @@ export function checkUsage(counter: CounterField) {
       });
     }
 
-    const dbColumn = counter === 'plan' ? 'plan_count' : 'explore_count';
+    const dbColumn = 'plan_count';
 
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -34,7 +34,7 @@ export function checkUsage(counter: CounterField) {
       if (tierConfig.period === 'day') {
         const { data } = await supabaseAdmin
           .from('usage')
-          .select('plan_count, explore_count')
+          .select('plan_count')
           .eq('user_id', req.userId)
           .eq('date', today)
           .single();
@@ -44,7 +44,7 @@ export function checkUsage(counter: CounterField) {
         if (used >= limit) {
           return res.status(403).json({
             error: 'limit_reached',
-            message: `You've used your ${limit} free ${counter === 'plan' ? 'plan' : 'search'}${limit > 1 ? 's' : ''} today`,
+            message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} today`,
             tier,
             limit,
             used,
@@ -61,7 +61,7 @@ export function checkUsage(counter: CounterField) {
         const monthStart = `${today.slice(0, 7)}-01`;
         const { data: rows } = await supabaseAdmin
           .from('usage')
-          .select('plan_count, explore_count')
+          .select('plan_count')
           .eq('user_id', req.userId)
           .gte('date', monthStart);
 
@@ -70,7 +70,7 @@ export function checkUsage(counter: CounterField) {
         if (used >= limit) {
           return res.status(403).json({
             error: 'limit_reached',
-            message: `You've used your ${limit} ${counter === 'plan' ? 'plan' : 'search'}${limit > 1 ? 's' : ''} this month`,
+            message: `You've used your ${limit} plan${limit > 1 ? 's' : ''} this month`,
             tier,
             limit,
             used,
@@ -79,7 +79,7 @@ export function checkUsage(counter: CounterField) {
 
         const { data: todayRow } = await supabaseAdmin
           .from('usage')
-          .select('plan_count, explore_count')
+          .select('plan_count')
           .eq('user_id', req.userId)
           .eq('date', today)
           .single();

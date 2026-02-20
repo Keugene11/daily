@@ -7,7 +7,6 @@ exports.app = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const plan_1 = __importDefault(require("./routes/plan"));
-const explore_1 = __importDefault(require("./routes/explore"));
 const stripe_1 = __importDefault(require("./routes/stripe"));
 const webhooks_1 = __importDefault(require("./routes/webhooks"));
 const auth_1 = require("./middleware/auth");
@@ -103,7 +102,6 @@ app.get('/api/privacy', (_req, res) => {
 app.use('/api', auth_1.requireAuth, subscription_1.checkSubscription, stripe_1.default);
 // API routes (usage checks disabled for testing)
 app.use('/api', auth_1.requireAuth, plan_1.default);
-app.use('/api', auth_1.requireAuth, explore_1.default);
 // 404 handler
 app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

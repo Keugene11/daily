@@ -90,14 +90,14 @@ function mapsUrl(name: string, city: string): string {
 }
 
 export const happyHourService = {
-  async getHappyHours(city: string, rightNow?: boolean): Promise<ToolResult<HappyHourData>> {
+  async getHappyHours(city: string, rightNow?: boolean, localHour?: number): Promise<ToolResult<HappyHourData>> {
     await new Promise(r => setTimeout(r, 150));
     const data = matchCity(city);
 
     // Right Now mode: only show happy hours active now or starting within 2 hours
     if (rightNow) {
       const { isActiveNow } = await import('./time_utils');
-      data.happyHours = data.happyHours.filter(hh => isActiveNow(hh.hours));
+      data.happyHours = data.happyHours.filter(hh => isActiveNow(hh.hours, localHour));
     }
 
     // Add Google Maps URLs (pre-formatted markdown for AI to use directly)

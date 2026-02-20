@@ -115,6 +115,7 @@ router.post('/portal', async (req: SubscriptionRequest, res: Response) => {
  */
 router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
   let tier: TierName = 'free';
+  let interval: 'monthly' | 'yearly' | null = null;
 
   if (req.userId) {
     try {
@@ -127,14 +128,16 @@ router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
 
       console.log(`[Subscription GET] userId=${req.userId}, dbRow=${JSON.stringify(subRow)}`);
 
+      let activePriceId: string | null = null;
+
       if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
           subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
         tier = 'pro';
         console.log(`[Subscription GET] DB says pro, periodEnd=${subRow.current_period_end}`);
       }
 
-      // 2. If still free but has Stripe customer, check Stripe directly
-      if (tier === 'free' && subRow?.stripe_customer_id) {
+      // 2. If has Stripe customer, check Stripe directly (also gets interval)
+      if (subRow?.stripe_customer_id) {
         console.log(`[Subscription GET] Checking Stripe for customer ${subRow.stripe_customer_id}...`);
         const subs = await stripe.subscriptions.list({
           customer: subRow.stripe_customer_id,
@@ -144,27 +147,35 @@ router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
 
         if (subs.data.length > 0) {
           const activeSub = subs.data[0] as any;
-          const priceId = activeSub.items.data[0]?.price?.id || '';
-          const syncedTier = getTierForPrice(priceId);
+          activePriceId = activeSub.items.data[0]?.price?.id || '';
+          const syncedTier = getTierForPrice(activePriceId!);
           const periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
 
           console.log(`[Subscription GET] Stripe has active sub: tier=${syncedTier}, periodEnd=${periodEnd}`);
 
-          // Sync DB
-          await supabaseAdmin
-            .from('subscriptions')
-            .update({
-              plan_type: syncedTier,
-              status: 'active',
-              current_period_end: periodEnd,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', req.userId);
+          if (tier === 'free') {
+            // Sync DB
+            await supabaseAdmin
+              .from('subscriptions')
+              .update({
+                plan_type: syncedTier,
+                status: 'active',
+                current_period_end: periodEnd,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', req.userId);
+          }
 
           tier = syncedTier;
         } else {
           console.log(`[Subscription GET] No active Stripe subscriptions`);
         }
+      }
+
+      // Determine billing interval from price ID
+      if (tier === 'pro' && activePriceId) {
+        const yearlyId = process.env.STRIPE_YEARLY_PRICE_ID;
+        interval = (yearlyId && activePriceId === yearlyId) ? 'yearly' : 'monthly';
       }
     } catch (err: any) {
       console.error(`[Subscription GET] Error:`, err?.message || err);
@@ -172,16 +183,16 @@ router.get('/subscription', async (req: SubscriptionRequest, res: Response) => {
   }
 
   const tierConfig = TIERS[tier];
-  console.log(`[Subscription GET] Final tier=${tier}`);
+  console.log(`[Subscription GET] Final tier=${tier}, interval=${interval}`);
 
   res.json({
     tier,
+    interval,
     period: tierConfig.period,
     limits: {
       plans: tierConfig.planLimit === Infinity ? -1 : tierConfig.planLimit,
-      explores: tierConfig.exploreLimit === Infinity ? -1 : tierConfig.exploreLimit,
     },
-    usage: { plans: 0, explores: 0 },
+    usage: { plans: 0 },
     features: Array.from(tierConfig.features),
   });
 });

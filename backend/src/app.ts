@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import planRouter from './routes/plan';
-import exploreRouter from './routes/explore';
 import stripeRouter from './routes/stripe';
 import webhookRouter from './routes/webhooks';
 import { requireAuth } from './middleware/auth';
@@ -106,7 +105,6 @@ app.use('/api', requireAuth, checkSubscription, stripeRouter);
 
 // API routes (usage checks disabled for testing)
 app.use('/api', requireAuth, planRouter);
-app.use('/api', requireAuth, exploreRouter);
 
 // 404 handler
 app.use((_req, res) => {

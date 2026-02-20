@@ -118,7 +118,7 @@ function matchCity(city: string): { deals: Deal[]; tip: string } {
 }
 
 export const dealsService = {
-  async getDeals(city: string, category?: string, rightNow?: boolean): Promise<ToolResult<DealsData>> {
+  async getDeals(city: string, category?: string, rightNow?: boolean, localHour?: number): Promise<ToolResult<DealsData>> {
     await new Promise(r => setTimeout(r, 150));
 
     const dow = dayOfWeek();
@@ -130,7 +130,7 @@ export const dealsService = {
     // Right Now mode: only show deals active now or in the next 2 hours
     if (rightNow) {
       const { isActiveNow } = await import('./time_utils');
-      available = available.filter(d => isActiveNow(d.validUntil));
+      available = available.filter(d => isActiveNow(d.validUntil, localHour));
     }
 
     // Category filter

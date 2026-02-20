@@ -20,13 +20,10 @@ const FEATURE_TIER = {
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', async (req, res) => {
-    const { city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
+    const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
     // Validate input
     if (!city) {
         return res.status(400).json({ error: 'City is required' });
-    }
-    if (!Array.isArray(interests)) {
-        return res.status(400).json({ error: 'Interests must be an array' });
     }
     if (days !== undefined) {
         const numDays = Number(days);
@@ -55,7 +52,7 @@ router.post('/plan', async (req, res) => {
             });
         }
     }
-    console.log(`[SSE] Starting stream for city: ${city}, interests: ${interests.join(', ')}${days > 1 ? `, days: ${days}` : ''}`);
+    console.log(`[SSE] Starting stream for city: ${city}${days > 1 ? `, days: ${days}` : ''}`);
     // Track client disconnect so we can stop the generator
     // IMPORTANT: Listen on `res` not `req` — req 'close' fires when the POST body
     // is fully consumed, which happens immediately after express.json() parses it.
@@ -75,7 +72,7 @@ router.post('/plan', async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, interests, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
+        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;

@@ -124,7 +124,7 @@ function matchCity(city) {
     return resolved ? CITY_DEALS[resolved] : { ...DEFAULT_DEALS, tip: DEFAULT_DEALS.tip };
 }
 exports.dealsService = {
-    async getDeals(city, category, rightNow) {
+    async getDeals(city, category, rightNow, localHour) {
         await new Promise(r => setTimeout(r, 150));
         const dow = dayOfWeek();
         const matched = matchCity(city);
@@ -133,7 +133,7 @@ exports.dealsService = {
         // Right Now mode: only show deals active now or in the next 2 hours
         if (rightNow) {
             const { isActiveNow } = await Promise.resolve().then(() => __importStar(require('./time_utils')));
-            available = available.filter(d => isActiveNow(d.validUntil));
+            available = available.filter(d => isActiveNow(d.validUntil, localHour));
         }
         // Category filter
         if (category) {

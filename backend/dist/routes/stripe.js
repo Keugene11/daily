@@ -102,6 +102,7 @@ router.post('/portal', async (req, res) => {
  */
 router.get('/subscription', async (req, res) => {
     let tier = 'free';
+    let interval = null;
     if (req.userId) {
         try {
             // 1. Check DB
@@ -111,13 +112,14 @@ router.get('/subscription', async (req, res) => {
                 .eq('user_id', req.userId)
                 .single();
             console.log(`[Subscription GET] userId=${req.userId}, dbRow=${JSON.stringify(subRow)}`);
+            let activePriceId = null;
             if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
                 subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
                 tier = 'pro';
                 console.log(`[Subscription GET] DB says pro, periodEnd=${subRow.current_period_end}`);
             }
-            // 2. If still free but has Stripe customer, check Stripe directly
-            if (tier === 'free' && subRow?.stripe_customer_id) {
+            // 2. If has Stripe customer, check Stripe directly (also gets interval)
+            if (subRow?.stripe_customer_id) {
                 console.log(`[Subscription GET] Checking Stripe for customer ${subRow.stripe_customer_id}...`);
                 const subs = await stripe_1.stripe.subscriptions.list({
                     customer: subRow.stripe_customer_id,
@@ -126,25 +128,32 @@ router.get('/subscription', async (req, res) => {
                 });
                 if (subs.data.length > 0) {
                     const activeSub = subs.data[0];
-                    const priceId = activeSub.items.data[0]?.price?.id || '';
-                    const syncedTier = (0, stripe_1.getTierForPrice)(priceId);
+                    activePriceId = activeSub.items.data[0]?.price?.id || '';
+                    const syncedTier = (0, stripe_1.getTierForPrice)(activePriceId);
                     const periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
                     console.log(`[Subscription GET] Stripe has active sub: tier=${syncedTier}, periodEnd=${periodEnd}`);
-                    // Sync DB
-                    await supabase_admin_1.supabaseAdmin
-                        .from('subscriptions')
-                        .update({
-                        plan_type: syncedTier,
-                        status: 'active',
-                        current_period_end: periodEnd,
-                        updated_at: new Date().toISOString(),
-                    })
-                        .eq('user_id', req.userId);
+                    if (tier === 'free') {
+                        // Sync DB
+                        await supabase_admin_1.supabaseAdmin
+                            .from('subscriptions')
+                            .update({
+                            plan_type: syncedTier,
+                            status: 'active',
+                            current_period_end: periodEnd,
+                            updated_at: new Date().toISOString(),
+                        })
+                            .eq('user_id', req.userId);
+                    }
                     tier = syncedTier;
                 }
                 else {
                     console.log(`[Subscription GET] No active Stripe subscriptions`);
                 }
+            }
+            // Determine billing interval from price ID
+            if (tier === 'pro' && activePriceId) {
+                const yearlyId = process.env.STRIPE_YEARLY_PRICE_ID;
+                interval = (yearlyId && activePriceId === yearlyId) ? 'yearly' : 'monthly';
             }
         }
         catch (err) {
@@ -152,15 +161,15 @@ router.get('/subscription', async (req, res) => {
         }
     }
     const tierConfig = stripe_1.TIERS[tier];
-    console.log(`[Subscription GET] Final tier=${tier}`);
+    console.log(`[Subscription GET] Final tier=${tier}, interval=${interval}`);
     res.json({
         tier,
+        interval,
         period: tierConfig.period,
         limits: {
             plans: tierConfig.planLimit === Infinity ? -1 : tierConfig.planLimit,
-            explores: tierConfig.exploreLimit === Infinity ? -1 : tierConfig.exploreLimit,
         },
-        usage: { plans: 0, explores: 0 },
+        usage: { plans: 0 },
         features: Array.from(tierConfig.features),
     });
 });

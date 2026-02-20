@@ -64,11 +64,6 @@ export const tools: Tool[] = [
           city: {
             type: 'string',
             description: 'City name where to search for events'
-          },
-          interests: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'User interests like "outdoors", "food", "culture", "nightlife", "music", "sports"'
           }
         },
         required: ['city']
@@ -143,7 +138,7 @@ export const tools: Tool[] = [
     type: 'function',
     function: {
       name: 'get_playlist_suggestion',
-      description: 'Generate a Spotify playlist suggestion based on the city, interests, and mood. Returns a themed playlist with tracks that match the location\'s musical culture and vibe. Always pass the city so the playlist fits the destination.',
+      description: 'Generate a Spotify playlist suggestion based on the city and mood. Returns a themed playlist with tracks that match the location\'s musical culture and vibe. Always pass the city so the playlist fits the destination.',
       parameters: {
         type: 'object',
         properties: {
@@ -151,17 +146,12 @@ export const tools: Tool[] = [
             type: 'string',
             description: 'City name — used to pick location-appropriate music (e.g., jazz for New Orleans, bossa nova for Rio)'
           },
-          interests: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'User interests to match playlist mood'
-          },
           mood: {
             type: 'string',
             description: 'Desired mood for the playlist (optional)'
           }
         },
-        required: ['city', 'interests']
+        required: ['city']
       }
     }
   },
@@ -236,11 +226,6 @@ export const tools: Tool[] = [
           city: {
             type: 'string',
             description: 'City name to search for free activities'
-          },
-          interests: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'User interests to filter activities (optional)'
           }
         },
         required: ['city']
@@ -400,18 +385,13 @@ export const tools: Tool[] = [
     type: 'function',
     function: {
       name: 'get_tech_meetups',
-      description: 'Find tech meetups, hackathons, coding events, startup networking, and coworking spaces in a city. Day-aware — filters to events available today. Call when user interests include tech, startups, coding, AI, web development, or similar.',
+      description: 'Find tech meetups, hackathons, coding events, startup networking, and coworking spaces in a city. Day-aware — filters to events available today.',
       parameters: {
         type: 'object',
         properties: {
           city: {
             type: 'string',
             description: 'City name to search for tech events'
-          },
-          interests: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Specific tech interests like "AI", "startups", "web dev", "python", "hackathon", "maker"'
           }
         },
         required: ['city']
@@ -427,7 +407,7 @@ export const tools: Tool[] = [
 export const executeToolCall = async (
   toolName: string,
   args: Record<string, any>,
-  context?: { rightNow?: boolean }
+  context?: { rightNow?: boolean; currentHour?: number }
 ): Promise<ToolResult> => {
   console.log(`[Tool Execution] ${toolName} with args:`, JSON.stringify(args));
 
@@ -437,7 +417,7 @@ export const executeToolCall = async (
         return await weatherService.getWeather(args.city);
 
       case 'get_local_events':
-        return await eventsService.getEvents(args.city, args.interests, context?.rightNow);
+        return await eventsService.getEvents(args.city, context?.rightNow, context?.currentHour);
 
       case 'get_trending_news':
         return await newsService.getNews(args.city);
@@ -449,7 +429,7 @@ export const executeToolCall = async (
         return await restaurantService.getRestaurants(args.city, args.cuisine, args.budget);
 
       case 'get_playlist_suggestion':
-        return await spotifyService.getPlaylist(args.city || '', args.interests || [], args.mood);
+        return await spotifyService.getPlaylist(args.city || '', args.mood);
 
       case 'get_transit_estimates':
         return await transitService.getTransitEstimates(args.city, args.from, args.to);
@@ -458,10 +438,10 @@ export const executeToolCall = async (
         return await gasPriceService.getGasPrices(args.city);
 
       case 'get_happy_hours':
-        return await happyHourService.getHappyHours(args.city, context?.rightNow);
+        return await happyHourService.getHappyHours(args.city, context?.rightNow, context?.currentHour);
 
       case 'get_free_stuff':
-        return await freeStuffService.getFreeStuff(args.city, args.interests, context?.rightNow);
+        return await freeStuffService.getFreeStuff(args.city, context?.rightNow, context?.currentHour);
 
       case 'get_sunrise_sunset':
         return await sunriseSunsetService.getSunriseSunset(args.city);
@@ -479,13 +459,13 @@ export const executeToolCall = async (
         return await waitTimeService.getWaitTimes(args.city, args.venue);
 
       case 'get_deals_coupons':
-        return await dealsService.getDeals(args.city, args.category, context?.rightNow);
+        return await dealsService.getDeals(args.city, args.category, context?.rightNow, context?.currentHour);
 
       case 'get_accommodations':
         return await accommodationService.getAccommodations(args.city, args.budget, args.type);
 
       case 'get_tech_meetups':
-        return await meetupService.getMeetups(args.city, args.interests, context?.rightNow);
+        return await meetupService.getMeetups(args.city, context?.rightNow, context?.currentHour);
 
       default:
         return {

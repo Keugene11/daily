@@ -23,8 +23,8 @@ function parseHour(s) {
  * Handles formats: "4-7 PM", "10 AM-6 PM", "5:00 - 9:00 PM",
  *   "7 PM", "All day", "Anytime", "24/7", etc.
  */
-function isActiveNow(timeStr) {
-    const h = new Date().getHours();
+function isActiveNow(timeStr, localHour) {
+    const h = localHour ?? new Date().getHours();
     const windowEnd = h + 2;
     // Always-available patterns
     if (/all day|anytime|24\/7|always|every day|ongoing|varies/i.test(timeStr))

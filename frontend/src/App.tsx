@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { CityInput } from './components/CityInput';
-import { InterestsSelector } from './components/InterestsSelector';
 import { ToolCallIndicator } from './components/ToolCallIndicator';
 import { ItineraryDisplay } from './components/ItineraryDisplay';
 import { WeatherCard } from './components/WeatherCard';
@@ -9,7 +8,6 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { CherryBlossoms } from './components/CherryBlossoms';
 import { PlanHistory, SavedPlan } from './components/PlanHistory';
 import { ProfilePage } from './components/ProfilePage';
-import { ExplorePage } from './components/ExplorePage';
 import { VoiceInput } from './components/VoiceInput';
 import { PlanMap } from './components/PlanMap';
 import { OutfitSuggestion } from './components/OutfitSuggestion';
@@ -36,7 +34,6 @@ function App() {
   const location = useLocation();
   const [showPricing, setShowPricing] = useState(false);
   const [city, setCity] = useState('');
-  const [interests, setInterests] = useState<string[]>([]);
   const [budget, setBudget] = useState('any');
   const { state, startStream, reset } = usePlanStream();
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -70,9 +67,8 @@ function App() {
     const prefs = localStorage.getItem('daily_prefs');
     if (prefs) {
       try {
-        const { city: savedCity, interests: savedInterests, budget: savedBudget } = JSON.parse(prefs);
+        const { city: savedCity, budget: savedBudget } = JSON.parse(prefs);
         if (savedCity) setCity(savedCity);
-        if (savedInterests?.length) setInterests(savedInterests);
         if (savedBudget) setBudget(savedBudget);
       } catch { /* ignore */ }
     }
@@ -80,8 +76,8 @@ function App() {
 
   // Save preferences when plan starts
   const savePrefs = useCallback(() => {
-    localStorage.setItem('daily_prefs', JSON.stringify({ city, interests, budget }));
-  }, [city, interests, budget]);
+    localStorage.setItem('daily_prefs', JSON.stringify({ city, budget }));
+  }, [city, budget]);
 
   // Auto-save plan to history when generation completes
   useEffect(() => {
@@ -90,7 +86,6 @@ function App() {
       const newPlan: SavedPlan = {
         id: Date.now().toString(),
         city,
-        interests: [...interests],
         budget,
         content: state.content,
         date: new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
@@ -102,7 +97,7 @@ function App() {
     if (state.isStreaming) {
       planSavedRef.current = false;
     }
-  }, [state.isStreaming, state.content, city, interests, budget, savePlan]);
+  }, [state.isStreaming, state.content, city, budget, savePlan]);
 
   const handleDeletePlan = (id: string) => {
     deletePlan(id);
@@ -110,18 +105,16 @@ function App() {
 
   const handleSelectPlan = (plan: SavedPlan) => {
     setCity(plan.city);
-    setInterests(plan.interests);
     setBudget(plan.budget);
     setTripDays(plan.days || 1);
     navigate('/');
-    // Build extras with the saved plan's days (state update is async so buildExtras() would use stale tripDays)
     const extras = buildExtras();
     if (plan.days && plan.days > 1) {
       extras.days = plan.days;
     } else {
       delete extras.days;
     }
-    startStream(plan.city, plan.interests, plan.budget, extras, getAccessToken);
+    startStream(plan.city, plan.budget, extras, getAccessToken);
   };
 
   // Build extras object for all new features
@@ -129,6 +122,7 @@ function App() {
     const extras: Record<string, any> = {};
     if (mood.trim()) extras.mood = mood.trim();
     extras.currentHour = new Date().getHours();
+    extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (rightNow) extras.rightNow = true;
     if (tripDays > 1) extras.days = tripDays;
     return extras;
@@ -139,7 +133,7 @@ function App() {
     if (!city.trim()) return;
     if (!session) { signInWithGoogle(); return; }
     savePrefs();
-    startStream(city, interests, budget, buildExtras(), getAccessToken);
+    startStream(city, budget, buildExtras(), getAccessToken);
   };
 
   const handleSurpriseMe = async () => {
@@ -149,17 +143,11 @@ function App() {
       const data = await res.json();
       const detectedCity = data.city || 'New York';
 
-      const allInterests = ['outdoors', 'food', 'culture', 'nightlife', 'music', 'sports', 'shopping', 'relaxation'];
-      const shuffled = allInterests.sort(() => Math.random() - 0.5);
-      const randomInterests = shuffled.slice(0, 2 + Math.floor(Math.random() * 2));
-
       setCity(detectedCity);
-      setInterests(randomInterests);
-      startStream(detectedCity, randomInterests, budget, buildExtras(), getAccessToken);
+      startStream(detectedCity, budget, buildExtras(), getAccessToken);
     } catch {
       setCity('New York');
-      setInterests(['food', 'culture']);
-      startStream('New York', ['food', 'culture'], budget, buildExtras(), getAccessToken);
+      startStream('New York', budget, buildExtras(), getAccessToken);
     }
   };
 
@@ -168,7 +156,6 @@ function App() {
     setIsSpeaking(false);
     reset();
     setCity('');
-    setInterests([]);
     setBudget('any');
     setMood('');
     setRightNow(false);
@@ -180,7 +167,7 @@ function App() {
     speechSynthesis.cancel();
     setIsSpeaking(false);
     if (city.trim()) {
-      startStream(city, interests, budget, buildExtras(), getAccessToken);
+      startStream(city, budget, buildExtras(), getAccessToken);
     }
   };
 
@@ -254,7 +241,6 @@ function App() {
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={handleReset} className="hover:text-on-surface transition-colors">home</button>
-          <button onClick={() => { navigate('/explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
           {session && (
             <button onClick={() => { navigate('/history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
           )}
@@ -311,13 +297,6 @@ function App() {
         />
       } />
 
-      <Route path="/explore" element={
-        <ExplorePage
-          getAccessToken={getAccessToken}
-          onClose={() => navigate('/')}
-        />
-      } />
-
       <Route path="*" element={<>
       {/* Hero / Input */}
       {isHome && !showResults && (
@@ -351,12 +330,6 @@ function App() {
                 disabled={state.isStreaming}
               />
             </div>
-
-            <InterestsSelector
-              selected={interests}
-              onChange={setInterests}
-              disabled={state.isStreaming}
-            />
 
             {/* Budget filter */}
             <div>
@@ -449,7 +422,7 @@ function App() {
                 setRightNow(true);
                 setTripDays(1);
                 savePrefs();
-                startStream(city, interests, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
+                startStream(city, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
               }}
               disabled={state.isStreaming || !city.trim() || tripDays > 1}
               className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -485,7 +458,7 @@ function App() {
 
           {/* Outfit suggestion — weather-based clothing recommendation */}
           {weatherData && !state.isStreaming && (
-            <OutfitSuggestion weatherData={weatherData} interests={interests} city={city} />
+            <OutfitSuggestion weatherData={weatherData} city={city} />
           )}
 
           {/* Music player — appears and auto-plays as soon as playlist tool completes (during generation) */}
@@ -562,6 +535,7 @@ function App() {
       {showPricing && (
         <PricingModal
           currentTier={subscription.tier}
+          currentInterval={subscription.interval}
           onCheckout={subscription.createCheckout}
           onClose={() => setShowPricing(false)}
         />

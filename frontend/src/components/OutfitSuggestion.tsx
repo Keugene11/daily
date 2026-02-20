@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 
 interface Props {
   weatherData: any;
-  interests: string[];
   city: string;
 }
 
@@ -12,7 +11,7 @@ interface OutfitItem {
   reason: string;
 }
 
-function generateOutfit(weather: any, interests: string[], city: string): { items: OutfitItem[]; vibe: string } {
+function generateOutfit(weather: any, city: string): { items: OutfitItem[]; vibe: string } {
   const items: OutfitItem[] = [];
   const temp = parseFloat(weather?.temperature) || 20;
   const condition = (weather?.condition || '').toLowerCase();
@@ -56,21 +55,6 @@ function generateOutfit(weather: any, interests: string[], city: string): { item
     items.push({ category: 'Sun', item: 'Sunglasses + SPF 30', reason: `UV index ${uv} — moderate sun` });
   }
 
-  // Activity-based
-  if (interests.includes('outdoors') || interests.includes('sports')) {
-    if (!items.find(i => i.category === 'Footwear')) {
-      items.push({ category: 'Footwear', item: 'Comfortable walking shoes or sneakers', reason: 'You\'ll be on your feet' });
-    }
-  }
-
-  if (interests.includes('nightlife') || interests.includes('food')) {
-    items.push({ category: 'Evening', item: 'Smart-casual option for dinner', reason: 'Some spots have dress codes' });
-  }
-
-  if (interests.includes('culture')) {
-    items.push({ category: 'Bag', item: 'Crossbody bag or small backpack', reason: 'Hands-free for museums and galleries' });
-  }
-
   // Default footwear if not added
   if (!items.find(i => i.category === 'Footwear')) {
     items.push({ category: 'Footwear', item: temp > 25 ? 'Breathable sneakers or sandals' : 'Comfortable sneakers', reason: 'All-day comfort' });
@@ -85,20 +69,17 @@ function generateOutfit(weather: any, interests: string[], city: string): { item
 
   if (condition.includes('rain')) vibes.push('rainy');
   if (condition.includes('sun') || condition.includes('clear')) vibes.push('sunny');
-  if (interests.includes('nightlife')) vibes.push('going-out');
-  if (interests.includes('outdoors')) vibes.push('active');
-
   const vibe = `${vibes[0]} ${vibes.length > 1 ? vibes[1] : 'casual'} in ${city}`;
 
   return { items, vibe };
 }
 
-export const OutfitSuggestion: React.FC<Props> = ({ weatherData, interests, city }) => {
+export const OutfitSuggestion: React.FC<Props> = ({ weatherData, city }) => {
   const [show, setShow] = useState(false);
 
   if (!weatherData) return null;
 
-  const { items, vibe } = generateOutfit(weatherData, interests, city);
+  const { items, vibe } = generateOutfit(weatherData, city);
 
   return (
     <div className="mb-8">

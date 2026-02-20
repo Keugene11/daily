@@ -167,7 +167,7 @@ function matchCity(city: string): ScheduledEvent[] {
 }
 
 export const eventsService = {
-  async getEvents(city: string, interests?: string[], rightNow?: boolean): Promise<ToolResult> {
+  async getEvents(city: string, rightNow?: boolean, localHour?: number): Promise<ToolResult> {
     await new Promise(r => setTimeout(r, 200));
 
     const dow = dayOfWeek();
@@ -179,7 +179,7 @@ export const eventsService = {
     // Right Now mode: only show events happening now or in the next 2 hours
     if (rightNow) {
       const { isActiveNow } = await import('./time_utils');
-      available = available.filter(e => isActiveNow(e.time));
+      available = available.filter(e => isActiveNow(e.time, localHour));
     }
 
     // Build today's highlights — events that are day-specific and available today
@@ -221,16 +221,6 @@ export const eventsService = {
       if (!a.isFree && b.isFree) return 1;
       return 0;
     });
-
-    // Interest-based boost
-    if (interests && interests.length > 0) {
-      const interestStr = interests.join(' ').toLowerCase();
-      events.sort((a, b) => {
-        const aMatch = (interestStr.includes('food') && a.description.toLowerCase().includes('food')) ? 1 : 0;
-        const bMatch = (interestStr.includes('food') && b.description.toLowerCase().includes('food')) ? 1 : 0;
-        return bMatch - aMatch;
-      });
-    }
 
     const citySlug = city.toLowerCase().replace(/\s+/g, '-');
     return {

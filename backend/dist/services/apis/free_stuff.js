@@ -132,7 +132,7 @@ function matchCity(city) {
     return resolved ? CITY_FREE[resolved] : DEFAULT_FREE;
 }
 exports.freeStuffService = {
-    async getFreeStuff(city, interests, rightNow) {
+    async getFreeStuff(city, rightNow, localHour) {
         await new Promise(r => setTimeout(r, 150));
         const dow = dayOfWeek();
         const matched = matchCity(city);
@@ -141,7 +141,7 @@ exports.freeStuffService = {
         // Right Now mode: only show activities happening now or in the next 2 hours
         if (rightNow) {
             const { isActiveNow } = await Promise.resolve().then(() => __importStar(require('./time_utils')));
-            available = available.filter(a => isActiveNow(a.time));
+            available = available.filter(a => isActiveNow(a.time, localHour));
         }
         // Add Google Maps URLs (pre-formatted markdown for AI to use directly)
         const activitiesWithUrls = available.map(a => {

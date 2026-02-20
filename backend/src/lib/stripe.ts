@@ -6,7 +6,6 @@ export type TierName = 'free' | 'pro';
 
 interface TierConfig {
   planLimit: number;
-  exploreLimit: number;
   period: 'day' | 'month';
   features: Set<string>;
 }
@@ -14,13 +13,11 @@ interface TierConfig {
 export const TIERS: Record<TierName, TierConfig> = {
   free: {
     planLimit: Infinity,
-    exploreLimit: Infinity,
     period: 'day',
     features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
   },
   pro: {
     planLimit: Infinity,
-    exploreLimit: Infinity,
     period: 'month',
     features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
   },

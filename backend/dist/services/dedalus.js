@@ -17,7 +17,18 @@ function getClient() {
     return client;
 }
 function buildSystemPrompt(request) {
-    const { budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = request;
+    const { budget, mood, currentHour, timezone, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = request;
+    // Helper to get time in the user's timezone
+    const userNow = (tz) => {
+        if (tz) {
+            try {
+                return new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+            }
+            catch { }
+        }
+        return new Date();
+    };
+    const localNow = userNow(timezone);
     const extras = [];
     // Budget
     if (budget && budget !== 'any') {
@@ -123,8 +134,11 @@ function buildSystemPrompt(request) {
 ### Morning / Afternoon / Evening plans`;
     }
     if (rightNow) {
-        const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        const endHour = new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+        if (timezone)
+            timeOpts.timeZone = timezone;
+        const nowTime = new Date().toLocaleTimeString('en-US', timeOpts);
+        const endHour = new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('en-US', timeOpts);
         timeSections = `## Right Now (${nowTime} - ${endHour})
 [2-3 specific things the user can do RIGHT NOW or within the next 2 hours. Focus on what's immediately available — no "later today" suggestions. Include walk-in-friendly places, things that don't need reservations, and whatever is open/happening at this exact moment.]
 
@@ -134,7 +148,7 @@ function buildSystemPrompt(request) {
     }
     // Multi-day vacation: override timeSections with day-level structure
     if (days && days > 1) {
-        const start = new Date();
+        const start = localNow;
         const dayBlocks = [];
         for (let i = 0; i < days; i++) {
             const d = new Date(start);
@@ -147,9 +161,11 @@ function buildSystemPrompt(request) {
         }
         timeSections = dayBlocks.join('\n\n');
     }
-    const now = new Date();
-    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
-    const fullDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const dateOpts = { weekday: 'long' };
+    if (timezone)
+        dateOpts.timeZone = timezone;
+    const dayOfWeek = new Date().toLocaleDateString('en-US', dateOpts);
+    const fullDate = localNow.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     return `You are a fun, enthusiastic local concierge who knows the destination the user is asking about intimately — the neighborhoods, the hidden gems, the best food spots, the local culture. If the user gives a country, state, or region instead of a specific city, pick the best city or area within that destination for an amazing day trip and plan around it. Plan their perfect day.
 
 TODAY IS: ${fullDate}
@@ -179,17 +195,22 @@ Available tools (call all that are relevant):
 - get_public_transit_routes: Step-by-step transit directions.
 - get_transit_estimates: Travel time estimates between locations.
 - get_accommodations: Where to stay — always call this. Returns curated hotels, hostels, boutiques, and apartments with prices and neighborhoods.
-- get_tech_meetups: Tech meetups, hackathons, coding events, startup networking, and coworking spaces. DAY-AWARE. Call when user interests include tech, startups, coding, AI, web dev, or similar. Highlight upcoming meetups and hackathons in the itinerary.
+- get_tech_meetups: Tech meetups, hackathons, coding events, startup networking, and coworking spaces. DAY-AWARE. Highlight upcoming meetups and hackathons in the itinerary.
 
 Structure the itinerary with these exact sections:
 
 ${timeSections}
 
 ## Where to Stay
-[Include 3-4 accommodation options from get_accommodations tool data. For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description highlighting what makes it special. Mix budget levels. Use the "link" field from tool data for the markdown link.]
+[REQUIRED — you MUST include this section with ALL of the following:
+- List 3-4 accommodation options from get_accommodations tool data
+- For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
+- Mix budget levels (at least one budget and one upscale option)
+- Use the "link" field from tool data for the markdown link
+- Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
 ## Soundtrack
-[Include the playlist name and EXACTLY 5 tracks as markdown links: [Track Title - Artist](spotifyUrl). Use the spotifyUrl from the tool data. Do NOT add extra songs beyond the 5 returned by the playlist tool. Include the playlistUrl as an "Open in Spotify" link.]
+[Include the playlist name and EXACTLY 5 tracks as markdown links: [Track Title - Artist](spotifyUrl). Use ONLY the spotifyUrl field from the tool data — NEVER use YouTube URLs or any other URL. Do NOT add extra songs beyond the 5 returned by the playlist tool. Include the playlistUrl as an "Open in Spotify" link.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -233,8 +254,6 @@ async function* streamPlanGeneration(request) {
             ? `I'm planning a ${request.days}-day vacation in ${request.city}.`
             : `I'm visiting ${request.city}. Plan my day there.`
     ];
-    if (request.interests.length > 0)
-        userParts.push(`My interests are: ${request.interests.join(', ')}`);
     if (request.budget && request.budget !== 'any')
         userParts.push(`Budget: ${request.budget}`);
     if (request.mood)
@@ -256,7 +275,7 @@ async function* streamPlanGeneration(request) {
         userParts.push(`Plan all ${request.days} days cohesively. Call ALL relevant tools first — weather, events, restaurants, playlist, accommodations, sunrise/sunset, free stuff, deals, and any others. Then create ${request.days} days of amazing, specific itineraries with real places. Don't repeat places across days.`);
     }
     else {
-        userParts.push(`What should I do today? Call ALL relevant tools first — weather, events, restaurants, playlist, accommodations, sunrise/sunset, free stuff, deals, and any others that fit my interests. Then create an amazing, specific itinerary with real places.`);
+        userParts.push(`What should I do today? Call ALL relevant tools first — weather, events, restaurants, playlist, accommodations, sunrise/sunset, free stuff, deals, and any others that fit. Then create an amazing, specific itinerary with real places.`);
     }
     const messages = [
         { role: 'system', content: buildSystemPrompt(request) },
@@ -333,7 +352,7 @@ async function* streamPlanGeneration(request) {
         // Execute ALL tools in parallel (saves 4-7 seconds vs sequential)
         const toolSettled = await Promise.allSettled(toolCallInfos.map(async ({ toolCall, toolName, args }) => {
             console.log(`[Dedalus] Executing tool: ${toolName}`, args);
-            const result = await (0, tools_1.executeToolCall)(toolName, args, { rightNow: request.rightNow });
+            const result = await (0, tools_1.executeToolCall)(toolName, args, { rightNow: request.rightNow, currentHour: request.currentHour });
             return { toolCall, toolName, result };
         }));
         for (let idx = 0; idx < toolSettled.length; idx++) {
@@ -363,17 +382,12 @@ async function* streamPlanGeneration(request) {
         const calledTools = new Set(assistantMessage.tool_calls
             .filter((tc) => tc.type === 'function')
             .map((tc) => tc.function?.name));
-        const techKeywords = ['tech', 'coding', 'startups', 'programming', 'hackathon', 'AI', 'web dev', 'software'];
-        const hasTechInterest = request.interests?.some(i => techKeywords.some(k => i.toLowerCase().includes(k.toLowerCase())));
         const forceCalls = [];
         if (!calledTools.has('get_playlist_suggestion') && request.city) {
-            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: request.city, interests: request.interests || [] } });
+            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: request.city } });
         }
         if (!calledTools.has('get_accommodations') && request.city && !request.rightNow) {
             forceCalls.push({ name: 'get_accommodations', args: { city: request.city, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
-        }
-        if (!calledTools.has('get_tech_meetups') && request.city && hasTechInterest) {
-            forceCalls.push({ name: 'get_tech_meetups', args: { city: request.city, interests: request.interests || [] } });
         }
         if (forceCalls.length > 0) {
             console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
@@ -381,7 +395,7 @@ async function* streamPlanGeneration(request) {
                 yield { type: 'tool_call_start', tool: fc.name, args: fc.args };
             }
             const forceSettled = await Promise.allSettled(forceCalls.map(async (fc) => {
-                const result = await (0, tools_1.executeToolCall)(fc.name, fc.args, { rightNow: request.rightNow });
+                const result = await (0, tools_1.executeToolCall)(fc.name, fc.args, { rightNow: request.rightNow, currentHour: request.currentHour });
                 return { ...fc, result };
             }));
             const assistantMsgIdx = messages.findIndex((m) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0);
@@ -419,7 +433,7 @@ async function* streamPlanGeneration(request) {
                 console.log('[Dedalus] Step 3: Streaming itinerary from tool results...');
             }
             // Scale token budget for multi-day trips
-            const tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 4000;
+            const tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 6000;
             if (!isRetry) {
                 // Streaming attempt
                 const stream = await dedalus.chat.completions.create({

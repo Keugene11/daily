@@ -10,13 +10,11 @@ exports.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '');
 exports.TIERS = {
     free: {
         planLimit: Infinity,
-        exploreLimit: Infinity,
         period: 'day',
         features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
     },
     pro: {
         planLimit: Infinity,
-        exploreLimit: Infinity,
         period: 'month',
         features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
     },

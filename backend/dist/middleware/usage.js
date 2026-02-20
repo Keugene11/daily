@@ -7,7 +7,7 @@ function checkUsage(counter) {
     return async (req, res, next) => {
         const tier = req.tier || 'free';
         const tierConfig = stripe_1.TIERS[tier];
-        const limit = counter === 'plan' ? tierConfig.planLimit : tierConfig.exploreLimit;
+        const limit = tierConfig.planLimit;
         // Unlimited — skip check
         if (limit === Infinity) {
             return next();
@@ -21,13 +21,13 @@ function checkUsage(counter) {
                 used: 0,
             });
         }
-        const dbColumn = counter === 'plan' ? 'plan_count' : 'explore_count';
+        const dbColumn = 'plan_count';
         try {
             const today = new Date().toISOString().split('T')[0];
             if (tierConfig.period === 'day') {
                 const { data } = await supabase_admin_1.supabaseAdmin
                     .from('usage')
-                    .select('plan_count, explore_count')
+                    .select('plan_count')
                     .eq('user_id', req.userId)
                     .eq('date', today)
                     .single();
@@ -35,7 +35,7 @@ function checkUsage(counter) {
                 if (used >= limit) {
                     return res.status(403).json({
                         error: 'limit_reached',
-                        message: `You've used your ${limit} free ${counter === 'plan' ? 'plan' : 'search'}${limit > 1 ? 's' : ''} today`,
+                        message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} today`,
                         tier,
                         limit,
                         used,
@@ -49,14 +49,14 @@ function checkUsage(counter) {
                 const monthStart = `${today.slice(0, 7)}-01`;
                 const { data: rows } = await supabase_admin_1.supabaseAdmin
                     .from('usage')
-                    .select('plan_count, explore_count')
+                    .select('plan_count')
                     .eq('user_id', req.userId)
                     .gte('date', monthStart);
                 const used = (rows || []).reduce((sum, row) => sum + (row[dbColumn] ?? 0), 0);
                 if (used >= limit) {
                     return res.status(403).json({
                         error: 'limit_reached',
-                        message: `You've used your ${limit} ${counter === 'plan' ? 'plan' : 'search'}${limit > 1 ? 's' : ''} this month`,
+                        message: `You've used your ${limit} plan${limit > 1 ? 's' : ''} this month`,
                         tier,
                         limit,
                         used,
@@ -64,7 +64,7 @@ function checkUsage(counter) {
                 }
                 const { data: todayRow } = await supabase_admin_1.supabaseAdmin
                     .from('usage')
-                    .select('plan_count, explore_count')
+                    .select('plan_count')
                     .eq('user_id', req.userId)
                     .eq('date', today)
                     .single();

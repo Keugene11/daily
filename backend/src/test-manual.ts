@@ -14,7 +14,6 @@ async function test() {
 
   const testRequest = {
     city: 'San Francisco',
-    interests: ['food', 'culture', 'outdoors']
   };
 
   console.log('Test Request:', JSON.stringify(testRequest, null, 2));

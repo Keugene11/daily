@@ -193,6 +193,22 @@ function scoreCandidate(c, position, poolSize, query) {
         if (capsRatio > 0.5)
             score -= 5;
     }
+    // ── Recency bonus ───────────────────────────────────────────
+    // Prefer recent content — videos mentioning recent years get a boost
+    const currentYear = new Date().getFullYear();
+    const yearMatch = c.title.match(/\b(20\d{2})\b/);
+    if (yearMatch) {
+        const videoYear = parseInt(yearMatch[1]);
+        const age = currentYear - videoYear;
+        if (age === 0)
+            score += 5; // this year
+        else if (age === 1)
+            score += 3; // last year
+        else if (age <= 3)
+            score += 1; // recent
+        else if (age >= 6)
+            score -= 3; // old
+    }
     // ── Small position bonus ──────────────────────────────────────
     // YouTube's search ranking is decent, give a small nod to top results
     score += Math.max(0, (poolSize - position)) * 0.1;
@@ -290,11 +306,10 @@ async function isEmbeddable(videoId) {
         return true; // assume embeddable if check fails
     }
 }
-/** Multiple relevant videos for a topic+location (used by Explore) */
+/** Multiple relevant videos for a topic+location */
 async function searchYouTubeVideos(query, count = 3) {
-    // Add "guide review" to bias toward quality review content
     // Fetch extra candidates to account for non-embeddable ones
-    const candidates = await scrapeYouTubeSearch(query, 'guide review', count * 2);
+    const candidates = await scrapeYouTubeSearch(query, '', count * 2);
     // Check embeddability in parallel
     const checks = await Promise.all(candidates.map(async (v) => ({ ...v, embeddable: await isEmbeddable(v.videoId) })));
     return checks.filter(v => v.embeddable).slice(0, count).map(v => ({ videoId: v.videoId, title: v.title }));

@@ -4,11 +4,14 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 export type TierName = 'free' | 'pro';
 
+export type BillingInterval = 'monthly' | 'yearly' | null;
+
 export interface SubscriptionData {
   tier: TierName;
+  interval: BillingInterval;
   period: 'day' | 'month';
-  limits: { plans: number; explores: number };
-  usage: { plans: number; explores: number };
+  limits: { plans: number };
+  usage: { plans: number };
   features: string[];
 }
 
@@ -16,10 +19,11 @@ interface UseSubscriptionReturn {
   data: SubscriptionData | null;
   loading: boolean;
   tier: TierName;
+  interval: BillingInterval;
   features: Set<string>;
   debugInfo: string | null;
   hasFeature: (feature: string) => boolean;
-  isLimitReached: (type: 'plan' | 'explore') => boolean;
+  isLimitReached: (type: 'plan') => boolean;
   refresh: () => Promise<void>;
   createCheckout: (priceId: string) => Promise<void>;
   openPortal: () => Promise<void>;
@@ -112,14 +116,15 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   }, [fetchSubscription]);
 
   const tier = data?.tier || 'free';
+  const interval = data?.interval || null;
   const features = new Set(data?.features || []);
 
   const hasFeature = useCallback((feature: string) => features.has(feature), [data?.features]);
 
-  const isLimitReached = useCallback((type: 'plan' | 'explore') => {
+  const isLimitReached = useCallback((_type: 'plan') => {
     if (!data) return false;
-    const limit = type === 'plan' ? data.limits.plans : data.limits.explores;
-    const used = type === 'plan' ? data.usage.plans : data.usage.explores;
+    const limit = data.limits.plans;
+    const used = data.usage.plans;
     if (limit === -1) return false; // unlimited
     return used >= limit;
   }, [data]);
@@ -211,6 +216,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     data,
     loading,
     tier,
+    interval,
     features,
     hasFeature,
     isLimitReached,

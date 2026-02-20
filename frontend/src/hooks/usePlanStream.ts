@@ -14,7 +14,7 @@ export const usePlanStream = () => {
     connected: false
   });
 
-  const startStream = useCallback(async (city: string, interests: string[], budget?: string, extras?: {
+  const startStream = useCallback(async (city: string, budget?: string, extras?: {
     mood?: string;
     currentHour?: number;
     energyLevel?: 'low' | 'medium' | 'high';
@@ -47,7 +47,7 @@ export const usePlanStream = () => {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ city, interests, budget, ...extras })
+        body: JSON.stringify({ city, budget, ...extras })
       });
 
       if (!response.ok) {

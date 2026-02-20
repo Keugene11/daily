@@ -106,13 +106,13 @@ function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 exports.happyHourService = {
-    async getHappyHours(city, rightNow) {
+    async getHappyHours(city, rightNow, localHour) {
         await new Promise(r => setTimeout(r, 150));
         const data = matchCity(city);
         // Right Now mode: only show happy hours active now or starting within 2 hours
         if (rightNow) {
             const { isActiveNow } = await Promise.resolve().then(() => __importStar(require('./time_utils')));
-            data.happyHours = data.happyHours.filter(hh => isActiveNow(hh.hours));
+            data.happyHours = data.happyHours.filter(hh => isActiveNow(hh.hours, localHour));
         }
         // Add Google Maps URLs (pre-formatted markdown for AI to use directly)
         const withUrls = data.happyHours.map(hh => {

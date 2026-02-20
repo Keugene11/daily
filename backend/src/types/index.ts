@@ -70,10 +70,10 @@ export interface StreamEvent {
 
 export interface PlanRequest {
   city: string;
-  interests: string[];
   budget?: string;
   mood?: string;
   currentHour?: number;
+  timezone?: string;
   energyLevel?: 'low' | 'medium' | 'high';
   dietary?: string[];
   accessible?: boolean;

@@ -5,7 +5,6 @@ interface Track {
   title: string;
   artist: string;
   spotifyUrl: string;
-  youtubeUrl: string;
   previewUrl: string;
   reason?: string;
 }
@@ -34,17 +33,11 @@ function trackUrl(artist: string, title: string): string {
   return `https://open.spotify.com/search/${query}`;
 }
 
-function youtubeSearchUrl(artist: string, title: string): string {
-  const query = encodeURIComponent(`${artist} ${title} official audio`);
-  return `https://www.youtube.com/results?search_query=${query}`;
-}
-
 function track(title: string, artist: string): Track {
   return {
     title,
     artist,
     spotifyUrl: trackUrl(artist, title),
-    youtubeUrl: youtubeSearchUrl(artist, title),
     previewUrl: ''
   };
 }
@@ -1229,25 +1222,6 @@ function moodToVibes(mood?: string): string[] {
   return [];
 }
 
-// ── Interest → vibe mapping ─────────────────────────────────────────────
-
-function interestToVibes(interests: string[]): string[] {
-  const vibes: string[] = [];
-  for (const interest of interests) {
-    const i = interest.toLowerCase();
-    if (i === 'outdoors') vibes.push('adventure', 'upbeat');
-    else if (i === 'food') vibes.push('groovy', 'chill');
-    else if (i === 'culture') vibes.push('contemplative', 'indie');
-    else if (i === 'nightlife') vibes.push('nightout', 'groovy');
-    else if (i === 'music') vibes.push('indie', 'groovy');
-    else if (i === 'sports') vibes.push('upbeat', 'adventure');
-    else if (i === 'shopping') vibes.push('upbeat', 'indie');
-    else if (i === 'relaxation') vibes.push('chill', 'tropical');
-    else if (i === 'tech' || i === 'coding') vibes.push('contemplative', 'nightout');
-  }
-  return vibes;
-}
-
 // ── City alias matching ─────────────────────────────────────────────────
 
 const CITY_ALIASES: Record<string, string> = {
@@ -1919,10 +1893,9 @@ interface AiTrack {
   reason: string;
 }
 
-async function aiPickSongs(city: string, interests: string[], mood?: string): Promise<AiTrack[] | null> {
+async function aiPickSongs(city: string, mood?: string): Promise<AiTrack[] | null> {
   try {
     const dedalus = getDedalus();
-    const interestStr = interests.length > 0 ? interests.join(', ') : 'general exploring';
     const moodStr = mood ? ` They're feeling ${mood}.` : '';
 
     const response = await dedalus.chat.completions.create({
@@ -1930,7 +1903,7 @@ async function aiPickSongs(city: string, interests: string[], mood?: string): Pr
       messages: [
         {
           role: 'system',
-          content: `You are a music curator. Given a city, interests, and mood, suggest 5 songs that perfectly match the vibe. Pick songs that feel RIGHT for this specific context — not generic "top hits" playlists.
+          content: `You are a music curator. Given a city and mood, suggest 5 songs that perfectly match the vibe. Pick songs that feel RIGHT for this specific context — not generic "top hits" playlists.
 
 Rules:
 - Mix well-known and deeper cuts — not just the obvious hits everyone knows
@@ -1944,7 +1917,7 @@ Format: [{"title":"Song Name","artist":"Artist Name","reason":"Why this song fit
         },
         {
           role: 'user',
-          content: `City: ${city}\nInterests: ${interestStr}\n${moodStr}`,
+          content: `City: ${city}${moodStr}`,
         },
       ],
       temperature: 0.9,
@@ -1969,55 +1942,14 @@ Format: [{"title":"Song Name","artist":"Artist Name","reason":"Why this song fit
 // ── Main export ─────────────────────────────────────────────────────────
 
 export const spotifyService = {
-  async getPlaylist(city: string, interests: string[], mood?: string): Promise<ToolResult<PlaylistSuggestion>> {
+  async getPlaylist(city: string, mood?: string): Promise<ToolResult<PlaylistSuggestion>> {
     const TRACK_COUNT = 5;
 
-    // Try AI-powered song picking first
-    const aiTracks = await aiPickSongs(city, interests, mood);
-
-    if (aiTracks && aiTracks.length >= 3) {
-      console.log(`[Spotify] AI picked ${aiTracks.length} songs for ${city}`);
-
-      const tracksWithPreviews = await Promise.all(
-        aiTracks.map(async (t) => ({
-          ...track(t.title, t.artist),
-          previewUrl: await fetchDeezerPreview(t.artist, t.title),
-          reason: t.reason,
-        }))
-      );
-
-      // Generate playlist name from context
-      const playlistNames = [
-        `${city} Today`, `Your ${city} Mix`, `${city} Vibes`,
-        `A Day in ${city}`, `${city} Soundtrack`,
-      ];
-      const playlistName = playlistNames[Math.floor(Math.random() * playlistNames.length)];
-
-      return {
-        success: true,
-        data: {
-          name: playlistName,
-          description: `Curated for your day in ${city}`,
-          tracks: tracksWithPreviews,
-          mood: mood || 'curated',
-          playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(`${city} ${interests[0] || 'vibes'}`)}`
-        }
-      };
-    }
-
-    // Fall back to static pools
-    console.log(`[Spotify] Falling back to static pools for ${city}`);
-
-    // Build vibe context from mood + interests
-    const moodVibes = moodToVibes(mood);
-    const interestVibes = interestToVibes(interests);
-    let vibes = [...new Set([...moodVibes, ...interestVibes])];
-    if (vibes.length === 0) vibes = ['upbeat', 'adventure'];
-
-    // 1. Try city-specific playlist — all picks from city pool
+    // 1. Prefer curated static playlists for known cities (reliable, verified songs)
     const cityKey = matchCity(city);
 
     if (cityKey) {
+      console.log(`[Spotify] Using curated playlist for ${city} (matched: ${cityKey})`);
       const cityPlaylist = CITY_PLAYLISTS[cityKey];
       const allPicked = pickRandom(cityPlaylist.tracks, Math.min(TRACK_COUNT, cityPlaylist.tracks.length));
 
@@ -2035,7 +1967,45 @@ export const spotifyService = {
       };
     }
 
-    // 2. Build vibe-based playlist from mood + interests
+    // 2. Unknown city — try AI-powered song picking
+    console.log(`[Spotify] No curated playlist for ${city}, trying AI picker`);
+    const aiTracks = await aiPickSongs(city, mood);
+
+    if (aiTracks && aiTracks.length >= 3) {
+      console.log(`[Spotify] AI picked ${aiTracks.length} songs for ${city}`);
+
+      const tracksWithPreviews = await Promise.all(
+        aiTracks.map(async (t) => ({
+          ...track(t.title, t.artist),
+          previewUrl: await fetchDeezerPreview(t.artist, t.title),
+          reason: t.reason,
+        }))
+      );
+
+      const playlistNames = [
+        `${city} Today`, `Your ${city} Mix`, `${city} Vibes`,
+        `A Day in ${city}`, `${city} Soundtrack`,
+      ];
+      const playlistName = playlistNames[Math.floor(Math.random() * playlistNames.length)];
+
+      return {
+        success: true,
+        data: {
+          name: playlistName,
+          description: `Curated for your day in ${city}`,
+          tracks: tracksWithPreviews,
+          mood: mood || 'curated',
+          playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(`${city} vibes`)}`
+        }
+      };
+    }
+
+    // 3. Last resort — vibe-based playlist from mood
+    console.log(`[Spotify] AI failed for ${city}, falling back to vibe pools`);
+    const moodVibes = moodToVibes(mood);
+    let vibes = [...new Set(moodVibes)];
+    if (vibes.length === 0) vibes = ['upbeat', 'adventure'];
+
     const candidateTracks: Track[] = [];
     for (const vibe of vibes) {
       const pool = VIBE_POOLS[vibe];

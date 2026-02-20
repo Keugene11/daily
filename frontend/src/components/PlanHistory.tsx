@@ -3,7 +3,6 @@ import React from 'react';
 export interface SavedPlan {
   id: string;
   city: string;
-  interests: string[];
   budget: string;
   content: string;
   date: string;
@@ -78,16 +77,6 @@ export const PlanHistory: React.FC<Props> = ({ plans, onSelect, onDelete, onClos
                     </svg>
                   </button>
                 </div>
-
-                {plan.interests.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {plan.interests.map(i => (
-                      <span key={i} className="px-2 py-0.5 text-[10px] uppercase tracking-wider rounded-full border border-on-surface/10 text-on-surface/40">
-                        {i}
-                      </span>
-                    ))}
-                  </div>
-                )}
 
                 <p className="text-sm text-on-surface/50 line-clamp-2">{preview}...</p>
               </div>

@@ -7,7 +7,6 @@ interface PlanRow {
   id: string;
   user_id: string;
   city: string;
-  interests: string[];
   budget: string;
   content: string;
   date: string;
@@ -58,7 +57,6 @@ export function usePlans(user: User | null) {
             id: plan.id,
             user_id: user!.id,
             city: plan.city,
-            interests: plan.interests,
             budget: plan.budget,
             content: plan.content,
             date: plan.date,
@@ -83,7 +81,6 @@ export function usePlans(user: User | null) {
           const remotePlans: SavedPlan[] = ((data || []) as PlanRow[]).map(row => ({
             id: row.id,
             city: row.city,
-            interests: row.interests,
             budget: row.budget,
             content: row.content,
             date: row.date,
@@ -119,7 +116,6 @@ export function usePlans(user: User | null) {
           id: plan.id,
           user_id: user.id,
           city: plan.city,
-          interests: plan.interests,
           budget: plan.budget,
           content: plan.content,
           date: plan.date,
