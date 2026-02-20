@@ -55,7 +55,7 @@ function App() {
   const [mood, setMood] = useState('');
   const [rightNow, setRightNow] = useState(false);
   const [tripDays, setTripDays] = useState(1);
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
+
 
   // Media enrichment — progressively fetches images + YouTube videos as places appear in the stream
   const { data: mediaData } = useMediaEnrichment(state.content, city, tripDays > 1 ? tripDays * 5 : 12, getAccessToken);
@@ -413,26 +413,6 @@ function App() {
                 </span>
               </div>
             </div>
-
-            {/* More Options Toggle */}
-            <button
-              onClick={() => setShowMoreOptions(!showMoreOptions)}
-              className="flex items-center gap-2 text-xs text-on-surface/35 hover:text-on-surface/60 transition-colors"
-            >
-              <svg className={`w-3 h-3 transition-transform ${showMoreOptions ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-              More options
-              {tripDays > 1 && (
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-              )}
-            </button>
-
-            {/* Collapsible Options */}
-            {showMoreOptions && (
-              <div className="space-y-5 animate-fadeIn">
-              </div>
-            )}
 
             {/* Action buttons */}
             <div className="flex gap-3">

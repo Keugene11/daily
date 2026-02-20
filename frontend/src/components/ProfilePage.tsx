@@ -138,9 +138,11 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, o
                     setDeleting(true);
                     const success = await onDeleteAccount();
                     if (success) {
-                      window.location.href = '/';
+                      onSignOut();
+                      setTimeout(() => { window.location.href = '/'; }, 500);
+                    } else {
+                      setDeleting(false);
                     }
-                    setDeleting(false);
                   }}
                   disabled={deleting}
                   className="flex-1 py-2.5 bg-red-500 text-white rounded-full text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"

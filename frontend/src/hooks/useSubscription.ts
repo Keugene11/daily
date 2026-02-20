@@ -156,7 +156,10 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   const deleteAccount = useCallback(async (): Promise<boolean> => {
     try {
       const token = await getAccessToken();
-      if (!token) return false;
+      if (!token) {
+        alert('Not signed in.');
+        return false;
+      }
 
       const res = await fetch(`${API_URL}/api/delete-account`, {
         method: 'DELETE',
