@@ -320,8 +320,30 @@ export async function searchYouTubeVideo(query: string): Promise<VideoResult | n
   return fallback[0] || null;
 }
 
+/** Check if a video allows embedding via oEmbed */
+async function isEmbeddable(videoId: string): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+      {},
+      3000
+    );
+    return res.ok;
+  } catch {
+    return true; // assume embeddable if check fails
+  }
+}
+
 /** Multiple relevant videos for a topic+location (used by Explore) */
 export async function searchYouTubeVideos(query: string, count = 3): Promise<VideoResult[]> {
   // Add "guide review" to bias toward quality review content
-  return scrapeYouTubeSearch(query, 'guide review', count);
+  // Fetch extra candidates to account for non-embeddable ones
+  const candidates = await scrapeYouTubeSearch(query, 'guide review', count * 2);
+
+  // Check embeddability in parallel
+  const checks = await Promise.all(
+    candidates.map(async (v) => ({ ...v, embeddable: await isEmbeddable(v.videoId) }))
+  );
+
+  return checks.filter(v => v.embeddable).slice(0, count).map(v => ({ videoId: v.videoId, title: v.title }));
 }

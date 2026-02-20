@@ -280,8 +280,22 @@ async function searchYouTubeVideo(query) {
     const fallback = await scrapeYouTubeSearch(query, 'travel vlog', 1);
     return fallback[0] || null;
 }
+/** Check if a video allows embedding via oEmbed */
+async function isEmbeddable(videoId) {
+    try {
+        const res = await fetchWithTimeout(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, {}, 3000);
+        return res.ok;
+    }
+    catch {
+        return true; // assume embeddable if check fails
+    }
+}
 /** Multiple relevant videos for a topic+location (used by Explore) */
 async function searchYouTubeVideos(query, count = 3) {
     // Add "guide review" to bias toward quality review content
-    return scrapeYouTubeSearch(query, 'guide review', count);
+    // Fetch extra candidates to account for non-embeddable ones
+    const candidates = await scrapeYouTubeSearch(query, 'guide review', count * 2);
+    // Check embeddability in parallel
+    const checks = await Promise.all(candidates.map(async (v) => ({ ...v, embeddable: await isEmbeddable(v.videoId) })));
+    return checks.filter(v => v.embeddable).slice(0, count).map(v => ({ videoId: v.videoId, title: v.title }));
 }
