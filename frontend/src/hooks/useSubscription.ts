@@ -97,7 +97,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       const data = await res.json();
       if (!res.ok) {
         console.error('[Checkout] Error:', data);
-        alert(data.error || 'Failed to start checkout');
+        alert(JSON.stringify(data, null, 2));
         return;
       }
       if (data.url) window.location.href = data.url;
