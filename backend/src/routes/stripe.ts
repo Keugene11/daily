@@ -26,11 +26,22 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
     return res.status(400).json({ error: 'Missing priceId' });
   }
   if (!req.userId) {
+    // Decode token header to see algorithm
+    let tokenAlg = 'unknown';
+    try {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.slice(7);
+      const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
+      tokenAlg = header.alg;
+    } catch { /* ignore */ }
+
     return res.status(401).json({
       error: 'Not authenticated',
       debug: {
         hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
+        jwtSecretLength: process.env.SUPABASE_JWT_SECRET?.length,
         hasAuthHeader: !!req.headers.authorization,
+        tokenAlgorithm: tokenAlg,
       },
     });
   }
