@@ -13,12 +13,6 @@ const app = express();
 // Middleware
 app.use(cors());
 
-// Force-clear stale service worker on every response
-app.use((_req, res, next) => {
-  res.setHeader('Clear-Site-Data', '"cache", "storage"');
-  next();
-});
-
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), webhookRouter);
 

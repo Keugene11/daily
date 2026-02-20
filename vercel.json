@@ -14,12 +14,6 @@
       "headers": [
         { "key": "Content-Type", "value": "application/json" }
       ]
-    },
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Clear-Site-Data", "value": "\"cache\", \"storage\"" }
-      ]
     }
   ],
   "rewrites": [
