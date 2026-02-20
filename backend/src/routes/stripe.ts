@@ -12,7 +12,7 @@ const router = Router();
 router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
   const { priceId } = req.body;
 
-  if (!priceId || !req.userId || !req.userEmail) {
+  if (!priceId || !req.userId) {
     return res.status(400).json({ error: 'Missing priceId or not authenticated' });
   }
 
@@ -30,7 +30,7 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
       customerId = sub.stripe_customer_id;
     } else {
       const customer = await stripe.customers.create({
-        email: req.userEmail,
+        ...(req.userEmail ? { email: req.userEmail } : {}),
         metadata: { supabase_user_id: req.userId },
       });
       customerId = customer.id;
