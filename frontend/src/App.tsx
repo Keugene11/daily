@@ -18,7 +18,6 @@ import { useMediaEnrichment } from './hooks/useMediaEnrichment';
 import { useAuth } from './hooks/useAuth';
 import { usePlans } from './hooks/usePlans';
 import { useSubscription } from './hooks/useSubscription';
-import { LoginScreen } from './components/LoginScreen';
 import { PricingModal } from './components/PricingModal';
 import './styles/index.css';
 
@@ -162,11 +161,13 @@ function App() {
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
+    if (!session) { signInWithGoogle(); return; }
     savePrefs();
     startStream(city, interests, budget, buildExtras(), getAccessToken);
   };
 
   const handleSurpriseMe = async () => {
+    if (!session) { signInWithGoogle(); return; }
     try {
       const res = await fetch('http://ip-api.com/json/?fields=city,country');
       const data = await res.json();
@@ -274,11 +275,6 @@ function App() {
     );
   }
 
-  // Not authenticated — show login screen
-  if (!session) {
-    return <LoginScreen onSignIn={signInWithGoogle} />;
-  }
-
   return (
     <div className="min-h-screen bg-surface text-on-surface transition-colors duration-300">
       {city.toLowerCase().includes('tokyo') && showResults && <CherryBlossoms />}
@@ -287,11 +283,17 @@ function App() {
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={() => { setView('explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
-          <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
+          {session && (
+            <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
+          )}
           <button onClick={() => setShowPricing(true)} className="hover:text-on-surface transition-colors">
             {subscription.tier === 'free' ? 'upgrade' : subscription.tier}
           </button>
-          <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
+          {session ? (
+            <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
+          ) : (
+            <button onClick={signInWithGoogle} className="hover:text-on-surface transition-colors">sign in</button>
+          )}
 
           <button
             onClick={() => setDark(!dark)}
@@ -575,6 +577,7 @@ function App() {
             <button
               onClick={() => {
                 if (!city.trim()) return;
+                if (!session) { signInWithGoogle(); return; }
                 setRightNow(true);
                 setTripDays(1);
                 savePrefs();
