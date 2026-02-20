@@ -99,7 +99,14 @@ export const PricingModal: React.FC<Props> = ({ currentTier, onCheckout, onClose
                 </ul>
 
                 <button
-                  onClick={() => isUpgrade && t.priceId && onCheckout(t.priceId)}
+                  onClick={() => {
+                    if (!isUpgrade) return;
+                    if (!t.priceId) {
+                      alert(`Price ID not configured for ${t.name}. Check VITE_STRIPE_*_PRICE_ID env vars.`);
+                      return;
+                    }
+                    onCheckout(t.priceId);
+                  }}
                   disabled={isCurrent || !isUpgrade}
                   className={`w-full py-2.5 rounded-full text-sm font-medium transition-all ${
                     isCurrent
