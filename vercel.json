@@ -18,9 +18,10 @@
   ],
   "rewrites": [
     { "source": "/api/explore", "destination": "/api/explore" },
+    { "source": "/api/subscription", "destination": "/api/subscription" },
     { "source": "/api/sync-subscription", "destination": "/api/sync-subscription" },
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/health", "destination": "/api" },
+    { "source": "/api/(.*)", "destination": "/api/v2" },
+    { "source": "/health", "destination": "/api/v2" },
     { "source": "/privacy.html", "destination": "/privacy.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
