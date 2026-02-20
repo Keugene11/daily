@@ -44,7 +44,7 @@ function App() {
   const [shareMsg, setShareMsg] = useState('');
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true;
+    return saved ? saved === 'dark' : false;
   });
 
   const isHome = location.pathname === '/';
