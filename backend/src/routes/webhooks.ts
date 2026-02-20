@@ -8,7 +8,7 @@ const router = Router();
  * POST /api/webhooks/stripe
  * Handles Stripe webhook events. Must receive raw body for signature verification.
  */
-router.post('/webhooks/stripe', async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 

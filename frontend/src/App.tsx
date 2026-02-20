@@ -303,8 +303,11 @@ function App() {
         <ProfilePage
           user={user}
           planCount={savedPlans.length}
+          tier={subscription.tier}
           onClose={() => setView('home')}
           onSignOut={signOut}
+          onManage={subscription.openPortal}
+          onUpgrade={() => setShowPricing(true)}
         />
       )}
 

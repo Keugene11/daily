@@ -1,14 +1,18 @@
 import React from 'react';
 import { User } from '@supabase/supabase-js';
+import type { TierName } from '../hooks/useSubscription';
 
 interface Props {
   user: User | null;
   planCount: number;
+  tier: TierName;
   onClose: () => void;
   onSignOut: () => void;
+  onManage: () => void;
+  onUpgrade: () => void;
 }
 
-export const ProfilePage: React.FC<Props> = ({ user, planCount, onClose, onSignOut }) => {
+export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, onClose, onSignOut, onManage, onUpgrade }) => {
   const name = user?.user_metadata?.full_name || user?.user_metadata?.name || null;
   const email = user?.email || 'Guest';
   const avatar = user?.user_metadata?.avatar_url || null;
@@ -47,6 +51,22 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, onClose, onSignO
       </div>
 
       <div className="space-y-4 mb-10">
+        <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
+          <span className="text-sm text-on-surface/50">Plan</span>
+          <span className="text-sm flex items-center gap-2">
+            {tier === 'pro' ? (
+              <>
+                <span className="text-accent font-medium">Pro</span>
+                <button onClick={onManage} className="text-xs text-on-surface/40 hover:text-on-surface underline">Manage</button>
+              </>
+            ) : (
+              <>
+                <span>Free</span>
+                <button onClick={onUpgrade} className="text-xs text-accent hover:underline">Upgrade</button>
+              </>
+            )}
+          </span>
+        </div>
         {createdAt && (
           <div className="flex items-center justify-between py-3 border-b border-on-surface/10">
             <span className="text-sm text-on-surface/50">Member since</span>
