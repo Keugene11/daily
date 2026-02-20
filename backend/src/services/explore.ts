@@ -47,7 +47,7 @@ async function generateExplorePost(query: string, location: string, places: Expl
   }
 
   const placeDescriptions = placesWithReviews.map((p, i) => {
-    const reviewBlock = p.reviews.slice(0, 3).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
+    const reviewBlock = p.reviews.slice(0, 5).map((r, j) => `  Review ${j + 1}: "${r}"`).join('\n');
     const status = p.isOpen === true ? 'Open now' : p.isOpen === false ? 'Closed' : '';
     const price = p.priceLevel ? `Price level: ${p.priceLevel}` : '';
     const range = p.priceRange ? `Price range: ${p.priceRange}` : '';
@@ -63,23 +63,28 @@ async function generateExplorePost(query: string, location: string, places: Expl
       messages: [
         {
           role: 'system',
-          content: `You write short, punchy local guides. Like a friend texting you their top picks — not a travel blog essay. Rules:
+          content: `You write local guides that feel like advice from a friend who actually lives there. Honest, specific, and useful — not a travel blog.
 
-- One short intro sentence, max.
-- Each place gets 1-2 sentences MAX. Lead with the most interesting detail from reviews (a specific dish, a standout feature, a vibe). Skip generic praise.
-- Include pricing when available (price range, price level, or review mentions). If none, skip it — don't say "prices not listed."
-- If there are real complaints, mention them in a few words.
-- Bold each place name as a link: **[Name](google maps url)**.
-- Keep the TOTAL response under 150 words. Be ruthlessly concise.
-- No bullet points, no numbered lists, no markdown headings, no filler phrases.`,
+For each place, write a short paragraph (2-4 sentences) covering:
+- What makes it worth going (a specific dish, signature item, unique feature — pull from reviews)
+- The vibe/atmosphere (cozy, loud, trendy, no-frills, etc.)
+- Practical info: pricing if available, any heads up (long waits, cash only, parking, etc.)
+- Honest downsides if reviews mention them — don't sugarcoat
+
+Format rules:
+- Start with one sentence setting the scene for the area/query. Keep it natural.
+- Bold each place name as a link: **[Name](google maps url)**
+- Separate each place with a blank line
+- Write naturally — no bullet points, no numbered lists, no markdown headings
+- Total length: 200-300 words`,
         },
         {
           role: 'user',
-          content: `Quick guide to the best "${query}" in ${location}. Here are ${placesWithReviews.length} places with reviews:\n\n${placeDescriptions}`,
+          content: `Guide to the best "${query}" in ${location}. Here are ${placesWithReviews.length} places with reviews:\n\n${placeDescriptions}`,
         },
       ],
       temperature: 0.7,
-      max_tokens: 600,
+      max_tokens: 1000,
     });
 
     return response.choices?.[0]?.message?.content || '';
