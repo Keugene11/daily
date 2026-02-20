@@ -56,7 +56,16 @@ export function useAuth() {
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (!supabase) return null;
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    if (!session) return null;
+
+    // If token expires within 60s, refresh it first
+    const expiresAt = session.expires_at ?? 0;
+    if (Date.now() / 1000 > expiresAt - 60) {
+      const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+      return refreshed?.access_token ?? null;
+    }
+
+    return session.access_token;
   }, []);
 
   // Skip auth entirely when Supabase isn't configured
