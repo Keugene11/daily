@@ -49,13 +49,54 @@ function parseDuration(text) {
 }
 // ── Title keyword patterns ──────────────────────────────────────────
 // Strong signals of high-production travel/visual content
-const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s*through|drone|aerial|timelapse|time.lapse|travel guide|city guide|food tour|food guide|travel vlog|guide to|visit|places to|things to do|things to see|what to do|must.see|must.visit|hidden gem|complete guide|virtual tour|night walk|night life|sunset|sunrise|street food|best restaurants|where to eat)\b/i;
+const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s*through|drone|aerial|timelapse|time.lapse|travel guide|city guide|food tour|food guide|travel vlog|guide to|visit|places to|things to do|things to see|what to do|must.see|must.visit|hidden gem|complete guide|virtual tour|night walk|night life|sunset|sunrise|street food|best restaurants|where to eat|top \d+|best of|review|first time|solo travel|budget travel|luxury|michelin|local guide)\b/i;
 // Irrelevant or low-quality content — hard reject
 const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:ing)?|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list|live stream|livestream|shorts|tiktok|compilation|meme|funny|cringe|exposed|canceled|cancelled|apology|rant|vent|asmr|gameplay|playthrough|let'?s play|blippi|cocomelon|peppa|paw patrol|sesame street|kids|for children|educational.*kids|nursery rhyme|cartoon|countdown|ball drop|new year'?s eve)\b/i;
 // Entertainment/celebrity content — not place-discovery content
 const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime|broadway cast|original cast|musical|soundtrack|karaoke|sing along|lyrics?|remix|cover song|acoustic version)\b/i;
 // News/current-affairs/disaster content — not what we want for place discovery
 const NEWS_KEYWORDS = /\b(breaking|news|update|report|arrest|crime|accident|protest|election|politic|court|lawsuit|scandal|controversy|investigation|flood(?:ing|ed)?|earthquake|tsunami|hurricane|tornado|cyclone|disaster|devastat|collaps|demolish|destroy|prime minister|president visit|state visit|official visit|inaugurat|summit|parliament|congress)\b/i;
+// ── Channel-level signals ───────────────────────────────────────────
+// Known high-quality travel/food/review channels — strong bonus
+const QUALITY_CHANNELS = new Set([
+    // Travel
+    'mark wiens', 'kara and nate', 'drew binsky', 'rick steves',
+    'lonely planet', 'the bucket list family', 'lost leblanc', 'yes theory',
+    'nas daily', 'jacob + katie schwarz', 'the endless adventure',
+    'wolters world', 'tangerine travels', 'samuel and audrey',
+    'hopscotch the globe', 'Gabriel Traveler', 'vagabrothers',
+    'indigo traveller', 'peter santenello', 'bald and bankrupt',
+    'kurt caz', 'sailing la vagabonde', 'eva zu beck',
+    'mr ben brown', 'fun fun function', 'jason billam',
+    'simon wilson', 'karl watson', 'travel beans',
+    // Food
+    'best ever food review show', 'strictly dumpling', 'mike chen',
+    'mikey chen', 'the food ranger', 'davidsbeenhere',
+    'pro home cooks', 'joshua weissman', 'babish culinary universe',
+    'adam ragusea', 'j. kenji lópez-alt', 'beryl shereshewsky',
+    'mark wiens', 'luke martin', 'settime',
+    // Walking tours / visual
+    'watched walker', '4k urban life', 'wanna walk', 'prowalk tours',
+    'actionkid', 'wanderlust travel videos', 'tourister',
+    'bucket list traveller', 'turn right',
+    // General quality lifestyle / review
+    'wendover productions', 'half as interesting', 'geography now',
+    'bright sun films', 'tom scott', 'johnny harris',
+    'not just bikes', 'city beautiful', 'b1m',
+]);
+// Known news/media channels — penalty
+const NEWS_CHANNELS = new Set([
+    'cnn', 'bbc', 'bbc news', 'fox news', 'msnbc', 'nbc news',
+    'abc news', 'cbs news', 'sky news', 'al jazeera',
+    'the guardian', 'vice news', 'cnbc', 'bloomberg',
+    'reuters', 'associated press', 'ap archive',
+    'the new york times', 'washington post', 'usa today',
+    'new york post', 'daily mail', 'the sun', 'the telegraph',
+    'fox business', 'newsmax', 'one america news',
+    'inside edition', 'entertainment tonight', 'access hollywood',
+    'tmz', 'e! news', 'good morning america', 'today',
+    'the view', 'pbs newshour', 'cbc news',
+]);
 /**
  * Score a video candidate. Relevance (does the title match the query?)
  * is the dominant signal, with view count as a secondary quality indicator.
@@ -73,16 +114,40 @@ function scoreCandidate(c, position, poolSize, query) {
         const relevance = matched.length / queryTerms.length;
         score += relevance * 10; // up to 10 points for full match
     }
-    // ── View count (logarithmic — secondary signal) ───────────────
-    // Log scale prevents mega-viral videos from dominating over
-    // relevant small-town content. 1K→3, 10K→4, 100K→5, 1M→6.
-    if (c.views > 0) {
+    // ── View count (logarithmic — boosted for quality signal) ─────
+    // Log scale with bonus tiers: 50K+→bonus, <5K→penalty
+    // Popular videos are almost always better quality for travel content
+    if (c.views >= 500_000) {
+        score += Math.log10(c.views) + 4; // 500K+ gets strong bonus
+    }
+    else if (c.views >= 100_000) {
+        score += Math.log10(c.views) + 2; // 100K+ decent bonus
+    }
+    else if (c.views >= 50_000) {
+        score += Math.log10(c.views) + 1; // 50K+ small bonus
+    }
+    else if (c.views >= 10_000) {
         score += Math.log10(c.views);
     }
+    else if (c.views >= 1_000) {
+        score += Math.log10(c.views) - 2; // under 10K: penalize
+    }
+    else if (c.views > 0) {
+        score += Math.log10(c.views) - 5; // under 1K: heavy penalty
+    }
     else {
-        score -= 2;
+        score -= 8; // no views at all
     }
     // ── Channel quality signals ───────────────────────────────────
+    const channelLower = c.channel.toLowerCase();
+    // Known quality travel/food channels — strong bonus
+    if (QUALITY_CHANNELS.has(channelLower)) {
+        score += 12;
+    }
+    // Known news/media channels — hard penalty
+    if (NEWS_CHANNELS.has(channelLower)) {
+        score -= 20;
+    }
     if (c.isVerified) {
         score += 3;
     }
@@ -112,6 +177,10 @@ function scoreCandidate(c, position, poolSize, query) {
     // Entertainment/celebrity content — penalize hard, these dominate on views
     if (ENTERTAINMENT_KEYWORDS.test(c.title) || ENTERTAINMENT_KEYWORDS.test(c.channel)) {
         score -= 15;
+    }
+    // Channel name contains "news" or "media" (catch channels not in the explicit list)
+    if (/\bnews\b/i.test(c.channel) || /\bmedia\b/i.test(c.channel)) {
+        score -= 10;
     }
     // Clickbait/sensational titles — not the calm, informative travel content we want
     if (/\b(craziest|insane|extreme|shocking|unbelievable|you won'?t believe|mind.?blow|jaw.?drop|gone wrong|impossible|alive)\b/i.test(c.title)) {
@@ -174,7 +243,7 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
             const isVerified = badges.some((b) => b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED' ||
                 b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED_ARTIST');
             candidates.push({ videoId, title, views, durationSec, isVerified, channel });
-            if (candidates.length >= 15)
+            if (candidates.length >= 20)
                 break;
         }
         if (candidates.length === 0)
@@ -204,10 +273,15 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
 }
 /** Single best travel-biased video (used by itinerary planner) */
 async function searchYouTubeVideo(query) {
-    const results = await scrapeYouTubeSearch(query, 'travel', 1);
-    return results[0] || null;
+    // Try "travel guide" first for higher-quality results, fall back to "travel"
+    const results = await scrapeYouTubeSearch(query, 'travel guide', 1);
+    if (results.length > 0)
+        return results[0];
+    const fallback = await scrapeYouTubeSearch(query, 'travel vlog', 1);
+    return fallback[0] || null;
 }
 /** Multiple relevant videos for a topic+location (used by Explore) */
 async function searchYouTubeVideos(query, count = 3) {
-    return scrapeYouTubeSearch(query, '', count);
+    // Add "guide review" to bias toward quality review content
+    return scrapeYouTubeSearch(query, 'guide review', count);
 }
