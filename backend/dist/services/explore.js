@@ -17,7 +17,30 @@ function getClient() {
     }
     return client;
 }
-async function generateExplorePost(query, location, places) {
+const WEATHER_CODES = {
+    0: 'clear sky', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast',
+    45: 'foggy', 48: 'foggy', 51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle',
+    61: 'light rain', 63: 'rain', 65: 'heavy rain', 71: 'light snow', 73: 'snow',
+    75: 'heavy snow', 80: 'rain showers', 81: 'rain showers', 82: 'heavy rain showers',
+    95: 'thunderstorm', 96: 'thunderstorm with hail', 99: 'thunderstorm with hail',
+};
+async function fetchWeather(lat, lng) {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`;
+        const res = await fetch(url);
+        if (!res.ok)
+            return null;
+        const data = await res.json();
+        const temp = Math.round(data.current?.temperature_2m ?? 0);
+        const code = data.current?.weather_code ?? -1;
+        const condition = WEATHER_CODES[code] || '';
+        return `${temp}°F${condition ? ', ' + condition : ''}`;
+    }
+    catch {
+        return null;
+    }
+}
+async function generateExplorePost(query, location, places, weather) {
     const placesWithReviews = places.filter(p => p.reviews.length > 0).slice(0, 5);
     if (placesWithReviews.length === 0) {
         return `No detailed reviews available for ${query} in ${location}.`;
@@ -46,15 +69,16 @@ For each place, write a short paragraph (2-4 sentences) covering:
 - Honest downsides if reviews mention them — don't sugarcoat
 
 Format rules:
-- Start with one sentence setting the scene for the area/query. Keep it natural.
+- Open with one sentence that naturally sets the scene — weave in the current weather/day if provided (e.g. "A warm Thursday evening is perfect for..." or "Rain today? These cozy spots have you covered."). Don't force it if it doesn't fit.
 - Bold each place name as a link: **[Name](google maps url)**
+- If a place is currently open or closed, mention it naturally (e.g. "open now" or "heads up — they're closed right now")
 - Separate each place with a blank line
 - Write naturally — no bullet points, no numbered lists, no markdown headings
 - Total length: 200-300 words`,
                 },
                 {
                     role: 'user',
-                    content: `Guide to the best "${query}" in ${location}. Here are ${placesWithReviews.length} places with reviews:\n\n${placeDescriptions}`,
+                    content: `Guide to the best "${query}" in ${location}.\n\nToday: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${weather ? ` | Current weather: ${weather}` : ''}\n\nHere are ${placesWithReviews.length} places with reviews:\n\n${placeDescriptions}`,
                 },
             ],
             temperature: 0.7,
@@ -90,10 +114,16 @@ async function exploreSearch(query, location) {
         ]).catch(() => []);
         // Only use places with reviews (same ones the AI writes about)
         const placesForPost = rawPlaces.filter(p => p.reviews.length > 0).slice(0, 5);
-        const [post, rawVideos] = await Promise.all([
-            generateExplorePost(query, location, rawPlaces),
+        // Fetch weather using first place's coordinates
+        const firstPlace = rawPlaces[0];
+        const weatherPromise = (firstPlace?.lat && firstPlace?.lng)
+            ? fetchWeather(firstPlace.lat, firstPlace.lng).catch(() => null)
+            : Promise.resolve(null);
+        const [weather, rawVideos] = await Promise.all([
+            weatherPromise,
             ytWithTimeout,
         ]);
+        const post = await generateExplorePost(query, location, rawPlaces, weather);
         // Only keep videos whose title mentions BOTH the query AND location
         // Single-word place name matches are too noisy (e.g. "park" matches everything)
         const videos = rawVideos.filter(v => {
