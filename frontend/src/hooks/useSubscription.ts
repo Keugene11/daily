@@ -81,33 +81,53 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   }, [data]);
 
   const createCheckout = useCallback(async (priceId: string) => {
-    const token = await getAccessToken();
-    if (!token) return;
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
 
-    const res = await fetch(`${API_URL}/api/checkout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ priceId }),
-    });
+      const res = await fetch(`${API_URL}/api/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ priceId }),
+      });
 
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('[Checkout] Error:', data);
+        alert(data.error || 'Failed to start checkout');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error('[Checkout] Error:', err);
+      alert('Failed to start checkout. Check console for details.');
+    }
   }, [getAccessToken]);
 
   const openPortal = useCallback(async () => {
-    const token = await getAccessToken();
-    if (!token) return;
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
 
-    const res = await fetch(`${API_URL}/api/portal`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      const res = await fetch(`${API_URL}/api/portal`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('[Portal] Error:', data);
+        alert(data.error || 'Failed to open portal');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error('[Portal] Error:', err);
+      alert('Failed to open portal. Check console for details.');
+    }
   }, [getAccessToken]);
 
   return {
