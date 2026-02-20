@@ -10,7 +10,6 @@ import { CherryBlossoms } from './components/CherryBlossoms';
 import { PlanHistory, SavedPlan } from './components/PlanHistory';
 import { ProfilePage } from './components/ProfilePage';
 import { ExplorePage } from './components/ExplorePage';
-import { PlanGallery } from './components/PlanGallery';
 import { VoiceInput } from './components/VoiceInput';
 import { PlanMap } from './components/PlanMap';
 import { OutfitSuggestion } from './components/OutfitSuggestion';
@@ -135,11 +134,6 @@ function App() {
     return extras;
   };
 
-  const handleStealPlan = (stealCity: string, stealInterests: string[]) => {
-    setCity(stealCity);
-    setInterests(stealInterests);
-    startStream(stealCity, stealInterests, budget, buildExtras(), getAccessToken);
-  };
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
@@ -467,10 +461,6 @@ function App() {
             </button>
           </div>
 
-          {/* Steal a Plan gallery */}
-          <div className="w-full max-w-3xl">
-            <PlanGallery onSteal={handleStealPlan} />
-          </div>
         </div>
       )}
 
