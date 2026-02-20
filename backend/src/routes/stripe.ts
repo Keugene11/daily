@@ -12,6 +12,8 @@ const router = Router();
 router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
   const { priceId } = req.body;
 
+  console.log(`[Checkout] Start — priceId="${priceId}", userId=${req.userId}`);
+
   if (!priceId) {
     return res.status(400).json({ error: 'Missing priceId' });
   }
@@ -31,14 +33,15 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
 
     if (sub?.stripe_customer_id) {
       customerId = sub.stripe_customer_id;
+      console.log(`[Checkout] Existing customer: ${customerId}`);
     } else {
       const customer = await stripe.customers.create({
         ...(req.userEmail ? { email: req.userEmail } : {}),
         metadata: { supabase_user_id: req.userId },
       });
       customerId = customer.id;
+      console.log(`[Checkout] Created customer: ${customerId}`);
 
-      // Save customer ID
       await supabaseAdmin
         .from('subscriptions')
         .upsert({
@@ -52,6 +55,7 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
     // Fetch the price to determine if it's recurring or one-time
     const price = await stripe.prices.retrieve(priceId);
     const mode = price.type === 'recurring' ? 'subscription' : 'payment';
+    console.log(`[Checkout] Price type="${price.type}", mode="${mode}"`);
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -62,11 +66,13 @@ router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
       metadata: { supabase_user_id: req.userId },
     });
 
+    console.log(`[Checkout] Session created: ${session.id}`);
     res.json({ url: session.url });
   } catch (err: any) {
-    console.error('[Stripe] Checkout error:', err);
-    const msg = err?.message || 'Failed to create checkout session';
-    res.status(500).json({ error: msg });
+    const msg = err?.message || 'Unknown error';
+    const code = err?.code || err?.type || '';
+    console.error(`[Checkout] FAILED — ${code}: ${msg}`, err);
+    res.status(500).json({ error: `${msg}${code ? ` (${code})` : ''}` });
   }
 });
 
