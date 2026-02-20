@@ -17,6 +17,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/sync-subscription", "destination": "/api/sync-subscription" },
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
     { "source": "/privacy.html", "destination": "/privacy.html" },

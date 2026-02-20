@@ -28,6 +28,27 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Sync subscription with Stripe via standalone endpoint (bypasses Express app cache)
+  const syncSubscription = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_URL}/api/sync-subscription`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.synced) {
+          console.log('[Subscription] Synced from Stripe:', result.tier);
+        }
+      }
+    } catch {
+      // Silently fail — sync is best-effort
+    }
+  }, [getAccessToken]);
+
   const fetchSubscription = useCallback(async () => {
     try {
       const token = await getAccessToken();
@@ -36,6 +57,9 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         setLoading(false);
         return;
       }
+
+      // First sync with Stripe (fixes stale DB), then fetch full subscription data
+      await syncSubscription();
 
       const res = await fetch(`${API_URL}/api/subscription`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -49,7 +73,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     } finally {
       setLoading(false);
     }
-  }, [getAccessToken]);
+  }, [getAccessToken, syncSubscription]);
 
   useEffect(() => {
     fetchSubscription();
@@ -57,9 +81,8 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     // Re-fetch if returning from Stripe checkout
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === '1') {
-      // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
-      // Delay to let webhook process
+      // Sync again after delay to catch webhook
       setTimeout(fetchSubscription, 2000);
     }
     if (params.get('canceled') === '1') {
