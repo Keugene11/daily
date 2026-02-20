@@ -135,8 +135,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (subs.data.length > 0) {
       const activeSub = subs.data[0] as any;
-      periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
       tier = 'pro';
+      if (activeSub.current_period_end) {
+        periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+      }
       steps.push(`Subscription found! periodEnd=${periodEnd}`);
       console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}`);
     }
@@ -171,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 5. Sync DB if we found pro status
-    if (tier === 'pro' && periodEnd) {
+    if (tier === 'pro') {
       const { error: syncError } = await supabase
         .from('subscriptions')
         .upsert({

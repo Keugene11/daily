@@ -99,9 +99,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (subs.data.length > 0) {
       const activeSub = subs.data[0] as any;
-      periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
       tier = 'pro';
       synced = true;
+      if (activeSub.current_period_end) {
+        periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+      }
       console.log(`[Sync] Found active subscription, periodEnd=${periodEnd}`);
     }
 
