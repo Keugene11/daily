@@ -16,12 +16,17 @@ const app = (0, express_1.default)();
 exports.app = app;
 // Middleware
 app.use((0, cors_1.default)());
+// Force-clear stale service worker on every response
+app.use((_req, res, next) => {
+    res.setHeader('Clear-Site-Data', '"cache", "storage"');
+    next();
+});
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/webhooks/stripe', express_1.default.raw({ type: 'application/json' }), webhooks_1.default);
 app.use(express_1.default.json());
-// Request logging
+// Request logging — includes version to verify deployment
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    console.log(`[v3 ${new Date().toISOString()}] ${req.method} ${req.path}`);
     next();
 });
 // Health check endpoint
