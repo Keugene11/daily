@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { CityInput } from './components/CityInput';
 import { InterestsSelector } from './components/InterestsSelector';
 import { ToolCallIndicator } from './components/ToolCallIndicator';
@@ -32,6 +33,8 @@ const BUDGET_OPTIONS = [
 function App() {
   const { session, user, loading: authLoading, signInWithGoogle, signOut, getAccessToken } = useAuth();
   const subscription = useSubscription(getAccessToken);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showPricing, setShowPricing] = useState(false);
   const [city, setCity] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
@@ -44,8 +47,7 @@ function App() {
     return saved ? saved === 'dark' : true;
   });
 
-  // New feature state
-  const [view, setView] = useState<'home' | 'history' | 'profile' | 'explore'>('home');
+  const isHome = location.pathname === '/';
   const { plans: savedPlans, savePlan, deletePlan } = usePlans(user);
   const planSavedRef = useRef(false);
 
@@ -112,7 +114,7 @@ function App() {
     setInterests(plan.interests);
     setBudget(plan.budget);
     setTripDays(plan.days || 1);
-    setView('home');
+    navigate('/');
     // Build extras with the saved plan's days (state update is async so buildExtras() would use stale tripDays)
     const extras = buildExtras();
     if (plan.days && plan.days > 1) {
@@ -177,7 +179,7 @@ function App() {
     setMood('');
     setRightNow(false);
     setTripDays(1);
-    setView('home');
+    navigate('/');
   };
 
   const handleReplan = () => {
@@ -257,15 +259,15 @@ function App() {
       <nav className="flex items-center justify-between px-8 py-5 border-b border-on-surface/10">
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
-          <button onClick={() => { setView('explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
+          <button onClick={() => { navigate('/explore'); reset(); }} className="hover:text-on-surface transition-colors">explore</button>
           {session && (
-            <button onClick={() => { setView('history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
+            <button onClick={() => { navigate('/history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
           )}
           <button onClick={() => setShowPricing(true)} className="hover:text-on-surface transition-colors">
             plans
           </button>
           {session ? (
-            <button onClick={() => { setView('profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
+            <button onClick={() => { navigate('/profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
           ) : (
             <button onClick={signInWithGoogle} className="hover:text-on-surface transition-colors">sign in</button>
           )}
@@ -288,39 +290,38 @@ function App() {
         </div>
       </nav>
 
-      {/* History View */}
-      {view === 'history' && (
+      <Routes>
+      <Route path="/history" element={
         <PlanHistory
           plans={savedPlans}
           onSelect={handleSelectPlan}
           onDelete={handleDeletePlan}
-          onClose={() => setView('home')}
+          onClose={() => navigate('/')}
         />
-      )}
+      } />
 
-      {/* Profile View */}
-      {view === 'profile' && (
+      <Route path="/profile" element={
         <ProfilePage
           user={user}
           planCount={savedPlans.length}
           tier={subscription.tier}
-          onClose={() => setView('home')}
+          onClose={() => navigate('/')}
           onSignOut={signOut}
           onManage={subscription.openPortal}
           onUpgrade={() => setShowPricing(true)}
         />
-      )}
+      } />
 
-      {/* Explore View */}
-      {view === 'explore' && (
+      <Route path="/explore" element={
         <ExplorePage
           getAccessToken={getAccessToken}
-          onClose={() => setView('home')}
+          onClose={() => navigate('/')}
         />
-      )}
+      } />
 
+      <Route path="*" element={<>
       {/* Hero / Input */}
-      {view === 'home' && !showResults && (
+      {isHome && !showResults && (
         <div className="flex flex-col items-center justify-center px-6 pt-32 pb-20">
           <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
             A new way to plan<br />your perfect day.
@@ -489,7 +490,7 @@ function App() {
       )}
 
       {/* Results */}
-      {view === 'home' && showResults && (
+      {isHome && showResults && (
         <div className="max-w-3xl mx-auto px-6 py-16">
           {/* Tool calls + thinking */}
           {(state.isStreaming || Object.keys(state.toolResults).length > 0 || state.thinking.length > 0) && (
@@ -578,6 +579,9 @@ function App() {
           )}
         </div>
       )}
+
+      </>} />
+      </Routes>
 
       {/* Pricing Modal */}
       {showPricing && (
