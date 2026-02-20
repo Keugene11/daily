@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export type TierName = 'free' | 'starter' | 'pro' | 'lifetime';
+export type TierName = 'free' | 'pro';
 
 export interface SubscriptionData {
   tier: TierName;
@@ -97,7 +97,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       const data = await res.json();
       if (!res.ok) {
         console.error('[Checkout] Error:', data);
-        alert(JSON.stringify(data, null, 2));
+        alert(data.error || 'Failed to start checkout');
         return;
       }
       if (data.url) window.location.href = data.url;

@@ -33,8 +33,7 @@ router.post('/webhooks/stripe', async (req: Request, res: Response) => {
         const userId = session.metadata?.supabase_user_id;
         if (!userId) break;
 
-        if (session.mode === 'subscription' && session.subscription) {
-          // Recurring subscription — fetch subscription details
+        if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
           const priceId = sub.items.data[0]?.price?.id || '';
           const tier = getTierForPrice(priceId);
@@ -51,20 +50,6 @@ router.post('/webhooks/stripe', async (req: Request, res: Response) => {
             }, { onConflict: 'user_id' });
 
           console.log(`[Webhook] User ${userId} subscribed to ${tier}`);
-        } else if (session.mode === 'payment') {
-          // One-time payment (lifetime)
-          await supabaseAdmin
-            .from('subscriptions')
-            .upsert({
-              user_id: userId,
-              stripe_customer_id: session.customer as string,
-              plan_type: 'lifetime',
-              status: 'active',
-              current_period_end: null,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id' });
-
-          console.log(`[Webhook] User ${userId} purchased lifetime`);
         }
         break;
       }

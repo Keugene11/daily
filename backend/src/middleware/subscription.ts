@@ -26,10 +26,8 @@ export async function checkSubscription(req: SubscriptionRequest, _res: Response
 
     if (data && data.status === 'active') {
       const planType = data.plan_type as TierName;
-      if (planType === 'lifetime') {
-        tier = 'lifetime';
-      } else if (data.current_period_end && new Date(data.current_period_end) > new Date()) {
-        tier = planType;
+      if (planType === 'pro' && data.current_period_end && new Date(data.current_period_end) > new Date()) {
+        tier = 'pro';
       }
     }
 
