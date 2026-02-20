@@ -8,107 +8,167 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-function getTierForPrice(priceId: string): 'free' | 'pro' {
-  const monthlyId = process.env.STRIPE_MONTHLY_PRICE_ID;
-  const yearlyId = process.env.STRIPE_YEARLY_PRICE_ID;
-  if (monthlyId && priceId === monthlyId) return 'pro';
-  if (yearlyId && priceId === yearlyId) return 'pro';
-  if (priceId && priceId.startsWith('price_')) return 'pro';
-  return 'free';
-}
+const ALL_FEATURES = ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'];
 
+/**
+ * GET /api/subscription
+ *
+ * Returns the user's current subscription tier, limits, features.
+ * If unauthenticated, returns free tier with all features unlocked.
+ *
+ * Checks (in order):
+ *  1. DB subscription row
+ *  2. Stripe subscriptions (by customer ID or email lookup)
+ *  3. Stripe checkout sessions (for one-time payments)
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  const freeTierResponse = {
+    tier: 'free' as const,
+    period: 'day' as const,
+    limits: { plans: -1, explores: -1 },
+    usage: { plans: 0, explores: 0 },
+    features: ALL_FEATURES,
+  };
+
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    return res.json({
-      tier: 'free',
-      period: 'day',
-      limits: { plans: -1, explores: -1 },
-      usage: { plans: 0, explores: 0 },
-      features: ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'],
-    });
+    return res.json(freeTierResponse);
   }
 
   try {
     const token = authHeader.slice(7);
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      console.log(`[Subscription-standalone] Auth failed: ${authError?.message}`);
-      return res.json({
-        tier: 'free',
-        period: 'day',
-        limits: { plans: -1, explores: -1 },
-        usage: { plans: 0, explores: 0 },
-        features: ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'],
-      });
+      console.log(`[Subscription] Auth failed: ${authError?.message}`);
+      return res.json(freeTierResponse);
     }
 
-    let tier: 'free' | 'pro' = 'free';
+    const userId = user.id;
+    const userEmail = user.email;
+    console.log(`[Subscription] userId=${userId}, email=${userEmail}`);
 
     // 1. Check DB
     const { data: subRow } = await supabase
       .from('subscriptions')
       .select('plan_type, status, current_period_end, stripe_customer_id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
-    console.log(`[Subscription-standalone] userId=${user.id}, dbRow=${JSON.stringify(subRow)}`);
+    console.log(`[Subscription] DB row: ${JSON.stringify(subRow)}`);
 
+    // If DB already says pro and period is valid, return immediately
     if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
         subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
-      tier = 'pro';
-      console.log(`[Subscription-standalone] DB says pro`);
+      console.log(`[Subscription] DB says pro, returning`);
+      return res.json({
+        tier: 'pro',
+        period: 'month',
+        limits: { plans: -1, explores: -1 },
+        usage: { plans: 0, explores: 0 },
+        features: ALL_FEATURES,
+      });
     }
 
-    // 2. If still free but has Stripe customer, check Stripe directly
-    if (tier === 'free' && subRow?.stripe_customer_id) {
-      console.log(`[Subscription-standalone] Checking Stripe for ${subRow.stripe_customer_id}...`);
-      const subs = await stripe.subscriptions.list({
-        customer: subRow.stripe_customer_id,
-        status: 'active',
-        limit: 1,
-      });
+    // 2. Find Stripe customer (from DB or by email search)
+    let customerId = subRow?.stripe_customer_id || null;
 
-      if (subs.data.length > 0) {
-        const activeSub = subs.data[0] as any;
-        const priceId = activeSub.items.data[0]?.price?.id || '';
-        const syncedTier = getTierForPrice(priceId);
-        const periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+    if (!customerId && userEmail) {
+      console.log(`[Subscription] No customer ID, searching Stripe by email: ${userEmail}`);
+      const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        console.log(`[Subscription] Found customer by email: ${customerId}`);
 
-        console.log(`[Subscription-standalone] Stripe active: tier=${syncedTier}, periodEnd=${periodEnd}`);
-
+        // Save customer ID for future lookups
         await supabase
           .from('subscriptions')
-          .update({
-            plan_type: syncedTier,
+          .upsert({
+            user_id: userId,
+            stripe_customer_id: customerId,
+            plan_type: 'free',
             status: 'active',
-            current_period_end: periodEnd,
             updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', user.id);
-
-        tier = syncedTier;
-      } else {
-        console.log(`[Subscription-standalone] No active Stripe subs`);
+          }, { onConflict: 'user_id' });
       }
     }
 
-    console.log(`[Subscription-standalone] Final tier=${tier}`);
+    if (!customerId) {
+      console.log(`[Subscription] No Stripe customer found, returning free`);
+      return res.json(freeTierResponse);
+    }
 
+    // 3. Check Stripe for active subscriptions (recurring plans)
+    let tier: 'free' | 'pro' = 'free';
+    let periodEnd: string | null = null;
+
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 1,
+    });
+
+    if (subs.data.length > 0) {
+      const activeSub = subs.data[0] as any;
+      periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+      tier = 'pro';
+      console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}`);
+    }
+
+    // 4. If no subscription, check for one-time payments
+    if (tier === 'free') {
+      console.log(`[Subscription] Checking for one-time payment sessions...`);
+      const sessions = await stripe.checkout.sessions.list({
+        customer: customerId,
+        status: 'complete',
+        limit: 10,
+      });
+
+      for (const session of sessions.data) {
+        if (session.mode === 'payment' && session.payment_status === 'paid') {
+          const paidAt = new Date((session.created || 0) * 1000);
+          const expiresAt = new Date(paidAt);
+          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+          if (expiresAt > new Date()) {
+            tier = 'pro';
+            periodEnd = expiresAt.toISOString();
+            console.log(`[Subscription] Found one-time payment, expires ${periodEnd}`);
+            break;
+          }
+        }
+      }
+    }
+
+    // 5. Sync DB if we found pro status
+    if (tier === 'pro' && periodEnd) {
+      await supabase
+        .from('subscriptions')
+        .upsert({
+          user_id: userId,
+          stripe_customer_id: customerId,
+          plan_type: 'pro',
+          status: 'active',
+          current_period_end: periodEnd,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      console.log(`[Subscription] Synced DB to pro`);
+    }
+
+    console.log(`[Subscription] Final tier=${tier}`);
     return res.json({
       tier,
       period: tier === 'pro' ? 'month' : 'day',
       limits: { plans: -1, explores: -1 },
       usage: { plans: 0, explores: 0 },
-      features: ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'],
+      features: ALL_FEATURES,
     });
   } catch (err: any) {
-    console.error('[Subscription-standalone] Error:', err);
+    console.error('[Subscription] Error:', err);
     return res.status(500).json({ error: err.message });
   }
 }

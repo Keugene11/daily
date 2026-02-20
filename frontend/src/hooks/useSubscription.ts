@@ -82,7 +82,8 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === '1') {
       window.history.replaceState({}, '', window.location.pathname);
-      // Retry multiple times to catch the webhook update
+      // Retry aggressively — sync endpoint now searches Stripe by email
+      setTimeout(fetchSubscription, 500);
       setTimeout(fetchSubscription, 2000);
       setTimeout(fetchSubscription, 5000);
       setTimeout(fetchSubscription, 10000);
