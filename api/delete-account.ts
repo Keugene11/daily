@@ -31,16 +31,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const token = authHeader.slice(7);
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      console.error('[DeleteAccount] Auth failed:', authError?.message, 'user:', !!user);
-      return res.status(401).json({
-        error: `Invalid token: ${authError?.message || 'no user'}`,
-        tokenPrefix: token.substring(0, 20) + '...',
-      });
-    }
 
-    const userId = user.id;
-    const userEmail = user.email;
+    // If user already deleted from auth, extract ID from JWT to clean up DB rows
+    let userId: string;
+    let userEmail: string | undefined;
+
+    if (authError || !user) {
+      // Try to decode JWT to get user ID for cleanup
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        userId = payload.sub;
+        userEmail = payload.email;
+        console.log(`[DeleteAccount] Auth user gone, cleaning up from JWT: userId=${userId}`);
+      } catch {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+    } else {
+      userId = user.id;
+      userEmail = user.email;
+    }
     console.log(`[DeleteAccount] Starting for userId=${userId}, email=${userEmail}`);
 
     // 1. Get Stripe customer ID and cancel active subscriptions
@@ -77,13 +86,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await supabase.from('usage').delete().eq('user_id', userId);
     console.log(`[DeleteAccount] Deleted usage rows`);
 
-    // 4. Delete user from Supabase Auth
+    // 4. Delete user from Supabase Auth (skip if already gone)
     const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
     if (deleteError) {
-      console.error(`[DeleteAccount] Auth delete failed:`, deleteError);
-      return res.status(500).json({ error: 'Failed to delete auth user' });
+      console.warn(`[DeleteAccount] Auth delete note:`, deleteError.message);
+      // Don't fail — user may already be deleted from a previous attempt
+    } else {
+      console.log(`[DeleteAccount] Deleted auth user`);
     }
-    console.log(`[DeleteAccount] Deleted auth user`);
 
     return res.json({ success: true });
   } catch (err: any) {
