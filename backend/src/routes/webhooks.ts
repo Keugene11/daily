@@ -31,25 +31,38 @@ router.post('/', async (req: Request, res: Response) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const userId = session.metadata?.supabase_user_id;
-        if (!userId) break;
+        console.log(`[Webhook] checkout.session.completed — userId=${userId}, subscription=${session.subscription}, customer=${session.customer}`);
+        if (!userId) {
+          console.warn('[Webhook] No supabase_user_id in session metadata, skipping');
+          break;
+        }
 
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
           const priceId = sub.items.data[0]?.price?.id || '';
           const tier = getTierForPrice(priceId);
+          const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
 
-          await supabaseAdmin
+          console.log(`[Webhook] priceId=${priceId}, resolvedTier=${tier}, periodEnd=${periodEnd}`);
+
+          const { error: upsertError } = await supabaseAdmin
             .from('subscriptions')
             .upsert({
               user_id: userId,
               stripe_customer_id: session.customer as string,
               plan_type: tier,
               status: 'active',
-              current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+              current_period_end: periodEnd,
               updated_at: new Date().toISOString(),
             }, { onConflict: 'user_id' });
 
-          console.log(`[Webhook] User ${userId} subscribed to ${tier}`);
+          if (upsertError) {
+            console.error(`[Webhook] Supabase upsert failed:`, upsertError);
+          } else {
+            console.log(`[Webhook] User ${userId} subscribed to ${tier}`);
+          }
+        } else {
+          console.warn('[Webhook] No subscription on session (one-time payment?)');
         }
         break;
       }

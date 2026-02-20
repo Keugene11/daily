@@ -27,11 +27,18 @@ export const TIERS: Record<TierName, TierConfig> = {
 };
 
 // Map Stripe Price IDs to tier names — both monthly and yearly map to 'pro'
-export const PRICE_TO_TIER: Record<string, TierName> = {
-  [process.env.STRIPE_MONTHLY_PRICE_ID || '']: 'pro',
-  [process.env.STRIPE_YEARLY_PRICE_ID || '']: 'pro',
-};
-
 export function getTierForPrice(priceId: string): TierName {
-  return PRICE_TO_TIER[priceId] || 'free';
+  const monthlyId = process.env.STRIPE_MONTHLY_PRICE_ID;
+  const yearlyId = process.env.STRIPE_YEARLY_PRICE_ID;
+
+  if (monthlyId && priceId === monthlyId) return 'pro';
+  if (yearlyId && priceId === yearlyId) return 'pro';
+
+  // Fallback: any non-empty price ID is a paid plan (all paid = pro)
+  if (priceId && priceId.startsWith('price_')) {
+    console.warn(`[Stripe] Unknown price ID "${priceId}" — defaulting to pro. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
+    return 'pro';
+  }
+
+  return 'free';
 }
