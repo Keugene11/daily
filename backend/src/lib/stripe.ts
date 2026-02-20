@@ -13,10 +13,10 @@ interface TierConfig {
 
 export const TIERS: Record<TierName, TierConfig> = {
   free: {
-    planLimit: 1,
-    exploreLimit: 1,
+    planLimit: Infinity,
+    exploreLimit: Infinity,
     period: 'day',
-    features: new Set(),
+    features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
   },
   pro: {
     planLimit: Infinity,
