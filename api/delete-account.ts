@@ -32,7 +32,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const token = authHeader.slice(7);
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      console.error('[DeleteAccount] Auth failed:', authError?.message, 'user:', !!user);
+      return res.status(401).json({
+        error: `Invalid token: ${authError?.message || 'no user'}`,
+        tokenPrefix: token.substring(0, 20) + '...',
+      });
     }
 
     const userId = user.id;
