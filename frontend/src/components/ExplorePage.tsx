@@ -73,9 +73,9 @@ function renderInline(text: string, keyBase: number): React.ReactNode[] {
   return elements;
 }
 
-function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[]; playingVideo: string | null; onPlay: (id: string | null) => void }) {
+function ExploreVideosSidebar({ videos, playingVideo, onPlay }: { videos: ExploreVideo[]; playingVideo: string | null; onPlay: (id: string | null) => void }) {
   return (
-    <div className="mt-8 mb-4">
+    <div className="sticky top-8">
       <h3 className="text-xs uppercase tracking-[0.15em] text-on-surface/40 mb-3">Videos</h3>
 
       {/* Playing video embed */}
@@ -93,15 +93,15 @@ function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[
         </div>
       )}
 
-      {/* Thumbnail row */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {/* Vertical thumbnail list */}
+      <div className="flex flex-col gap-2.5">
         {videos.map(v => {
           const isPlaying = playingVideo === v.videoId;
           return (
             <button
               key={v.videoId}
               onClick={() => onPlay(isPlaying ? null : v.videoId)}
-              className={`relative flex-shrink-0 w-44 rounded-lg overflow-hidden group cursor-pointer ${isPlaying ? 'ring-2 ring-accent' : ''}`}
+              className={`relative w-full rounded-lg overflow-hidden group cursor-pointer text-left ${isPlaying ? 'ring-2 ring-accent' : ''}`}
             >
               <div className="relative aspect-video bg-black">
                 <img
@@ -112,16 +112,16 @@ function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[
                 />
                 {!isPlaying && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-8 h-6 bg-red-600 rounded-md flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
-                      <svg className="w-3 h-3 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                    <div className="w-10 h-7 bg-red-600 rounded-lg flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
+                      <svg className="w-3.5 h-3.5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M8 5v14l11-7z" />
                       </svg>
                     </div>
                   </div>
                 )}
               </div>
-              <div className="px-1.5 py-1.5">
-                <p className="text-[11px] leading-tight text-on-surface/60 text-left line-clamp-2">{v.title}</p>
+              <div className="px-1 py-1.5">
+                <p className="text-[11px] leading-tight text-on-surface/60 line-clamp-2">{v.title}</p>
               </div>
             </button>
           );
@@ -153,8 +153,10 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
     if (e.key === 'Enter') handleSearch();
   };
 
+  const hasVideos = videos.length > 0;
+
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
+    <div className={`mx-auto px-6 py-12 ${hasVideos && post && !loading ? 'max-w-5xl' : 'max-w-3xl'}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -236,19 +238,30 @@ export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
         </div>
       )}
 
-      {/* Results — single flowing text block */}
+      {/* Results — text on left, videos on right */}
       {!loading && post && (
         <div className="animate-fadeIn">
           <h2 className="text-2xl font-semibold tracking-tight mb-8">
             {query.charAt(0).toUpperCase() + query.slice(1)} in {location}
           </h2>
 
-          <div className="text-[15px] leading-relaxed text-on-surface/60">
-            <RenderPost text={post} />
+          <div className={hasVideos ? 'grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-10' : ''}>
+            <div className="text-[15px] leading-relaxed text-on-surface/60 min-w-0">
+              <RenderPost text={post} />
+            </div>
+
+            {hasVideos && (
+              <div className="hidden lg:block">
+                <ExploreVideosSidebar videos={videos} playingVideo={playingVideo} onPlay={setPlayingVideo} />
+              </div>
+            )}
           </div>
 
-          {videos.length > 0 && (
-            <ExploreVideos videos={videos} playingVideo={playingVideo} onPlay={setPlayingVideo} />
+          {/* Videos below on mobile */}
+          {hasVideos && (
+            <div className="lg:hidden mt-8">
+              <ExploreVideosSidebar videos={videos} playingVideo={playingVideo} onPlay={setPlayingVideo} />
+            </div>
           )}
 
           <ExploreMap results={places} />
