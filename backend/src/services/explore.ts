@@ -102,12 +102,11 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
     // Run AI post generation and YouTube search in parallel
     // YouTube has a 8s timeout so it won't block the response
     const videoQuery = `best ${query} in ${location}`;
-    const placeNames = rawPlaces.map(p => p.name.toLowerCase());
     const queryLower = query.toLowerCase();
     const locationLower = location.toLowerCase();
 
     const ytWithTimeout = Promise.race([
-      searchYouTubeVideos(videoQuery, 8), // fetch more, filter down
+      searchYouTubeVideos(videoQuery, 6),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('yt timeout')), 8000)),
     ]).catch(() => [] as { videoId: string; title: string }[]);
 
@@ -116,23 +115,16 @@ export async function exploreSearch(query: string, location: string): Promise<Ex
       ytWithTimeout,
     ]);
 
-    // Only keep videos that are clearly relevant:
-    // 1. Title mentions a specific place from the results, OR
-    // 2. Title contains BOTH the query term AND location
+    // Only keep videos whose title mentions BOTH the query AND location
+    // Single-word place name matches are too noisy (e.g. "park" matches everything)
     const videos = rawVideos.filter(v => {
       const titleLower = v.title.toLowerCase();
-      const mentionsPlace = placeNames.some(name => {
-        // Check if any significant word from the place name appears
-        const words = name.split(/\s+/).filter(w => w.length > 3);
-        return words.some(w => titleLower.includes(w));
-      });
       const mentionsQuery = titleLower.includes(queryLower) ||
-        titleLower.includes(queryLower + 's') || // barber -> barbers
-        titleLower.includes(queryLower.replace(/s$/, '')); // barbers -> barber
-      const mentionsLocation = titleLower.includes(locationLower) ||
-        titleLower.includes(locationLower.replace(/\s+/g, ''));
-      return mentionsPlace || (mentionsQuery && mentionsLocation);
-    }).slice(0, 4);
+        titleLower.includes(queryLower + 's') ||
+        titleLower.includes(queryLower.replace(/s$/, ''));
+      const mentionsLocation = locationLower.split(/[\s,]+/).filter(w => w.length > 2).some(w => titleLower.includes(w));
+      return mentionsQuery && mentionsLocation;
+    }).slice(0, 3);
 
     const places: ExplorePlace_out[] = rawPlaces.map(p => ({
       id: p.id,
