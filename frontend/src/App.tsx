@@ -316,7 +316,6 @@ function App() {
         <ExplorePage
           getAccessToken={getAccessToken}
           onClose={() => setView('home')}
-          onUpgrade={() => setShowPricing(true)}
         />
       )}
 

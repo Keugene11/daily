@@ -7,7 +7,6 @@ const LOCATION_KEY = 'daily_explore_location';
 interface Props {
   getAccessToken: () => Promise<string | null>;
   onClose: () => void;
-  onUpgrade?: () => void;
 }
 
 /** Render markdown text with paragraphs — **bold** and [links](url) */
@@ -132,7 +131,7 @@ function ExploreVideos({ videos, playingVideo, onPlay }: { videos: ExploreVideo[
   );
 }
 
-export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose, onUpgrade }) => {
+export const ExplorePage: React.FC<Props> = ({ getAccessToken, onClose }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState(() => localStorage.getItem(LOCATION_KEY) || '');
   const { post, places, videos, loading, error, searched, search } = useExplore(getAccessToken);
