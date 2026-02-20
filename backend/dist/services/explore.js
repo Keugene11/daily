@@ -83,6 +83,8 @@ async function exploreSearch(query, location) {
             (0, youtube_1.searchYouTubeVideos)(videoQuery, 6),
             new Promise((_, reject) => setTimeout(() => reject(new Error('yt timeout')), 8000)),
         ]).catch(() => []);
+        // Only use places with reviews (same ones the AI writes about)
+        const placesForPost = rawPlaces.filter(p => p.reviews.length > 0).slice(0, 5);
         const [post, rawVideos] = await Promise.all([
             generateExplorePost(query, location, rawPlaces),
             ytWithTimeout,
@@ -97,7 +99,7 @@ async function exploreSearch(query, location) {
             const mentionsLocation = locationLower.split(/[\s,]+/).filter(w => w.length > 2).some(w => titleLower.includes(w));
             return mentionsQuery && mentionsLocation;
         }).slice(0, 3);
-        const places = rawPlaces.map(p => ({
+        const places = placesForPost.map(p => ({
             id: p.id,
             name: p.name,
             address: p.address,
