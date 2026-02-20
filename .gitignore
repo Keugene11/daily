@@ -10,8 +10,9 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
-# Build outputs
+# Build outputs (except backend/dist which Vercel needs)
 dist/
+!backend/dist/
 build/
 *.tsbuildinfo
 

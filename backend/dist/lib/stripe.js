@@ -1,0 +1,38 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TIERS = exports.stripe = void 0;
+exports.getTierForPrice = getTierForPrice;
+const stripe_1 = __importDefault(require("stripe"));
+exports.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '');
+exports.TIERS = {
+    free: {
+        planLimit: Infinity,
+        exploreLimit: Infinity,
+        period: 'day',
+        features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
+    },
+    pro: {
+        planLimit: Infinity,
+        exploreLimit: Infinity,
+        period: 'month',
+        features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
+    },
+};
+// Map Stripe Price IDs to tier names — both monthly and yearly map to 'pro'
+function getTierForPrice(priceId) {
+    const monthlyId = process.env.STRIPE_MONTHLY_PRICE_ID;
+    const yearlyId = process.env.STRIPE_YEARLY_PRICE_ID;
+    if (monthlyId && priceId === monthlyId)
+        return 'pro';
+    if (yearlyId && priceId === yearlyId)
+        return 'pro';
+    // Fallback: any non-empty price ID is a paid plan (all paid = pro)
+    if (priceId && priceId.startsWith('price_')) {
+        console.warn(`[Stripe] Unknown price ID "${priceId}" — defaulting to pro. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
+        return 'pro';
+    }
+    return 'free';
+}
