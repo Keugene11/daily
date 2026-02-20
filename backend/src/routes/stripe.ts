@@ -12,11 +12,27 @@ const router = Router();
 router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
   const { priceId } = req.body;
 
+  // Debug logging — remove after fixing auth
+  console.log('[Checkout Debug]', {
+    hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
+    jwtSecretLength: process.env.SUPABASE_JWT_SECRET?.length,
+    hasAuthHeader: !!req.headers.authorization,
+    authHeaderStart: req.headers.authorization?.slice(0, 30),
+    userId: req.userId,
+    priceId,
+  });
+
   if (!priceId) {
     return res.status(400).json({ error: 'Missing priceId' });
   }
   if (!req.userId) {
-    return res.status(401).json({ error: 'Not authenticated. Check SUPABASE_JWT_SECRET env var.' });
+    return res.status(401).json({
+      error: 'Not authenticated',
+      debug: {
+        hasJwtSecret: !!process.env.SUPABASE_JWT_SECRET,
+        hasAuthHeader: !!req.headers.authorization,
+      },
+    });
   }
 
   try {
