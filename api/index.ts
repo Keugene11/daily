@@ -1,6 +1,5 @@
-import { app } from '../backend/dist/app';
+import { app } from '../backend/src/app';
 
-// Force Vercel to rebuild this function — build timestamp: 2026-02-20T01
-console.log('[API] Function cold start');
+console.log('[API] Function cold start — v2');
 
 export default app;
