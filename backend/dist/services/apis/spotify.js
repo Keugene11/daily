@@ -10,7 +10,7 @@ function getDedalus() {
     if (!_dedalusClient) {
         _dedalusClient = new dedalus_labs_1.default({
             apiKey: process.env.DEDALUS_API_KEY || '',
-            timeout: 15000,
+            timeout: 25000,
         });
     }
     return _dedalusClient;
@@ -1934,21 +1934,11 @@ exports.spotifyService = {
         let vibes = [...new Set([...moodVibes, ...interestVibes])];
         if (vibes.length === 0)
             vibes = ['upbeat', 'adventure'];
-        // 1. Try city-specific playlist — blend city tracks with vibe-matched tracks
+        // 1. Try city-specific playlist — all picks from city pool
         const cityKey = matchCity(city);
         if (cityKey) {
             const cityPlaylist = CITY_PLAYLISTS[cityKey];
-            const cityPicks = pickRandom(cityPlaylist.tracks, Math.min(3, cityPlaylist.tracks.length));
-            const vibePool = [];
-            for (const vibe of vibes) {
-                const pool = VIBE_POOLS[vibe];
-                if (pool)
-                    vibePool.push(...pool.tracks);
-            }
-            const cityTrackKeys = new Set(cityPicks.map(t => `${t.title}|${t.artist}`.toLowerCase()));
-            const uniqueVibeTracks = vibePool.filter(t => !cityTrackKeys.has(`${t.title}|${t.artist}`.toLowerCase()));
-            const vibePicks = pickRandom(uniqueVibeTracks, TRACK_COUNT - cityPicks.length);
-            const allPicked = shuffle([...cityPicks, ...vibePicks]);
+            const allPicked = pickRandom(cityPlaylist.tracks, Math.min(TRACK_COUNT, cityPlaylist.tracks.length));
             const tracksWithPreviews = await Promise.all(allPicked.map(async (t) => ({
                 ...t,
                 previewUrl: await fetchDeezerPreview(t.artist, t.title),
