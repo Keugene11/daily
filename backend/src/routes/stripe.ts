@@ -12,8 +12,11 @@ const router = Router();
 router.post('/checkout', async (req: SubscriptionRequest, res: Response) => {
   const { priceId } = req.body;
 
-  if (!priceId || !req.userId) {
-    return res.status(400).json({ error: 'Missing priceId or not authenticated' });
+  if (!priceId) {
+    return res.status(400).json({ error: 'Missing priceId' });
+  }
+  if (!req.userId) {
+    return res.status(401).json({ error: 'Not authenticated. Check SUPABASE_JWT_SECRET env var.' });
   }
 
   try {
