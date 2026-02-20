@@ -7,6 +7,7 @@ interface Props {
   planCount: number;
   tier: TierName;
   loading: boolean;
+  debugInfo: string | null;
   onClose: () => void;
   onSignOut: () => void;
   onManage: () => void;
@@ -15,7 +16,7 @@ interface Props {
   onDeleteAccount: () => Promise<boolean>;
 }
 
-export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, onClose, onSignOut, onManage, onUpgrade, onRefresh, onDeleteAccount }) => {
+export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, debugInfo, onClose, onSignOut, onManage, onUpgrade, onRefresh, onDeleteAccount }) => {
   const [syncing, setSyncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -110,6 +111,13 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, o
           </div>
         )}
       </div>
+
+      {debugInfo && (
+        <details className="mb-6">
+          <summary className="text-xs text-on-surface/30 cursor-pointer">Debug info</summary>
+          <pre className="mt-2 text-[10px] text-on-surface/40 bg-on-surface/5 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">{debugInfo}</pre>
+        </details>
+      )}
 
       {user && (
         <div className="space-y-3">
