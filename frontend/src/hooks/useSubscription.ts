@@ -22,6 +22,7 @@ interface UseSubscriptionReturn {
   refresh: () => Promise<void>;
   createCheckout: (priceId: string) => Promise<void>;
   openPortal: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
 }
 
 export function useSubscription(getAccessToken: () => Promise<string | null>): UseSubscriptionReturn {
@@ -152,6 +153,30 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     }
   }, [getAccessToken]);
 
+  const deleteAccount = useCallback(async (): Promise<boolean> => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return false;
+
+      const res = await fetch(`${API_URL}/api/delete-account`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[DeleteAccount] Error:', res.status, data);
+        alert(`Failed to delete account: ${data.error || res.statusText}`);
+        return false;
+      }
+      return true;
+    } catch (err: any) {
+      console.error('[DeleteAccount] Error:', err);
+      alert(`Failed to delete account: ${err.message}`);
+      return false;
+    }
+  }, [getAccessToken]);
+
   const openPortal = useCallback(async () => {
     try {
       const token = await getAccessToken();
@@ -185,5 +210,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     refresh: fetchSubscription,
     createCheckout,
     openPortal,
+    deleteAccount,
   };
 }

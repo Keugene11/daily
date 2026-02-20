@@ -12,10 +12,13 @@ interface Props {
   onManage: () => void;
   onUpgrade: () => void;
   onRefresh: () => Promise<void>;
+  onDeleteAccount: () => Promise<boolean>;
 }
 
-export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, onClose, onSignOut, onManage, onUpgrade, onRefresh }) => {
+export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, onClose, onSignOut, onManage, onUpgrade, onRefresh, onDeleteAccount }) => {
   const [syncing, setSyncing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Auto-refresh subscription on mount
   useEffect(() => {
@@ -109,12 +112,56 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, o
       </div>
 
       {user && (
-        <button
-          onClick={onSignOut}
-          className="w-full py-3 border border-red-500/30 text-red-400 rounded-full text-sm hover:bg-red-500/10 transition-colors"
-        >
-          Sign out
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={onSignOut}
+            className="w-full py-3 border border-red-500/30 text-red-400 rounded-full text-sm hover:bg-red-500/10 transition-colors"
+          >
+            Sign out
+          </button>
+
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-3 text-on-surface/30 text-xs hover:text-red-400 transition-colors"
+            >
+              Delete account
+            </button>
+          ) : (
+            <div className="border border-red-500/20 rounded-xl p-4 space-y-3 animate-fadeIn">
+              <p className="text-sm text-on-surface/60">
+                This will permanently delete your account, cancel any subscriptions, and remove all your data. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setDeleting(true);
+                    const success = await onDeleteAccount();
+                    if (success) {
+                      window.location.href = '/';
+                    }
+                    setDeleting(false);
+                  }}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 bg-red-500 text-white rounded-full text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                      Deleting...
+                    </>
+                  ) : 'Yes, delete my account'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2.5 border border-on-surface/20 rounded-full text-sm text-on-surface/60 hover:text-on-surface transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

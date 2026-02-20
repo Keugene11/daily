@@ -22,6 +22,7 @@
     { "source": "/api/explore", "destination": "/api/explore" },
     { "source": "/api/subscription", "destination": "/api/subscription" },
     { "source": "/api/sync-subscription", "destination": "/api/sync-subscription" },
+    { "source": "/api/delete-account", "destination": "/api/delete-account" },
     { "source": "/api/webhooks/stripe", "destination": "/api/webhooks/stripe" },
     { "source": "/api/(.*)", "destination": "/api/v2" },
     { "source": "/health", "destination": "/api/v2" },

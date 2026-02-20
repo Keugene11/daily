@@ -311,6 +311,7 @@ function App() {
           onManage={subscription.openPortal}
           onUpgrade={() => setShowPricing(true)}
           onRefresh={subscription.refresh}
+          onDeleteAccount={subscription.deleteAccount}
         />
       } />
 
