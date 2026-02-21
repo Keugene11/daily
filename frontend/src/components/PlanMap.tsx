@@ -8,7 +8,6 @@ import {
   boundingBoxRadiusKm,
   getGeoCache,
   setGeoCache,
-  optimizeRoute,
   detectDayCount,
   distanceKm,
   MAX_DISTANCE_KM,
@@ -346,13 +345,12 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           }
         }
 
-        // Show cached results immediately
+        // Show cached results immediately (in content order)
         if (cached.length > 0) {
-          const routed = optimizeRoute(cached);
-          setLocations(routed);
+          setLocations(cached);
           setResolvedCount(cached.length);
-          updateMarkers(routed);
-          fitMapBounds(routed);
+          updateMarkers(cached);
+          fitMapBounds(cached);
         }
 
         // Geocode uncached places, adding markers incrementally
@@ -369,10 +367,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
           if (coords && isNearCity(coords)) {
             allResults.push({ name: uncachedPlaces[i], ...coords });
-            const routed = optimizeRoute([...allResults]);
-            setLocations(routed);
+            setLocations([...allResults]);
             setResolvedCount(allResults.length);
-            updateMarkers(routed);
+            updateMarkers([...allResults]);
           }
         }
 
@@ -380,12 +377,13 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         // Final update — remove outliers (mis-geocoded places far from the cluster),
         // then fit bounds so the map frames the real locations correctly.
+        // Keep content order (Morning → Afternoon → Evening → Where to Stay)
+        // so markers match the itinerary flow.
         if (allResults.length > 0) {
           const cleaned = removeOutliers(allResults);
-          const routed = optimizeRoute(cleaned);
-          setLocations(routed);
-          updateMarkers(routed);
-          fitMapBounds(routed);
+          setLocations(cleaned);
+          updateMarkers(cleaned);
+          fitMapBounds(cleaned);
         }
         setLoading(false);
       } catch (err) {
