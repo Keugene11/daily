@@ -63,9 +63,6 @@ export const PlaceMedia: React.FC<Props> = ({ places, mediaData, city }) => {
                       </svg>
                     </div>
                   </div>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
-                    <p className="text-[11px] font-medium text-white text-left truncate">{place}</p>
-                  </div>
                 </button>
               </div>
             );
@@ -90,9 +87,6 @@ export const PlaceMedia: React.FC<Props> = ({ places, mediaData, city }) => {
                     </svg>
                   </div>
                 )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4">
-                  <p className="text-[11px] font-medium text-white truncate">{place}</p>
-                </div>
               </div>
             </div>
           );
