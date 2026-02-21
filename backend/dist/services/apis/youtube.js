@@ -47,6 +47,16 @@ function parseDuration(text) {
         return parts[0] * 60 + parts[1];
     return parts[0] || 0;
 }
+// Generic filler words that should NOT count as relevance signals.
+// Without this, a query like "cornell things to do" would match any video
+// with "things" in the title, even if it has nothing to do with Cornell.
+const FILLER_WORDS = new Set([
+    'things', 'to', 'do', 'in', 'the', 'a', 'an', 'of', 'for', 'and', 'or',
+    'best', 'top', 'most', 'travel', 'guide', 'visit', 'tour', 'vlog',
+    'review', 'trip', 'day', 'walk', 'food', 'see', 'go', 'how', 'what',
+    'where', 'with', 'from', 'your', 'our', 'my', 'this', 'that', 'are',
+    'can', 'will', 'all', 'new', 'city', 'town', 'place', 'places',
+]);
 // ── Title keyword patterns ──────────────────────────────────────────
 // Strong signals of high-production travel/visual content
 const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s*through|drone|aerial|timelapse|time.lapse|travel guide|city guide|food tour|food guide|travel vlog|guide to|visit|places to|things to do|things to see|what to do|must.see|must.visit|hidden gem|complete guide|virtual tour|night walk|night life|sunset|sunrise|street food|best restaurants|where to eat|top \d+|best of|review|first time|solo travel|budget travel|luxury|michelin|local guide)\b/i;
@@ -106,13 +116,13 @@ function scoreCandidate(c, position, poolSize, query) {
     let score = 0;
     const titleLower = c.title.toLowerCase();
     // ── Title relevance (dominant factor) ─────────────────────────
-    // Check how many meaningful query terms appear in the title.
+    // Check how many meaningful (non-filler) query terms appear in the title.
     // A video about "Ardsley" should beat a generic "travel" video.
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2 && !FILLER_WORDS.has(t));
     if (queryTerms.length > 0) {
         const matched = queryTerms.filter(t => titleLower.includes(t));
         const relevance = matched.length / queryTerms.length;
-        score += relevance * 10; // up to 10 points for full match
+        score += relevance * 20; // up to 20 points for full match — must beat views
     }
     // ── View count (dominant quality signal) ──────────────────────
     // Popular videos are almost always better for travel content.
@@ -280,12 +290,15 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
             score: scoreCandidate(c, i, pool.length, query)
         }));
         scored.sort((a, b) => b.score - a.score);
-        // Filter out results where no meaningful query term appears in the title
-        const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-        const relevant = scored.filter(c => {
-            const titleLower = c.title.toLowerCase();
-            return terms.some(t => titleLower.includes(t));
-        });
+        // Filter: require at least one meaningful (non-filler) query term in the title.
+        // Without this, "cornell things to do" would match any video with "things" in it.
+        const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2 && !FILLER_WORDS.has(t));
+        const relevant = terms.length > 0
+            ? scored.filter(c => {
+                const titleLower = c.title.toLowerCase();
+                return terms.some(t => titleLower.includes(t));
+            })
+            : scored; // if ALL terms are filler (unlikely), fall back to full list
         return relevant.slice(0, count).map(c => ({ videoId: c.videoId, title: c.title }));
     }
     catch {
