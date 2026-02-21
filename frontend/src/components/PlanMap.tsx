@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { extractPlaces } from '../utils/extractPlaces';
+import { extractPlaces, extractPlaceCoords } from '../utils/extractPlaces';
 import {
   MapLocation,
   getCachedGeocode,
@@ -326,15 +326,25 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
+        // Extract embedded coordinates from Google Maps URLs (e.g., @lat,lng in /maps/place/ links).
+        // These bypass Nominatim entirely — no geocoding needed.
+        const embeddedCoords = extractPlaceCoords(content);
+
         // Helper: check if coords are within range of city/country center.
         // If city geocode failed, reject ALL results — we can't verify they're correct.
         const isNearCity = (coords: { lat: number; lng: number }) =>
           !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= effectiveRadius;
 
-        // Separate cached (instant) from uncached (needs API) places
+        // Separate places into: embedded coords (instant), cached (instant), uncached (needs API)
         const cached: MapLocation[] = [];
         const uncachedPlaces: string[] = [];
         for (const place of places) {
+          // Check for embedded coordinates first (from LLM-generated @lat,lng URLs)
+          const embedded = embeddedCoords.get(place);
+          if (embedded && isNearCity(embedded)) {
+            cached.push({ name: place, ...embedded });
+            continue;
+          }
           const coords = getCachedGeocode(place, geocodeCity_);
           if (coords) {
             if (isNearCity(coords)) {

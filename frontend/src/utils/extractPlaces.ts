@@ -16,15 +16,15 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
   function extractFromText(text: string): string[] {
     const names: string[] = [];
 
-    // From Google Maps ?q= parameters — highest quality source, extract first
-    const mapsMatches = text.match(/maps\.google\.com\/?\?q=([^)\s&]+)/g) || [];
-    mapsMatches.forEach(m => {
-      const qMatch = m.match(/\?q=([^)\s&]+)/);
-      if (qMatch) {
-        const decoded = decodeURIComponent(qMatch[1].replace(/\+/g, ' ')).split(',')[0].trim();
-        if (decoded.length > 2) names.push(decoded);
-      }
-    });
+    // From [link text](Google Maps URL) — use the link text as the clean place name.
+    // Matches both old format (maps.google.com/?q=...) and new format (google.com/maps/place/...@lat,lng)
+    const googleMapsLinkRegex = /\[([^\]]+)\]\(https?:\/\/(?:(?:www\.)?google\.com\/maps|maps\.google\.com)[^)]+\)/g;
+    let mapsMatch;
+    while ((mapsMatch = googleMapsLinkRegex.exec(text)) !== null) {
+      // Replace + with space — some links use + in the display text (e.g., [Place+Name])
+      const name = mapsMatch[1].replace(/\+/g, ' ').trim();
+      if (name.length > 2) names.push(name);
+    }
 
     // From [link text](url) — link text for non-generic links is a venue name
     const linkMatches = text.match(/\[([^\]]+)\]\(([^)]+)\)/g) || [];
@@ -33,6 +33,9 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
       if (!parts) return;
       const label = parts[1].trim();
       const url = parts[2];
+
+      // Skip Google Maps links (already handled above)
+      if (/google\.com\/maps|maps\.google\.com/i.test(url)) return;
 
       // Skip generic/non-venue link labels
       if (/^(Open in Spotify|View on Maps|View Events|View Deals|View on Yelp|Go City|TripAdvisor|Reserve on OpenTable|Watch on YouTube|View on Instagram|View on Facebook|Search|here|link|map|Link)/i.test(label)) {
@@ -81,4 +84,26 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
   }
 
   return filterNames(extractFromText(itineraryContent)).slice(0, maxResults);
+}
+
+/**
+ * Extract embedded coordinates from Google Maps URLs in the content.
+ * Matches the /maps/place/Name/@lat,lng,zoom format the LLM uses.
+ * Returns a map of place name → { lat, lng } for direct use without geocoding.
+ */
+export function extractPlaceCoords(content: string): Map<string, { lat: number; lng: number }> {
+  const coords = new Map<string, { lat: number; lng: number }>();
+
+  // Match [Name](url containing @lat,lng)
+  const regex = /\[([^\]]+)\]\([^)]*@(-?\d+\.?\d*),(-?\d+\.?\d*)[^)]*\)/g;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const name = match[1].trim();
+    const lat = parseFloat(match[2]);
+    const lng = parseFloat(match[3]);
+    if (name.length > 2 && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      coords.set(name, { lat, lng });
+    }
+  }
+  return coords;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractPlaces } from './extractPlaces';
+import { extractPlaces, extractPlaceCoords } from './extractPlaces';
 
 // ── Google Maps link extraction ──────────────────────────────────────
 
@@ -113,7 +113,7 @@ Visit [Central Park](https://maps.google.com/?q=Central+Park)
     expect(places).not.toContain('New York, New York - Frank Sinatra');
   });
 
-  it('includes places from Where to Stay section', () => {
+  it('excludes places from Where to Stay section (stripped for media enrichment)', () => {
     const content = `
 ## Morning
 Visit [Central Park](https://maps.google.com/?q=Central+Park)
@@ -123,7 +123,7 @@ Visit [Central Park](https://maps.google.com/?q=Central+Park)
     `;
     const places = extractPlaces(content, 'New York');
     expect(places).toContain('Central Park');
-    expect(places).toContain('The Jane Hotel');
+    expect(places).not.toContain('The Jane Hotel');
   });
 });
 
@@ -210,7 +210,7 @@ describe('extractPlaces — limits and accommodation priority', () => {
     expect(places.length).toBeLessThanOrEqual(9); // 5 + up to 4 stay reserve
   });
 
-  it('reserves slots for accommodations', () => {
+  it('strips Where to Stay so accommodations do not count toward limit', () => {
     const itinerary = Array.from({ length: 15 }, (_, i) =>
       `[Restaurant ${String.fromCharCode(65 + i)}](https://maps.google.com/?q=Restaurant+${String.fromCharCode(65 + i)})`
     ).join('\n');
@@ -221,8 +221,10 @@ describe('extractPlaces — limits and accommodation priority', () => {
     `;
     const content = itinerary + '\n' + staySection;
     const places = extractPlaces(content, 'New York', 10);
-    expect(places).toContain('Hotel Alpha');
-    expect(places).toContain('Hotel Beta');
+    // Hotels are stripped (Where to Stay section excluded)
+    expect(places).not.toContain('Hotel Alpha');
+    expect(places).not.toContain('Hotel Beta');
+    expect(places.length).toBeLessThanOrEqual(10);
   });
 });
 
@@ -297,7 +299,8 @@ Dinner at [Peter Luger Steak House](https://maps.google.com/?q=Peter+Luger+Steak
     expect(places).toContain('Russ & Daughters');
     expect(places).toContain('Metropolitan Museum of Art');
     expect(places).toContain('Peter Luger Steak House');
-    expect(places).toContain('The NoMad Hotel');
+    // Where to Stay section is stripped — hotels excluded from media enrichment
+    expect(places).not.toContain('The NoMad Hotel');
     // Should NOT contain Spotify tracks
     expect(places).not.toContain('Empire State of Mind - Jay-Z & Alicia Keys');
     expect(places).not.toContain('New York State of Mind - Billy Joel');
@@ -307,5 +310,56 @@ Dinner at [Peter Luger Steak House](https://maps.google.com/?q=Peter+Luger+Steak
     const content = '[Brooklyn+Bridge+Park](https://maps.google.com/?q=Brooklyn+Bridge+Park)';
     const places = extractPlaces(content, 'New York');
     expect(places).toContain('Brooklyn Bridge Park');
+  });
+
+  it('extracts from new /maps/place/@lat,lng format', () => {
+    const content = 'Visit [Griffith Observatory](https://www.google.com/maps/place/Griffith+Observatory/@34.1184,-118.3004,17z) for views';
+    const places = extractPlaces(content, 'Los Angeles');
+    expect(places).toContain('Griffith Observatory');
+  });
+});
+
+// ── Coordinate extraction ──────────────────────────────────────────
+
+describe('extractPlaceCoords', () => {
+  it('extracts lat/lng from /maps/place/@lat,lng URLs', () => {
+    const content = '[Griffith Observatory](https://www.google.com/maps/place/Griffith+Observatory/@34.1184,-118.3004,17z)';
+    const coords = extractPlaceCoords(content);
+    expect(coords.has('Griffith Observatory')).toBe(true);
+    const c = coords.get('Griffith Observatory')!;
+    expect(c.lat).toBeCloseTo(34.1184, 3);
+    expect(c.lng).toBeCloseTo(-118.3004, 3);
+  });
+
+  it('extracts multiple places', () => {
+    const content = `
+[Place A](https://www.google.com/maps/place/Place+A/@40.7128,-74.0060,17z)
+[Place B](https://www.google.com/maps/place/Place+B/@34.0522,-118.2437,17z)
+    `;
+    const coords = extractPlaceCoords(content);
+    expect(coords.size).toBe(2);
+    expect(coords.has('Place A')).toBe(true);
+    expect(coords.has('Place B')).toBe(true);
+  });
+
+  it('ignores URLs without @lat,lng', () => {
+    const content = '[MoMA](https://maps.google.com/?q=MoMA,+New+York)';
+    const coords = extractPlaceCoords(content);
+    expect(coords.size).toBe(0);
+  });
+
+  it('validates coordinate ranges', () => {
+    const content = '[Bad Place](https://www.google.com/maps/place/Bad/@999,999,17z)';
+    const coords = extractPlaceCoords(content);
+    expect(coords.size).toBe(0);
+  });
+
+  it('handles negative coordinates', () => {
+    const content = '[Buenos Aires](https://www.google.com/maps/place/Buenos+Aires/@-34.6037,-58.3816,17z)';
+    const coords = extractPlaceCoords(content);
+    expect(coords.has('Buenos Aires')).toBe(true);
+    const c = coords.get('Buenos Aires')!;
+    expect(c.lat).toBeCloseTo(-34.6037, 3);
+    expect(c.lng).toBeCloseTo(-58.3816, 3);
   });
 });
