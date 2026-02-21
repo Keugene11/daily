@@ -258,6 +258,12 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const cityCoords = cityResult ? { lat: cityResult.lat, lng: cityResult.lng } : null;
         const countryCode = cityResult?.countryCode;
         const country = cityResult?.country;
+        // Use the resolved city name for geocoding individual places.
+        // If the user typed "Cornell", Nominatim resolves to Cornell University
+        // and the address has city: "Ithaca". Using "Ithaca" in place queries
+        // (e.g., "Ithaca Commons, Ithaca, United States") works much better than
+        // "Ithaca Commons, Cornell, United States" which Nominatim can't resolve.
+        const geocodeCity_ = cityResult?.resolvedCity || city;
 
         // Compute effective radius from bounding box (for countries/regions this can be 1000+ km)
         const bboxRadius = cityResult?.boundingBox ? boundingBoxRadiusKm(cityResult.boundingBox) : 0;
@@ -297,7 +303,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         // Purge cached geocodes that are far from this city/country
         if (cityCoords) {
           const cache = getGeoCache();
-          const cityKey = `|||${city.toLowerCase()}`;
+          const cityKey = `|||${geocodeCity_.toLowerCase()}`;
           let purged = false;
           for (const key of Object.keys(cache)) {
             if (key.toLowerCase().endsWith(cityKey)) {
@@ -330,7 +336,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const cached: MapLocation[] = [];
         const uncachedPlaces: string[] = [];
         for (const place of places) {
-          const coords = getCachedGeocode(place, city);
+          const coords = getCachedGeocode(place, geocodeCity_);
           if (coords) {
             if (isNearCity(coords)) {
               cached.push({ name: place, ...coords });
@@ -358,7 +364,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           // Always delay — even the first call needs spacing after geocodeCity.
           await new Promise(r => setTimeout(r, 1100));
 
-          const coords = await geocode(uncachedPlaces[i], city, cityCoords ?? undefined, countryCode, country, effectiveRadius);
+          const coords = await geocode(uncachedPlaces[i], geocodeCity_, cityCoords ?? undefined, countryCode, country, effectiveRadius);
           if (cancelled) return;
 
           if (coords && isNearCity(coords)) {

@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 6;
+const GEO_CACHE_VERSION = 7;
 
 interface GeoCacheEntry {
   lat: number;
@@ -184,6 +184,9 @@ export interface CityGeoResult {
   country?: string;
   /** State/province/region from Nominatim addressdetails */
   state?: string;
+  /** Actual city/town name from Nominatim address — may differ from user input
+   *  (e.g., user types "Cornell" → resolvedCity is "Ithaca") */
+  resolvedCity?: string;
   /** Nominatim bounding box [south, north, west, east] */
   boundingBox?: [number, number, number, number];
 }
@@ -214,12 +217,18 @@ export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
         (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a
       );
       const bbox = best.boundingbox;
+      // Extract the actual city/town from address details — this may differ from
+      // what the user typed. E.g., "Cornell" → university → address city is "Ithaca".
+      // Nominatim uses different keys: city, town, village, hamlet, municipality.
+      const addr = best.address || {};
+      const resolvedCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet || undefined;
       return {
         lat: parseFloat(best.lat),
         lng: parseFloat(best.lon),
         countryCode: best.address?.country_code || undefined,
         country: best.address?.country || undefined,
         state: best.address?.state || undefined,
+        resolvedCity,
         boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
       };
     }
