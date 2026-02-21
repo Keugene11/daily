@@ -50,6 +50,7 @@ export const PlanHistory: React.FC<Props> = ({ plans, onSelect, onDelete, onClos
           const preview = raw
             .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url) → text
             .replace(/https?:\/\/\S+/g, '')              // remove raw URLs
+            .replace(/\*+/g, '')                          // remove markdown bold/italic
             .replace(/\s{2,}/g, ' ')                     // collapse extra spaces
             .trim()
             .slice(0, 120);

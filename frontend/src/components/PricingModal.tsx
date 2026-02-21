@@ -14,7 +14,7 @@ interface Props {
 }
 
 const freeFeatures = [
-  'Unlimited daily plans',
+  '1 plan per week',
   'Real-time weather & events',
   'Restaurant recommendations',
   'Spotify soundtracks',
@@ -22,7 +22,7 @@ const freeFeatures = [
 ];
 
 const monthlyFeatures = [
-  'Everything in Free',
+  'Unlimited plans',
   'Multi-day trip planning',
   'Recurring weekly plans',
   'Priority support',

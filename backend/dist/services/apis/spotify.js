@@ -469,16 +469,16 @@ const CITY_PLAYLISTS = {
         mood: 'urban & electric',
         playlistUrl: 'https://open.spotify.com/search/new%20york%20city%20soundtrack',
         tracks: [
-            track('Empire State of Mind', 'Jay-Z'),
+            track('Empire State of Mind', 'Jay-Z ft. Alicia Keys'),
             track('New York, New York', 'Frank Sinatra'),
-            track('No Sleep Till Brooklyn', 'Beastie Boys'),
+            track('Welcome to New York', 'Taylor Swift'),
             track('Juicy', 'The Notorious B.I.G.'),
-            track('New York Groove', 'Ace Frehley'),
-            track('NYC', 'Interpol'),
-            track('Chelsea Hotel', 'Leonard Cohen'),
-            track('Shattered', 'The Rolling Stones'),
-            track('An Open Letter to NYC', 'Beastie Boys'),
+            track('No Sleep Till Brooklyn', 'Beastie Boys'),
             track('N.Y. State of Mind', 'Nas'),
+            track('New York Minute', 'Don Henley'),
+            track('On the Streets of New York', 'Alicia Keys'),
+            track('Run This Town', 'Jay-Z ft. Rihanna & Kanye West'),
+            track('New York State of Mind', 'Billy Joel'),
         ]
     },
     'los angeles': {
@@ -544,13 +544,13 @@ const CITY_PLAYLISTS = {
             track('When the Saints Go Marching In', 'Louis Armstrong'),
             track('Iko Iko', 'The Dixie Cups'),
             track('House of the Rising Sun', 'The Animals'),
-            track('St. James Infirmary Blues', 'Louis Armstrong'),
-            track('Tipitina', 'Professor Longhair'),
-            track('Hey Pocky A-Way', 'The Meters'),
-            track('Cissy Strut', 'The Meters'),
-            track('Basin Street Blues', 'Louis Armstrong'),
-            track('Just a Closer Walk with Thee', 'Preservation Hall Jazz Band'),
-            track('Junco Partner', 'Dr. John'),
+            track('What a Wonderful World', 'Louis Armstrong'),
+            track('Walkin\' to New Orleans', 'Fats Domino'),
+            track('Down in New Orleans', 'Dr. John'),
+            track('Do You Know What It Means to Miss New Orleans', 'Louis Armstrong'),
+            track('Blueberry Hill', 'Fats Domino'),
+            track('When You\'re Smiling', 'Louis Armstrong'),
+            track('Such a Night', 'Dr. John'),
         ]
     },
     'chicago': {
@@ -663,20 +663,20 @@ const CITY_PLAYLISTS = {
     },
     'berlin': {
         name: 'Berlin Techno & Beyond',
-        description: 'Electronic, techno, and krautrock from Germany\'s creative capital',
+        description: 'Electronic, techno, and the sounds of Germany\'s creative capital',
         mood: 'underground & pulsing',
         playlistUrl: 'https://open.spotify.com/search/berlin%20techno%20electronic',
         tracks: [
             track('Heroes', 'David Bowie'),
+            track('99 Luftballons', 'Nena'),
             track('Das Model', 'Kraftwerk'),
-            track('Autobahn', 'Kraftwerk'),
-            track('Tour de France', 'Kraftwerk'),
-            track('Hallogallo', 'Neu!'),
             track('Strobe', 'deadmau5'),
+            track('Levels', 'Avicii'),
+            track('Sandstorm', 'Darude'),
             track('Pjanoo', 'Eric Prydz'),
             track('Opus', 'Eric Prydz'),
             track('Innerbloom', 'Rufus Du Sol'),
-            track('Cola', 'CamelPhat'),
+            track('Around the World', 'Daft Punk'),
         ]
     },
     'rome': {
@@ -1829,12 +1829,12 @@ async function aiPickSongs(city, mood) {
             messages: [
                 {
                     role: 'system',
-                    content: `You are a music curator. Given a city and mood, suggest 5 songs that perfectly match the vibe. Pick songs that feel RIGHT for this specific context — not generic "top hits" playlists.
+                    content: `You are a music curator. Given a city and mood, suggest 5 songs that perfectly match the vibe.
 
 Rules:
-- Mix well-known and deeper cuts — not just the obvious hits everyone knows
+- Pick POPULAR, widely-recognized songs — songs most people would know and enjoy. Think Spotify top charts, movie soundtracks, iconic hits.
 - Consider the city's musical culture (e.g. jazz for New Orleans, bossa nova for Rio, K-pop for Seoul)
-- Match the mood and activities — museum visits get different songs than bar hopping
+- At least 3 of the 5 songs should be mainstream hits with hundreds of millions of streams
 - Include at least one song from the last 5 years
 - Each song needs a short, specific reason (1 sentence, casual tone — like a friend explaining why they added it)
 - Respond ONLY with valid JSON array, no other text

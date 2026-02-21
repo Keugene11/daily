@@ -437,8 +437,9 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
 
   // Clamp selectedDay to valid range
   const activeDayIdx = showDayTabs ? Math.min(selectedDay, parsed.days.length - 1) : 0;
-  const activeSlots = hasDayParsing ? (parsed.days[activeDayIdx]?.slots || []) : parsed.slots;
-  const allSlots = [...activeSlots, ...parsed.globalSections];
+  const activeSlots = (hasDayParsing ? (parsed.days[activeDayIdx]?.slots || []) : parsed.slots)
+    .filter(s => s.content.trim().length > 0);
+  const allSlots = [...activeSlots, ...parsed.globalSections.filter(s => s.content.trim().length > 0)];
 
   const renderSlots = (slots: TimeSlot[], startIndex = 0) => (
     <div className="space-y-0">

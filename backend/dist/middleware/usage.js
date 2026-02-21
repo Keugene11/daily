@@ -24,7 +24,25 @@ function checkUsage(counter) {
         const dbColumn = 'plan_count';
         try {
             const today = new Date().toISOString().split('T')[0];
+            // Determine the start date for the usage period
+            let periodStart;
+            let periodLabel;
             if (tierConfig.period === 'day') {
+                periodStart = today;
+                periodLabel = 'today';
+            }
+            else if (tierConfig.period === 'week') {
+                const d = new Date();
+                d.setDate(d.getDate() - d.getDay()); // Sunday = start of week
+                periodStart = d.toISOString().split('T')[0];
+                periodLabel = 'this week';
+            }
+            else {
+                periodStart = `${today.slice(0, 7)}-01`;
+                periodLabel = 'this month';
+            }
+            if (tierConfig.period === 'day') {
+                // Daily: single row lookup
                 const { data } = await supabase_admin_1.supabaseAdmin
                     .from('usage')
                     .select('plan_count')
@@ -35,7 +53,7 @@ function checkUsage(counter) {
                 if (used >= limit) {
                     return res.status(403).json({
                         error: 'limit_reached',
-                        message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} today`,
+                        message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} ${periodLabel}`,
                         tier,
                         limit,
                         used,
@@ -46,17 +64,17 @@ function checkUsage(counter) {
                     .upsert({ user_id: req.userId, date: today, [dbColumn]: used + 1 }, { onConflict: 'user_id,date' });
             }
             else {
-                const monthStart = `${today.slice(0, 7)}-01`;
+                // Weekly or monthly: sum rows in the period
                 const { data: rows } = await supabase_admin_1.supabaseAdmin
                     .from('usage')
                     .select('plan_count')
                     .eq('user_id', req.userId)
-                    .gte('date', monthStart);
+                    .gte('date', periodStart);
                 const used = (rows || []).reduce((sum, row) => sum + (row[dbColumn] ?? 0), 0);
                 if (used >= limit) {
                     return res.status(403).json({
                         error: 'limit_reached',
-                        message: `You've used your ${limit} plan${limit > 1 ? 's' : ''} this month`,
+                        message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} ${periodLabel}`,
                         tier,
                         limit,
                         used,

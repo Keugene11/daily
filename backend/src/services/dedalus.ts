@@ -198,7 +198,6 @@ Available tools (call all that are relevant):
 - get_restaurant_recommendations: Dining options. Supplement with your own knowledge of the city's best food.
 - get_playlist_suggestion: City-themed music. Always pass the city name.
 - get_trending_news: Current headlines for conversation starters.
-- get_random_activity: Fun wildcard suggestion.
 - get_free_stuff: Free activities available TODAY — DAY-AWARE, filters to today's day. Highlight the todayHighlights prominently (e.g., "Since it's ${dayOfWeek}, you can get into MoMA for FREE!").
 - get_deals_coupons: Deals and discounts — DAY-AWARE, shows only today's deals. Highlight todayDeals prominently (e.g., "It's Taco Tuesday — $1 tacos at...").
 - get_sunrise_sunset: Golden hour timing for photo spots and sunset activities.

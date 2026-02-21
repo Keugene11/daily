@@ -313,7 +313,7 @@ async function testToolRegistration(tools, executeToolCall) {
   console.log('\n=== Tool Registration ===');
 
   const expectedTools = [
-    'get_weather', 'get_local_events', 'get_trending_news', 'get_random_activity',
+    'get_weather', 'get_local_events', 'get_trending_news',
     'get_restaurant_recommendations', 'get_playlist_suggestion', 'get_transit_estimates',
     'get_gas_prices', 'get_happy_hours', 'get_free_stuff', 'get_sunrise_sunset',
     'get_pollen_count', 'get_parking', 'get_public_transit_routes', 'get_wait_times',

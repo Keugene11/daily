@@ -125,23 +125,27 @@ function scoreCandidate(
     score += relevance * 10; // up to 10 points for full match
   }
 
-  // ── View count (logarithmic — boosted for quality signal) ─────
-  // Log scale with bonus tiers: 50K+→bonus, <5K→penalty
-  // Popular videos are almost always better quality for travel content
-  if (c.views >= 500_000) {
-    score += Math.log10(c.views) + 4;  // 500K+ gets strong bonus
+  // ── View count (dominant quality signal) ──────────────────────
+  // Popular videos are almost always better for travel content.
+  // View count is the strongest signal after relevance filtering.
+  if (c.views >= 10_000_000) {
+    score += 25;                       // 10M+ — viral, top-tier
+  } else if (c.views >= 5_000_000) {
+    score += 22;                       // 5M+ — extremely popular
+  } else if (c.views >= 1_000_000) {
+    score += 18;                       // 1M+ — very popular
+  } else if (c.views >= 500_000) {
+    score += 14;                       // 500K+ — solid
   } else if (c.views >= 100_000) {
-    score += Math.log10(c.views) + 2;  // 100K+ decent bonus
+    score += 8;                        // 100K+ — decent
   } else if (c.views >= 50_000) {
-    score += Math.log10(c.views) + 1;  // 50K+ small bonus
+    score += 3;                        // 50K+ — marginal
   } else if (c.views >= 10_000) {
-    score += Math.log10(c.views);
+    score -= 3;                        // under 50K: penalize
   } else if (c.views >= 1_000) {
-    score += Math.log10(c.views) - 2;  // under 10K: penalize
-  } else if (c.views > 0) {
-    score += Math.log10(c.views) - 5;  // under 1K: heavy penalty
+    score -= 8;                        // under 10K: heavy penalty
   } else {
-    score -= 8;  // no views at all
+    score -= 15;                       // under 1K: near-disqualifying
   }
 
   // ── Channel quality signals ───────────────────────────────────

@@ -31,7 +31,24 @@ export function checkUsage(counter: CounterField) {
     try {
       const today = new Date().toISOString().split('T')[0];
 
+      // Determine the start date for the usage period
+      let periodStart: string;
+      let periodLabel: string;
       if (tierConfig.period === 'day') {
+        periodStart = today;
+        periodLabel = 'today';
+      } else if (tierConfig.period === 'week') {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay()); // Sunday = start of week
+        periodStart = d.toISOString().split('T')[0];
+        periodLabel = 'this week';
+      } else {
+        periodStart = `${today.slice(0, 7)}-01`;
+        periodLabel = 'this month';
+      }
+
+      if (tierConfig.period === 'day') {
+        // Daily: single row lookup
         const { data } = await supabaseAdmin
           .from('usage')
           .select('plan_count')
@@ -44,7 +61,7 @@ export function checkUsage(counter: CounterField) {
         if (used >= limit) {
           return res.status(403).json({
             error: 'limit_reached',
-            message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} today`,
+            message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} ${periodLabel}`,
             tier,
             limit,
             used,
@@ -58,19 +75,19 @@ export function checkUsage(counter: CounterField) {
             { onConflict: 'user_id,date' }
           );
       } else {
-        const monthStart = `${today.slice(0, 7)}-01`;
+        // Weekly or monthly: sum rows in the period
         const { data: rows } = await supabaseAdmin
           .from('usage')
           .select('plan_count')
           .eq('user_id', req.userId)
-          .gte('date', monthStart);
+          .gte('date', periodStart);
 
         const used = (rows || []).reduce((sum: number, row: any) => sum + (row[dbColumn] ?? 0), 0);
 
         if (used >= limit) {
           return res.status(403).json({
             error: 'limit_reached',
-            message: `You've used your ${limit} plan${limit > 1 ? 's' : ''} this month`,
+            message: `You've used your ${limit} free plan${limit > 1 ? 's' : ''} ${periodLabel}`,
             tier,
             limit,
             used,

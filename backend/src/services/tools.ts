@@ -2,7 +2,6 @@ import { ToolResult } from '../types';
 import { weatherService } from './apis/weather';
 import { eventsService } from './apis/events';
 import { newsService } from './apis/news';
-import { activityService } from './apis/activity';
 import { restaurantService } from './apis/restaurants';
 import { spotifyService } from './apis/spotify';
 import { transitService } from './apis/transit';
@@ -81,27 +80,6 @@ export const tools: Tool[] = [
           city: {
             type: 'string',
             description: 'City or region for localized news (optional)'
-          }
-        },
-        required: []
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_random_activity',
-      description: 'Get a random activity suggestion from the Bored API. Great for spontaneous ideas and when the user wants something unexpected.',
-      parameters: {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            description: 'Activity type: "education", "recreational", "social", "diy", "charity", "cooking", "relaxation", "music", "busywork"',
-            enum: [
-              'education', 'recreational', 'social', 'diy',
-              'charity', 'cooking', 'relaxation', 'music', 'busywork'
-            ]
           }
         },
         required: []
@@ -421,9 +399,6 @@ export const executeToolCall = async (
 
       case 'get_trending_news':
         return await newsService.getNews(args.city);
-
-      case 'get_random_activity':
-        return await activityService.getActivity(args.type);
 
       case 'get_restaurant_recommendations':
         return await restaurantService.getRestaurants(args.city, args.cuisine, args.budget);

@@ -136,21 +136,6 @@ function App() {
     startStream(city, budget, buildExtras(), getAccessToken);
   };
 
-  const handleSurpriseMe = async () => {
-    if (!session) { signInWithGoogle(); return; }
-    try {
-      const res = await fetch('http://ip-api.com/json/?fields=city,country');
-      const data = await res.json();
-      const detectedCity = data.city || 'New York';
-
-      setCity(detectedCity);
-      startStream(detectedCity, budget, buildExtras(), getAccessToken);
-    } catch {
-      setCity('New York');
-      startStream('New York', budget, buildExtras(), getAccessToken);
-    }
-  };
-
   const handleReset = () => {
     speechSynthesis.cancel();
     setIsSpeaking(false);
@@ -405,13 +390,6 @@ function App() {
                 )}
               </button>
 
-              <button
-                onClick={handleSurpriseMe}
-                disabled={state.isStreaming}
-                className="px-6 py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                Surprise Me
-              </button>
             </div>
 
             {/* Right Now mode */}

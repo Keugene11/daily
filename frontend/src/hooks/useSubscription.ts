@@ -9,7 +9,7 @@ export type BillingInterval = 'monthly' | 'yearly' | null;
 export interface SubscriptionData {
   tier: TierName;
   interval: BillingInterval;
-  period: 'day' | 'month';
+  period: 'day' | 'week' | 'month';
   limits: { plans: number };
   usage: { plans: number };
   features: string[];
