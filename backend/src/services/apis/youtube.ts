@@ -384,22 +384,39 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
 
 /** Single best travel-biased video (used by itinerary planner) */
 export async function searchYouTubeVideo(query: string): Promise<VideoResult | null> {
-  // Try "travel guide" first for higher-quality results, fall back to "travel"
-  const results = await scrapeYouTubeSearch(query, 'travel guide', 1);
-  if (results.length > 0) return results[0];
-  const fallback = await scrapeYouTubeSearch(query, 'travel vlog', 1);
-  return fallback[0] || null;
+  // Fetch a few candidates so we can skip non-embeddable ones
+  const results = await scrapeYouTubeSearch(query, 'travel guide', 3);
+  for (const r of results) {
+    if (await isEmbeddable(r.videoId)) return r;
+  }
+  const fallback = await scrapeYouTubeSearch(query, 'travel vlog', 3);
+  for (const r of fallback) {
+    if (await isEmbeddable(r.videoId)) return r;
+  }
+  return null;
 }
 
-/** Check if a video allows embedding via oEmbed */
+/**
+ * Check if a video allows embedding by fetching the embed page itself.
+ * Non-embeddable videos return a page containing "Video unavailable" or
+ * the "playabilityStatus" with an error. oEmbed alone is unreliable —
+ * many videos pass oEmbed but still block iframe playback.
+ */
 async function isEmbeddable(videoId: string): Promise<boolean> {
   try {
     const res = await fetchWithTimeout(
-      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
-      {},
+      `https://www.youtube.com/embed/${videoId}`,
+      { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
       3000
     );
-    return res.ok;
+    if (!res.ok) return false;
+    const html = await res.text();
+    // YouTube embed page signals that playback is blocked
+    if (html.includes('"playabilityStatus":{"status":"ERROR"')) return false;
+    if (html.includes('"playabilityStatus":{"status":"UNPLAYABLE"')) return false;
+    if (html.includes('"playabilityStatus":{"status":"LOGIN_REQUIRED"')) return false;
+    if (html.includes('Video unavailable')) return false;
+    return true;
   } catch {
     return true; // assume embeddable if check fails
   }
