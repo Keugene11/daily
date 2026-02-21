@@ -148,14 +148,7 @@ const CITY_EVENTS: Record<string, ScheduledEvent[]> = {
   ],
 };
 
-const DEFAULT_EVENTS: ScheduledEvent[] = [
-  { name: 'Local Farmers & Artisan Market', time: '9:00 AM - 2:00 PM', location: 'Town Center', description: 'Fresh local produce, handmade crafts, and food vendors.', days: [0, 6], isFree: true },
-  { name: 'Live Music Night', time: '7:00 PM', location: 'Downtown Music Hall', description: 'Local bands performing a mix of genres.', days: [4, 5, 6], price: '$10-20' },
-  { name: 'Community Art Walk', time: '5:00 - 9:00 PM', location: 'Arts District', description: 'Local galleries open with free wine, snacks, and artist meet-and-greets.', days: [5], isFree: true },
-  { name: 'Outdoor Fitness Class', time: '8:00 AM', location: 'Main City Park', description: 'Free community fitness session — yoga, bootcamp, or running club.', isFree: true },
-  { name: 'Sunday Brunch Market', time: '10:00 AM - 3:00 PM', location: 'Downtown Square', description: 'Food trucks, mimosa bar, and live acoustic music.', days: [0] },
-  { name: 'Wednesday Trivia Night', time: '7:00 PM', location: 'Local Brewpub', description: 'Free team trivia with prizes. Great way to meet locals.', days: [3], isFree: true },
-];
+const DEFAULT_EVENTS: ScheduledEvent[] = [];
 
 function mapsUrl(name: string, city: string): string {
   return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;

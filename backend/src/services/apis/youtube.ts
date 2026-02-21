@@ -339,11 +339,11 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     if (candidates.length === 0) return [];
 
     // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-    // videos under 50K views, and videos older than 8 years.
+    // videos under 10K views, and videos older than 8 years.
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
       if (c.ageYears !== null && c.ageYears >= 8) return false;
-      if (c.views < 50_000) return false;
+      if (c.views < 10_000) return false;
       return true;
     });
 
@@ -374,8 +374,7 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
       : scored; // if ALL terms are filler (unlikely), fall back to full list
 
     // Minimum quality bar — if the best video still scores poorly, return nothing.
-    // A score of 10 means the video is at least somewhat relevant and decent.
-    const quality = relevant.filter(c => c.score >= 10);
+    const quality = relevant.filter(c => c.score >= 5);
     if (quality.length === 0) return [];
 
     return quality.slice(0, count).map(c => ({ videoId: c.videoId, title: c.title }));

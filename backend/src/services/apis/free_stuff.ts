@@ -101,15 +101,8 @@ const CITY_FREE: Record<string, { activities: FreeActivity[]; alwaysFree: string
 };
 
 const DEFAULT_FREE = {
-  activities: [
-    { name: 'Public Library Events', type: 'library' as const, location: 'Main Library', time: '10 AM-8 PM', description: 'Free book clubs, workshops, movie screenings, and community events' },
-    { name: 'City Park Walk', type: 'park' as const, location: 'Central Park', time: 'Dawn to dusk', description: 'Free walking trails, playgrounds, picnic areas, and nature exploration' },
-    { name: 'Community Concert Series', type: 'concert' as const, location: 'Town Square', time: '6 PM', description: 'Free live music featuring local bands and performers', days: [5, 6] },
-    { name: 'Art Gallery First Friday', type: 'museum' as const, location: 'Arts District', time: '5-9 PM', description: 'Free gallery openings with wine, snacks, and local art', days: [5] },
-    { name: 'Sunday Farmers Market', type: 'festival' as const, location: 'Downtown', time: '9 AM-2 PM', description: 'Free entry — browse local produce, artisan crafts, and food samples', days: [0] },
-    { name: 'Weekend Outdoor Fitness', type: 'class' as const, location: 'Main City Park', time: '8 AM', description: 'Free community fitness — yoga, bootcamp, or running club', days: [0, 6] },
-  ],
-  alwaysFree: ['Public parks', 'Library programs', 'Window shopping', 'People watching', 'Community bulletin boards for events']
+  activities: [] as FreeActivity[],
+  alwaysFree: ['Public parks', 'Library programs', 'Walking tours', 'Window shopping', 'People watching']
 };
 
 function mapsUrl(name: string, city: string): string {
