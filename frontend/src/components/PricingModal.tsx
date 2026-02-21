@@ -13,14 +13,23 @@ interface Props {
   onClose: () => void;
 }
 
+const freeFeatures = [
+  'Unlimited daily plans',
+  'Real-time weather & events',
+  'Restaurant recommendations',
+  'Spotify soundtracks',
+  'Cloud sync',
+];
+
 const monthlyFeatures = [
-  'Unlimited plans',
-  'Multi-day trips',
+  'Everything in Free',
+  'Multi-day trip planning',
+  'Recurring weekly plans',
+  'Priority support',
 ];
 
 const yearlyFeatures = [
   'Everything in Monthly',
-  'Priority support',
   'Early access to new features',
   'All future features included',
 ];
@@ -28,6 +37,7 @@ const yearlyFeatures = [
 export const PricingModal: React.FC<Props> = ({ currentTier, currentInterval, onCheckout, onClose }) => {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
+  const isFree = currentTier === 'free';
   const isMonthly = currentTier === 'pro' && currentInterval === 'monthly';
   const isYearly = currentTier === 'pro' && currentInterval === 'yearly';
 
@@ -43,7 +53,7 @@ export const PricingModal: React.FC<Props> = ({ currentTier, currentInterval, on
 
   const getMonthlyButtonLabel = () => {
     if (isMonthly) return 'Current Plan';
-    if (isYearly) return 'Current Plan Includes This';
+    if (isYearly) return 'Included';
     return 'Get Monthly';
   };
 
@@ -58,15 +68,43 @@ export const PricingModal: React.FC<Props> = ({ currentTier, currentInterval, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-surface rounded-2xl max-w-2xl w-full p-6 sm:p-8" onClick={e => e.stopPropagation()}>
+      <div className="bg-surface rounded-2xl max-w-3xl w-full p-6 sm:p-8" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-semibold">
-            {currentTier === 'pro' ? 'Your Plan' : 'Upgrade to Pro'}
-          </h2>
+          <h2 className="text-2xl font-semibold">Plans</h2>
           <button onClick={onClose} className="text-on-surface/40 hover:text-on-surface text-xl leading-none">&times;</button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Free */}
+          <div className={`relative rounded-xl border p-6 flex flex-col ${isFree ? 'border-accent/40 bg-accent/5' : 'border-on-surface/10'}`}>
+            {isFree && (
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-accent text-on-accent text-[10px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full">
+                Current
+              </span>
+            )}
+            <div className="mb-5">
+              <span className="text-sm text-on-surface/50">Free</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-4xl font-bold">$0</span>
+              </div>
+            </div>
+
+            <ul className="space-y-2.5 mb-6 flex-1">
+              {freeFeatures.map(f => (
+                <li key={f} className="text-sm text-on-surface/60 flex items-center gap-2.5">
+                  <span className="text-accent">&#10003;</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+
+            <div className={`w-full py-3 font-medium rounded-full text-sm text-center ${
+              isFree ? 'border border-on-surface/10 text-on-surface/30' : 'border border-on-surface/10 text-on-surface/30'
+            }`}>
+              {isFree ? 'Current Plan' : 'Included'}
+            </div>
+          </div>
+
           {/* Monthly */}
           <div className={`relative rounded-xl border p-6 flex flex-col ${isMonthly ? 'border-accent/40 bg-accent/5' : 'border-on-surface/10'}`}>
             {isMonthly && (

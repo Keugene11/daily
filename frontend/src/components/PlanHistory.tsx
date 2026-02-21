@@ -44,9 +44,15 @@ export const PlanHistory: React.FC<Props> = ({ plans, onSelect, onDelete, onClos
         <div className="absolute left-4 top-0 bottom-0 w-px bg-on-surface/10" />
 
         {plans.map((plan) => {
-          // Extract first line of each section for preview
-          const preview = plan.content
-            .split(/##\s+/)[1]?.split('\n').slice(1).join(' ').slice(0, 120) || plan.content.slice(0, 120);
+          // Extract first section for preview, strip markdown links and raw URLs
+          const raw = plan.content
+            .split(/##\s+/)[1]?.split('\n').slice(1).join(' ') || plan.content;
+          const preview = raw
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url) → text
+            .replace(/https?:\/\/\S+/g, '')              // remove raw URLs
+            .replace(/\s{2,}/g, ' ')                     // collapse extra spaces
+            .trim()
+            .slice(0, 120);
 
           return (
             <div key={plan.id} className="relative pl-12 pb-10 group">
