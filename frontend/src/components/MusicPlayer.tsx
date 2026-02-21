@@ -65,14 +65,89 @@ export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
   const readyRef = useRef(false);
   const pendingPlayRef = useRef<string | null>(null);
 
+  // Use refs to avoid stale closures in YouTube player event handlers
+  const videoIdsRef = useRef<Record<number, string>>({});
+  const currentTrackRef = useRef(0);
+  const playStartTimeRef = useRef(0);
+  const skipCountRef = useRef(0);
+
+  // Keep refs in sync with state
+  useEffect(() => { videoIdsRef.current = videoIds; }, [videoIds]);
+  useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+
+  // Resolve a video ID and play it — uses refs to always get fresh state
+  const playTrackByIdx = useCallback(async (idx: number) => {
+    const track = playlist.tracks[idx];
+    if (!track) return;
+
+    // Prevent infinite skip loops
+    if (skipCountRef.current >= playlist.tracks.length) {
+      console.log('[Music] All tracks failed, stopping');
+      skipCountRef.current = 0;
+      return;
+    }
+
+    let vid = videoIdsRef.current[idx];
+    if (!vid) {
+      setLoadingTrack(idx);
+      vid = (await resolveYouTubeId(track.artist, track.title)) || '';
+      setLoadingTrack(null);
+      if (vid) {
+        setVideoIds(prev => ({ ...prev, [idx]: vid }));
+        videoIdsRef.current = { ...videoIdsRef.current, [idx]: vid };
+      }
+    }
+
+    if (!vid) {
+      // Couldn't find video — skip to next
+      skipCountRef.current++;
+      const nextIdx = (idx + 1) % playlist.tracks.length;
+      if (nextIdx !== idx) playTrackByIdx(nextIdx);
+      return;
+    }
+
+    skipCountRef.current = 0;
+    playStartTimeRef.current = Date.now();
+
+    if (readyRef.current && playerRef.current?.loadVideoById) {
+      playerRef.current.loadVideoById(vid);
+    } else {
+      pendingPlayRef.current = vid;
+    }
+  }, [playlist.tracks]);
+
+  // Keep a ref to playTrackByIdx so the YT event handler always gets the latest
+  const playTrackByIdxRef = useRef(playTrackByIdx);
+  useEffect(() => { playTrackByIdxRef.current = playTrackByIdx; }, [playTrackByIdx]);
+
+  const handleEnded = useCallback(() => {
+    // Protect against rapid ENDED events — if the video played less than 3 seconds,
+    // it probably failed to load. Skip to next track.
+    const playDuration = Date.now() - playStartTimeRef.current;
+    if (playDuration < 3000) {
+      console.log(`[Music] Track ended after only ${playDuration}ms, likely failed — skipping`);
+      skipCountRef.current++;
+    }
+
+    setCurrentTrack(prev => {
+      const next = (prev + 1) % playlist.tracks.length;
+      currentTrackRef.current = next;
+      playTrackByIdxRef.current(next);
+      return next;
+    });
+  }, [playlist.tracks.length]);
+
+  const handleEndedRef = useRef(handleEnded);
+  useEffect(() => { handleEndedRef.current = handleEnded; }, [handleEnded]);
+
   // Initialize YouTube player
   useEffect(() => {
     let cancelled = false;
     loadYouTubeApi().then(() => {
       if (cancelled || !containerRef.current || !(window as any).YT?.Player) return;
       playerRef.current = new (window as any).YT.Player(containerRef.current, {
-        height: '0',
-        width: '0',
+        height: '200',
+        width: '200',
         playerVars: {
           autoplay: 0,
           controls: 0,
@@ -85,7 +160,6 @@ export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
           onReady: () => {
             readyRef.current = true;
             playerRef.current?.setVolume(volume);
-            // If a video was queued before player was ready, play it now
             if (pendingPlayRef.current) {
               playerRef.current.loadVideoById(pendingPlayRef.current);
               pendingPlayRef.current = null;
@@ -95,7 +169,11 @@ export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
             const YT = (window as any).YT;
             if (e.data === YT.PlayerState.PLAYING) setIsPlaying(true);
             if (e.data === YT.PlayerState.PAUSED) setIsPlaying(false);
-            if (e.data === YT.PlayerState.ENDED) handleEnded();
+            if (e.data === YT.PlayerState.ENDED) handleEndedRef.current();
+          },
+          onError: (e: any) => {
+            console.log('[Music] YouTube player error, code:', e.data, '— skipping to next');
+            handleEndedRef.current();
           },
         },
       });
@@ -110,44 +188,10 @@ export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
     }
   }, [volume]);
 
-  const handleEnded = useCallback(() => {
-    setCurrentTrack(prev => {
-      const next = (prev + 1) % playlist.tracks.length;
-      playTrackByIdx(next);
-      return next;
-    });
-  }, [playlist.tracks.length]);
-
-  // Resolve a video ID and play it
-  const playTrackByIdx = async (idx: number) => {
-    const track = playlist.tracks[idx];
-
-    let vid = videoIds[idx];
-    if (!vid) {
-      setLoadingTrack(idx);
-      vid = (await resolveYouTubeId(track.artist, track.title)) || '';
-      setLoadingTrack(null);
-      if (vid) {
-        setVideoIds(prev => ({ ...prev, [idx]: vid }));
-      }
-    }
-
-    if (!vid) {
-      // Couldn't find video — skip to next
-      const nextIdx = (idx + 1) % playlist.tracks.length;
-      if (nextIdx !== idx) playTrackByIdx(nextIdx);
-      return;
-    }
-
-    if (readyRef.current && playerRef.current?.loadVideoById) {
-      playerRef.current.loadVideoById(vid);
-    } else {
-      pendingPlayRef.current = vid;
-    }
-  };
-
   const playTrack = (idx: number) => {
+    skipCountRef.current = 0;
     setCurrentTrack(idx);
+    currentTrackRef.current = idx;
     playTrackByIdx(idx);
   };
 
@@ -181,8 +225,8 @@ export const MusicPlayer: React.FC<Props> = ({ playlist: rawPlaylist }) => {
 
   return (
     <div className="border border-on-surface/10 rounded-xl overflow-hidden mb-8 animate-fadeIn">
-      {/* Hidden YouTube player */}
-      <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+      {/* Hidden YouTube player — must be at least 200x200 for YouTube API reliability */}
+      <div style={{ position: 'absolute', left: '-9999px', width: '200px', height: '200px', overflow: 'hidden' }}>
         <div ref={containerRef} />
       </div>
 
