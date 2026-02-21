@@ -13,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 5;
+const MEDIA_CACHE_VERSION = 6;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -142,10 +142,12 @@ async function fetchYouTubeVideoId(place: string, city: string, region: string, 
   try {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Include region (state/country) to disambiguate small towns.
-    // e.g., "Ardsley Park Ardsley New York" instead of just "Ardsley Park Ardsley"
-    // which would return Savannah, GA results.
-    const query = region ? `${place} ${city} ${region}` : `${place} ${city}`;
+    // When place IS the city, search for a general overview video instead of
+    // duplicating ("NYC NYC"). Backend appends "travel guide" suffix automatically.
+    const isCity = place.toLowerCase() === city.toLowerCase();
+    const query = isCity
+      ? `${city} things to do`
+      : region ? `${place} ${city} ${region}` : `${place} ${city}`;
     const res = await fetch(
       `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
       { headers }
@@ -201,7 +203,10 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     // During streaming this means we batch up new text rather than
     // running extraction on every single token.
     const timer = setTimeout(async () => {
-      const places = extractPlaces(content, city, maxPlaces);
+      const extracted = extractPlaces(content, city, maxPlaces);
+      // Always include the city itself as the first "place" so we get a general
+      // city overview/travel guide video (e.g., "Best things to do in NYC")
+      const places = [city, ...extracted.filter(p => p.toLowerCase() !== city.toLowerCase())];
       const newPlaces = places.filter(p => !fetchedRef.current.has(p));
 
       if (newPlaces.length === 0) return;
