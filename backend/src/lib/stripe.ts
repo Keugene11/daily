@@ -31,10 +31,10 @@ export function getTierForPrice(priceId: string): TierName {
   if (monthlyId && priceId === monthlyId) return 'pro';
   if (yearlyId && priceId === yearlyId) return 'pro';
 
-  // Fallback: any non-empty price ID is a paid plan (all paid = pro)
-  if (priceId && priceId.startsWith('price_')) {
-    console.warn(`[Stripe] Unknown price ID "${priceId}" — defaulting to pro. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
-    return 'pro';
+  // Unknown price ID — log a warning but do NOT default to pro.
+  // Only explicitly configured price IDs should grant pro access.
+  if (priceId) {
+    console.warn(`[Stripe] Unknown price ID "${priceId}" — returning free. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
   }
 
   return 'free';

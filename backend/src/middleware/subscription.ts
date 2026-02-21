@@ -79,9 +79,10 @@ export async function checkSubscription(req: SubscriptionRequest, _res: Response
     req.tier = tier;
     req.features = TIERS[tier].features;
   } catch (err: any) {
-    console.error('[Sub] Middleware error:', err?.message || err);
-    req.tier = 'free';
-    req.features = TIERS.free.features;
+    console.error('[Sub] Middleware error — cannot determine tier:', err?.message || err);
+    return _res.status(503).json({
+      error: 'Unable to verify subscription. Please try again in a moment.',
+    });
   }
 
   next();

@@ -93,9 +93,19 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const routeLineRef = useRef<any>(null);
+  const mapTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   // Destroy existing map instance and clean up Leaflet's internal state
   const destroyMap = useCallback(() => {
+    // Clear any pending invalidateSize timers from previous map
+    mapTimersRef.current.forEach(t => clearTimeout(t));
+    mapTimersRef.current = [];
+    // Disconnect ResizeObserver
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
     if (mapInstanceRef.current) {
       try { mapInstanceRef.current.remove(); } catch { /* already removed */ }
       mapInstanceRef.current = null;
@@ -147,16 +157,18 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     ).addTo(map);
 
     // Force Leaflet to recalculate container size (fixes grey/missing tiles)
-    setTimeout(() => { map.invalidateSize(); }, 100);
-    setTimeout(() => { map.invalidateSize(); }, 500);
-    setTimeout(() => { map.invalidateSize(); }, 1500);
+    // Store timer IDs so destroyMap can cancel them if the map is recreated
+    mapTimersRef.current = [
+      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 100),
+      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 500),
+      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 1500),
+    ];
 
-    // Watch for container resize
+    // Watch for container resize — use ref so destroyMap can disconnect
     if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { map.invalidateSize(); });
+      const ro = new ResizeObserver(() => { mapInstanceRef.current?.invalidateSize(); });
       ro.observe(mapContainerRef.current);
-      const origRemove = map.remove.bind(map);
-      map.remove = () => { ro.disconnect(); return origRemove(); };
+      resizeObserverRef.current = ro;
     }
 
     return true;

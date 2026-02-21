@@ -156,6 +156,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     // Wait 400ms after last content change before extracting places.
     // During streaming this means we batch up new text rather than
     // running extraction on every single token.
+    let aborted = false;
     const timer = setTimeout(async () => {
       // Use the resolved city name for searches — e.g., "Cornell" → "Ithaca"
       // so Wikipedia/YouTube return results for the actual city, not the university
@@ -191,10 +192,19 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       }
 
       // Fetch media for each uncached place (staggered to be polite to APIs)
-      uncached.forEach(async (place, i) => {
-        await new Promise(r => setTimeout(r, i * 50));
+      // Capture values upfront so async iterations don't use stale closures
+      const capturedCity = searchCity;
+      const capturedRegion = regionRef.current;
+      const capturedToken = token;
 
-        const videoId = await fetchYouTubeVideoId(place, searchCity, regionRef.current, token);
+      for (let i = 0; i < uncached.length; i++) {
+        if (aborted) return;
+        await new Promise(r => setTimeout(r, i === 0 ? 0 : 50));
+        if (aborted) return;
+
+        const place = uncached[i];
+        const videoId = await fetchYouTubeVideoId(place, capturedCity, capturedRegion, capturedToken);
+        if (aborted) return;
 
         const media: PlaceMediaData = {
           videoId: videoId || undefined,
@@ -204,7 +214,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
         // timeout, no match) should retry next time instead of being stuck
         // with no thumbnail for the full cache TTL.
         if (media.videoId) {
-          cacheMedia(place, searchCity, media);
+          cacheMedia(place, capturedCity, media);
         }
 
         setData(prev => {
@@ -212,10 +222,10 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
           next.set(place, media);
           return next;
         });
-      });
+      }
     }, 400);
 
-    return () => clearTimeout(timer);
+    return () => { aborted = true; clearTimeout(timer); };
   }, [content, city, resolvedCity]);
 
   return { data };

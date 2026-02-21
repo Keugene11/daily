@@ -46,18 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err: any) {
     console.error('[Webhook] Signature verification failed:', err.message);
-    // If signature verification fails, still try to process the event
-    // by parsing the body directly (for cases where Vercel modified the body)
-    try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (!body?.type) {
-        return res.status(400).json({ error: 'Invalid webhook payload' });
-      }
-      console.warn('[Webhook] Signature failed but processing event anyway:', body.type);
-      event = body as Stripe.Event;
-    } catch {
-      return res.status(400).json({ error: 'Invalid signature and cannot parse body' });
-    }
+    return res.status(400).json({ error: 'Invalid signature' });
   }
 
   console.log(`[Webhook] Event: ${event.type}`);
