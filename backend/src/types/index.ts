@@ -60,7 +60,7 @@ export interface Activity {
 }
 
 export interface StreamEvent {
-  type: 'tool_call_start' | 'tool_call_result' | 'content_chunk' | 'thinking_chunk' | 'done' | 'error';
+  type: 'tool_call_start' | 'tool_call_result' | 'content_chunk' | 'thinking_chunk' | 'city_resolved' | 'done' | 'error';
   tool?: string;
   args?: any;
   result?: ToolResult;

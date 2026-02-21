@@ -467,11 +467,22 @@ async function isEmbeddable(videoId: string): Promise<boolean> {
     );
     if (!res.ok) return false;
     const html = await res.text();
-    // Only check playabilityStatus — not generic "status" fields that appear
-    // throughout YouTube's page (analytics, configs, etc.)
-    if (/playabilityStatus.*?\\?"status\\?"\s*:\s*\\?"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\\?"/.test(html)) return false;
+
     if (html.includes('Video unavailable')) return false;
-    if (/playableInEmbed.*?false|\\?"embeddable\\?"\s*:\s*false/.test(html)) return false;
+
+    // Check for error statuses near "playabilityStatus" (within 200 chars).
+    // This avoids false positives from generic "status":"ERROR" fields in
+    // analytics/config JSON elsewhere on the page.
+    const psIdx = html.indexOf('playabilityStatus');
+    if (psIdx !== -1) {
+      const nearby = html.substring(psIdx, psIdx + 200);
+      if (/ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED/.test(nearby)) return false;
+      if (/playableInEmbed[^a-z]*false/.test(nearby)) return false;
+    }
+
+    // Also check for embedding disabled outside the playabilityStatus block
+    if (/embeddable[^a-z]*false/.test(html)) return false;
+
     return true;
   } catch {
     return true; // assume embeddable if check fails — a missing thumbnail is worse than a rare playback error

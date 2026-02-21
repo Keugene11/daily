@@ -59,7 +59,7 @@ function getClient(): Dedalus {
   if (!client) {
     const apiKey = process.env.DEDALUS_API_KEY || '';
     console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-    client = new Dedalus({ apiKey, timeout: 30000 });
+    client = new Dedalus({ apiKey, timeout: 55000 });
   }
   return client;
 }
@@ -270,7 +270,10 @@ ${timeSections}
 - EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
 - For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://maps.google.com/?q=Hotel+Name,+${encodeURIComponent(request.city)})
-- Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
+- Do NOT skip or truncate this section — it must appear in full before the Pro Tips section]
+
+## Pro Tips
+[REQUIRED — include 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. These should be city-level insider knowledge, NOT about specific venues in the itinerary above. Examples: "Tap water is safe to drink everywhere — skip the bottled water", "The metro is fastest between 10am-4pm — avoid rush hour sardine cans", "Tipping 18-20% is expected at sit-down restaurants", "Street parking is free on Sundays", "Download the city transit app — it works offline", "Most museums are closed on Mondays". Keep each tip to one line.]
 
 ## Soundtrack
 [REQUIRED — copy the "formattedMarkdown" field from the get_playlist_suggestion tool result EXACTLY as-is. Do NOT rewrite it, do NOT replace Spotify URLs with YouTube URLs, do NOT add extra songs. Just paste the formattedMarkdown value verbatim.]
@@ -290,7 +293,6 @@ Writing style:
   - "$8 craft cocktails, $5 beers" not "drink specials"
   - "Lunch for ~$12/person" not "budget-friendly"
   - "Save 45% — was $180, now $99" not "big discount"
-- **PRO TIPS**: You MUST include at least 2 pro tips across the itinerary. Add a "**Pro Tip:** ..." line with specific, actionable insider advice a tourist wouldn't easily know. Examples: "order at the counter, not the table — it's faster", "cash only — ATM around the corner on 5th", "arrive before 10am to dodge tour bus crowds", "the back patio has the best views but isn't on the menu", "ask for the off-menu spicy version", "locals park on 3rd St — it's free after 6pm". Do NOT write generic filler like "stay hydrated" or "wear comfortable shoes" — every tip must be specific to the venue or activity.
 - Reference deals, free activities, and golden hour timing when those tools return data. ESPECIALLY highlight day-specific finds — "Since it's [day], [venue] is free today!" or "Today's [day] deal: [deal]". These make the plan feel personalized and timely.
 - Be warm, specific, and enthusiastic — like a local friend who's excited to show someone around.
 - If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.${extrasBlock}`;
@@ -327,6 +329,10 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   // Use resolvedCity for tool calls, but keep the original for the user message
   // so the LLM knows what the user actually typed.
   const toolCity = resolvedCity;
+
+  // Tell the frontend the resolved city so it can geocode the map correctly
+  // (the user may have typed a misspelling or a landmark name)
+  yield { type: 'city_resolved', content: resolvedCity };
 
   // Build user message with context
   const isMultiDay = request.days && request.days > 1;
@@ -547,7 +553,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 8000;
     if (timeRemaining() < 25_000) {
       // Under 25s left — cap output to finish in time
-      tokenBudget = Math.min(tokenBudget, 4000);
+      tokenBudget = Math.min(tokenBudget, 6000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 

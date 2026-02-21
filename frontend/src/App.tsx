@@ -53,8 +53,11 @@ function App() {
   const [tripDays, setTripDays] = useState(1);
 
 
+  // Use the backend-resolved city for map/media (handles typos and landmark names)
+  const mapCity = state.resolvedCity || city;
+
   // Media enrichment — progressively fetches images + YouTube videos as places appear in the stream
-  const { data: mediaData } = useMediaEnrichment(state.content, city, tripDays > 1 ? tripDays * 5 : 12, getAccessToken);
+  const { data: mediaData } = useMediaEnrichment(state.content, mapCity, tripDays > 1 ? tripDays * 5 : 12, getAccessToken);
 
   // Theme toggle
   useEffect(() => {
@@ -513,7 +516,7 @@ function App() {
 
           {/* Map — interactive map with all plan locations */}
           {state.content && !state.isStreaming && !state.error && city && (
-            <PlanMap content={state.content} city={city} />
+            <PlanMap content={state.content} city={mapCity} />
           )}
 
           {/* Share confirmation */}

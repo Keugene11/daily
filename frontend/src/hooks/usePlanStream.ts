@@ -199,6 +199,12 @@ function handleEvent(event: StreamEvent, setState: React.Dispatch<React.SetState
       }
       break;
 
+    case 'city_resolved':
+      if (event.content) {
+        setState(prev => ({ ...prev, resolvedCity: event.content }));
+      }
+      break;
+
     case 'content_chunk':
       if (event.content) {
         setState(prev => ({
