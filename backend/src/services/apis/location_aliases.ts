@@ -335,8 +335,12 @@ const LOCATION_MAP: Record<string, string[]> = {
 /**
  * Resolve a location input to the best matching city in the caller's data set.
  * Returns null if no match found (caller should fall back to defaults).
+ *
+ * @param noAlias - When true, skip alias lookup. Use this for city-specific
+ *   hardcoded data (events, restaurants, bars) where returning data from a
+ *   completely different city is worse than returning nothing.
  */
-export function resolveLocation(input: string, availableCities: string[]): string | null {
+export function resolveLocation(input: string, availableCities: string[], noAlias = false): string | null {
   const c = input.toLowerCase().trim();
 
   // Direct match
@@ -346,6 +350,8 @@ export function resolveLocation(input: string, availableCities: string[]): strin
   for (const city of availableCities) {
     if (c.includes(city) || city.includes(c)) return city;
   }
+
+  if (noAlias) return null;
 
   // Alias lookup — try each candidate in preference order
   const candidates = LOCATION_MAP[c];

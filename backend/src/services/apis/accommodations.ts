@@ -140,7 +140,7 @@ export const accommodationService = {
   async getAccommodations(city: string, budget?: string, type?: string): Promise<ToolResult<Accommodation[]>> {
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    const resolved = resolveLocation(city, Object.keys(CITY_ACCOMMODATIONS));
+    const resolved = resolveLocation(city, Object.keys(CITY_ACCOMMODATIONS), true);
     const isDefault = !resolved;
     let accommodations = [...(resolved ? CITY_ACCOMMODATIONS[resolved] : DEFAULT_ACCOMMODATIONS)];
 

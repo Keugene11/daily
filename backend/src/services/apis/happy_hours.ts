@@ -79,10 +79,10 @@ const DEFAULT_HH: HappyHourData = {
   tip: 'Happy hours typically run 4-7 PM on weekdays. Check Yelp for today\'s specials.'
 };
 
-function matchCity(city: string): HappyHourData {
-  const resolved = resolveLocation(city, Object.keys(CITY_HH));
-  if (resolved) return { ...CITY_HH[resolved], city };
-  return { ...DEFAULT_HH, city };
+function matchCity(city: string): HappyHourData & { isDefault: boolean } {
+  const resolved = resolveLocation(city, Object.keys(CITY_HH), true);
+  if (resolved) return { ...CITY_HH[resolved], city, isDefault: false };
+  return { ...DEFAULT_HH, city, isDefault: true };
 }
 
 function mapsUrl(name: string, city: string): string {
@@ -106,6 +106,11 @@ export const happyHourService = {
       return { ...hh, url, link: `[${hh.bar}](${url})` };
     });
 
-    return { success: true, data: { ...data, happyHours: withUrls } };
+    const { isDefault, ...rest } = data;
+    return {
+      success: true,
+      data: { ...rest, happyHours: withUrls },
+      ...(isDefault && { note: `No local happy hour data for "${city}". These are generic placeholders — use your own knowledge of real bars and happy hours in ${city}.` })
+    };
   }
 };

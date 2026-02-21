@@ -112,9 +112,11 @@ function mapsUrl(name: string, city: string): string {
   return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 
-function matchCity(city: string): { deals: Deal[]; tip: string } {
-  const resolved = resolveLocation(city, Object.keys(CITY_DEALS));
-  return resolved ? CITY_DEALS[resolved] : { ...DEFAULT_DEALS, tip: DEFAULT_DEALS.tip };
+function matchCity(city: string): { deals: Deal[]; tip: string; isDefault: boolean } {
+  const resolved = resolveLocation(city, Object.keys(CITY_DEALS), true);
+  return resolved
+    ? { ...CITY_DEALS[resolved], isDefault: false }
+    : { ...DEFAULT_DEALS, tip: DEFAULT_DEALS.tip, isDefault: true };
 }
 
 export const dealsService = {
@@ -171,7 +173,8 @@ export const dealsService = {
         resourceLinks: {
           groupon: `https://groupon.com/local/${encodeURIComponent(city)}/things-to-do`,
         },
-      }
+      },
+      ...(matched.isDefault && { note: `No local deal data for "${city}". These are generic placeholders — use your own knowledge of real deals and discounts in ${city}.` })
     };
   }
 };

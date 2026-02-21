@@ -139,7 +139,7 @@ function mapsUrl(name: string, city: string): string {
 }
 
 function matchCity(city: string): TechEvent[] {
-  const resolved = resolveLocation(city, Object.keys(CITY_MEETUPS));
+  const resolved = resolveLocation(city, Object.keys(CITY_MEETUPS), true);
   return resolved ? CITY_MEETUPS[resolved] : DEFAULT_MEETUPS;
 }
 

@@ -438,7 +438,7 @@ const DEFAULT_RESTAURANTS: FallbackRestaurant[] = [
 ];
 
 function matchCityFallback(city: string): FallbackRestaurant[] {
-  const resolved = resolveLocation(city, Object.keys(CITY_RESTAURANTS));
+  const resolved = resolveLocation(city, Object.keys(CITY_RESTAURANTS), true);
   return resolved ? CITY_RESTAURANTS[resolved] : DEFAULT_RESTAURANTS;
 }
 
