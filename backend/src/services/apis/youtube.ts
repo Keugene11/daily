@@ -236,12 +236,10 @@ function scoreCandidate(
   // ── Recency (upload age) ────────────────────────────────────
   // Strongly prefer recent uploads — a 13-year-old tour is stale
   if (c.ageYears !== null) {
-    if (c.ageYears < 1) score += 6;        // under 1 year — fresh
-    else if (c.ageYears < 2) score += 4;   // 1-2 years
+    if (c.ageYears < 1) score += 8;        // under 1 year — fresh
+    else if (c.ageYears < 2) score += 5;   // 1-2 years
     else if (c.ageYears < 3) score += 2;   // 2-3 years
-    else if (c.ageYears < 5) score += 0;   // 3-5 years — neutral
-    else if (c.ageYears < 8) score -= 5;   // 5-8 years — stale
-    else score -= 15;                       // 8+ years — heavily penalized
+    else score -= 3;                        // 3-4 years — aging
   }
   // Fallback: check year in title if upload age not available
   else {
@@ -249,10 +247,10 @@ function scoreCandidate(
     const yearMatch = c.title.match(/\b(20\d{2})\b/);
     if (yearMatch) {
       const age = currentYear - parseInt(yearMatch[1]);
-      if (age === 0) score += 5;
-      else if (age === 1) score += 3;
+      if (age === 0) score += 6;
+      else if (age === 1) score += 4;
       else if (age <= 3) score += 1;
-      else if (age >= 6) score -= 3;
+      else score -= 5;
     } else {
       score -= 3; // unknown age, no year in title — mild penalty
     }
@@ -337,10 +335,10 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     if (candidates.length === 0) return [];
 
     // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-    // videos under 10K views, and videos older than 8 years.
+    // videos under 100K views, and videos older than 4 years.
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
-      if (c.ageYears !== null && c.ageYears >= 8) return false;
+      if (c.ageYears !== null && c.ageYears >= 4) return false;
       if (c.views < 100_000) return false;
       return true;
     });
