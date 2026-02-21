@@ -65,7 +65,7 @@ const FILLER_WORDS = new Set([
   'best', 'top', 'most', 'travel', 'guide', 'visit', 'tour', 'vlog',
   'review', 'trip', 'day', 'walk', 'food', 'see', 'go', 'how', 'what',
   'where', 'with', 'from', 'your', 'our', 'my', 'this', 'that', 'are',
-  'can', 'will', 'all', 'new', 'city', 'town', 'place', 'places',
+  'can', 'will', 'all', 'city', 'town', 'place', 'places',
 ]);
 
 // ── Title keyword patterns ──────────────────────────────────────────
@@ -467,12 +467,11 @@ async function isEmbeddable(videoId: string): Promise<boolean> {
     );
     if (!res.ok) return false;
     const html = await res.text();
-    // Check for blocked playback statuses — match both escaped (\"status\")
-    // and unescaped ("status") variants since YouTube's embed page uses both
-    const blocked = /\\?"status\\?"\s*:\s*\\?"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\\?"/;
-    if (blocked.test(html)) return false;
+    // Only check playabilityStatus — not generic "status" fields that appear
+    // throughout YouTube's page (analytics, configs, etc.)
+    if (/playabilityStatus.*?\\?"status\\?"\s*:\s*\\?"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\\?"/.test(html)) return false;
     if (html.includes('Video unavailable')) return false;
-    if (/\\?"embeddable\\?"\s*:\s*false/.test(html)) return false;
+    if (/playableInEmbed.*?false|\\?"embeddable\\?"\s*:\s*false/.test(html)) return false;
     return true;
   } catch {
     return true; // assume embeddable if check fails — a missing thumbnail is worse than a rare playback error
