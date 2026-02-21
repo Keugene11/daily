@@ -265,11 +265,11 @@ Structure the itinerary with these exact sections:
 ${timeSections}
 
 ## Where to Stay
-[REQUIRED — you MUST include this section with ALL of the following:
-- List 3-4 accommodation options. If the tool returned real, specific hotels, use those. If it returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
+[REQUIRED — you MUST include this section:
+- List 2-4 accommodation options — only include as many as there are genuinely good picks for the destination. Small towns may only have 2; big cities can have 4.
+- If the tool returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
 - EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
-- Mix budget levels (at least one budget and one upscale option)
 - For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://maps.google.com/?q=Hotel+Name,+${encodeURIComponent(request.city)})
 - Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
@@ -528,7 +528,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       }
 
       // Scale token budget for multi-day trips
-      const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 6000;
+      const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 8000;
 
       if (!isRetry) {
         // Streaming attempt
