@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { InstagramCaption } from './InstagramCaption';
 import type { PlaceMediaData } from '../hooks/useMediaEnrichment';
 
 interface Props {
@@ -377,7 +376,7 @@ function parseItinerary(text: string): ParsedPlan {
   return { preamble, days: parsedDays, slots: [], globalSections };
 }
 
-export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onShare, isSpeaking, mediaData }) => {
+export const ItineraryDisplay: React.FC<Props> = ({ content, onSpeak, onShare, isSpeaking, mediaData }) => {
   const ref = useRef<HTMLDivElement>(null);
   // Track places and videoIds already shown so each appears only once across all sections
   const shownPlacesRef = useRef<Set<string>>(new Set());
@@ -448,13 +447,6 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
                   />
                 ) : (
                   <FormattedContent text={isSoundtrack ? capSoundtrackTracks(slot.content) : slot.content} />
-                )}
-                {!isSoundtrack && city && (
-                  <InstagramCaption
-                    activity={slot.content.slice(0, 200)}
-                    city={city}
-                    timeOfDay={slot.period.toLowerCase()}
-                  />
                 )}
               </div>
             </div>
