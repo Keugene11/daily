@@ -443,19 +443,21 @@ async function isEmbeddable(videoId) {
         if (!res.ok)
             return false;
         const html = await res.text();
-        // YouTube embed page signals that playback is blocked
-        if (html.includes('"playabilityStatus":{"status":"ERROR"'))
-            return false;
-        if (html.includes('"playabilityStatus":{"status":"UNPLAYABLE"'))
-            return false;
-        if (html.includes('"playabilityStatus":{"status":"LOGIN_REQUIRED"'))
+        // YouTube embed page signals that playback is blocked (use regex to
+        // handle variable field ordering in the JSON blob)
+        if (/\"status\"\s*:\s*\"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\"/.test(html))
             return false;
         if (html.includes('Video unavailable'))
+            return false;
+        if (/"embeddable"\s*:\s*false/.test(html))
+            return false;
+        // Playback must be explicitly OK — if we can't find a playable status, reject
+        if (!/"status"\s*:\s*"OK"/.test(html))
             return false;
         return true;
     }
     catch {
-        return true; // assume embeddable if check fails
+        return false; // if check fails, skip this video rather than risk broken playback
     }
 }
 /** Multiple relevant videos for a topic+location */
