@@ -32,17 +32,19 @@ interface UseSubscriptionReturn {
 export function useSubscription(getAccessToken: () => Promise<string | null>): UseSubscriptionReturn {
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
-  // Sync subscription with Stripe via standalone endpoint (bypasses Express app cache)
-  const syncSubscription = useCallback(async () => {
+  // Sync subscription with Stripe via standalone endpoint (bypasses Express app cache).
+  // Returns the tier from sync so we can use it as a fallback.
+  const syncSubscription = useCallback(async (): Promise<string | null> => {
     try {
       const token = await getAccessToken();
       if (!token) {
         console.warn('[Subscription] No token for sync');
-        return;
+        return null;
       }
 
       let res = await fetch(`${API_URL}/api/sync-subscription`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
 
       // Retry once with a fresh token if auth failed
@@ -52,6 +54,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         if (retryToken && retryToken !== token) {
           res = await fetch(`${API_URL}/api/sync-subscription`, {
             headers: { Authorization: `Bearer ${retryToken}` },
+            cache: 'no-store',
           });
         }
       }
@@ -59,12 +62,15 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       if (res.ok) {
         const result = await res.json();
         console.log('[Subscription] Sync result:', result);
+        return result.tier || null;
       } else {
         const text = await res.text();
         console.error('[Subscription] Sync failed:', res.status, text);
+        return null;
       }
     } catch (err) {
       console.error('[Subscription] Sync error:', err);
+      return null;
     }
   }, [getAccessToken]);
 
@@ -78,8 +84,9 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         return;
       }
 
-      // First sync with Stripe (fixes stale DB), then fetch full subscription data
-      await syncSubscription();
+      // First sync with Stripe (fixes stale DB), then fetch full subscription data.
+      // Sync returns the tier it found directly from Stripe.
+      const syncTier = await syncSubscription();
 
       // Get a fresh token after sync — the sync call may have taken time and
       // the original token could be closer to expiry now
@@ -93,6 +100,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       let res = await fetch(`${API_URL}/api/subscription`, {
         headers: { Authorization: `Bearer ${freshToken}` },
+        cache: 'no-store',
       });
 
       // If auth failed (401), force a session refresh and retry once
@@ -102,16 +110,43 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         if (retryToken) {
           res = await fetch(`${API_URL}/api/subscription`, {
             headers: { Authorization: `Bearer ${retryToken}` },
+            cache: 'no-store',
           });
         }
       }
 
       if (res.ok) {
         const result = await res.json();
+        console.log('[Subscription] API response:', result);
+
+        // Fallback: if sync found pro but subscription endpoint says free,
+        // trust sync — it checks Stripe directly while the subscription
+        // endpoint might have stale DB data or a bug
+        if (syncTier === 'pro' && result.tier === 'free') {
+          console.warn('[Subscription] Sync says pro but API says free — overriding to pro');
+          result.tier = 'pro';
+          result.limits = { plans: -1 };
+          result.usage = { plans: 0 };
+        }
+
         setData(result);
       } else {
         const text = await res.text();
         console.error('[Subscription] Fetch failed:', res.status, text);
+
+        // If the subscription endpoint failed but sync found pro,
+        // construct a minimal pro response so the user isn't stuck on "Free"
+        if (syncTier === 'pro') {
+          console.warn('[Subscription] Using sync tier as fallback');
+          setData({
+            tier: 'pro',
+            interval: null,
+            period: 'month',
+            limits: { plans: -1 },
+            usage: { plans: 0 },
+            features: ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'],
+          });
+        }
       }
     } catch (err) {
       console.error('[Subscription] Fetch error:', err);
