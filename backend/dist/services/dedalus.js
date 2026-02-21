@@ -442,16 +442,13 @@ async function* streamPlanGeneration(request) {
             .filter((tc) => tc.type === 'function')
             .map((tc) => tc.function?.name));
         const forceCalls = [];
-        if (timeRemaining() > 25_000) { // only force-call if we have >25s left
-            if (!calledTools.has('get_playlist_suggestion') && toolCity) {
-                forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
-            }
-            if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
-                forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
-            }
+        // Accommodations and playlist use hardcoded data (instant, no external API),
+        // so always force-call them regardless of time pressure
+        if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
+            forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
         }
-        else {
-            console.log(`[Dedalus] Skipping force-calls — only ${timeRemaining()}ms remaining`);
+        if (!calledTools.has('get_playlist_suggestion') && toolCity) {
+            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
         }
         if (forceCalls.length > 0) {
             console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));

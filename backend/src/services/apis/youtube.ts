@@ -468,16 +468,15 @@ async function isEmbeddable(videoId: string): Promise<boolean> {
     );
     if (!res.ok) return false;
     const html = await res.text();
-    // YouTube embed page signals that playback is blocked (use regex to
-    // handle variable field ordering in the JSON blob)
-    if (/\"status\"\s*:\s*\"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\"/.test(html)) return false;
+    // Check for blocked playback statuses — match both escaped (\"status\")
+    // and unescaped ("status") variants since YouTube's embed page uses both
+    const blocked = /\\?"status\\?"\s*:\s*\\?"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\\?"/;
+    if (blocked.test(html)) return false;
     if (html.includes('Video unavailable')) return false;
-    if (/"embeddable"\s*:\s*false/.test(html)) return false;
-    // Playback must be explicitly OK — if we can't find a playable status, reject
-    if (!/"status"\s*:\s*"OK"/.test(html)) return false;
+    if (/\\?"embeddable\\?"\s*:\s*false/.test(html)) return false;
     return true;
   } catch {
-    return false; // if check fails, skip this video rather than risk broken playback
+    return true; // assume embeddable if check fails — a missing thumbnail is worse than a rare playback error
   }
 }
 
