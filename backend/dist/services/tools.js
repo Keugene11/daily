@@ -11,7 +11,6 @@ const gas_prices_1 = require("./apis/gas_prices");
 const happy_hours_1 = require("./apis/happy_hours");
 const free_stuff_1 = require("./apis/free_stuff");
 const sunrise_sunset_1 = require("./apis/sunrise_sunset");
-const pollen_1 = require("./apis/pollen");
 const parking_1 = require("./apis/parking");
 const transit_routes_1 = require("./apis/transit_routes");
 const wait_times_1 = require("./apis/wait_times");
@@ -213,23 +212,6 @@ exports.tools = [
     {
         type: 'function',
         function: {
-            name: 'get_pollen_count',
-            description: 'Get pollen and air quality data for a city. Returns tree, grass, weed, and mold levels plus air quality index. Use to warn allergy sufferers before outdoor plans and suggest best times to be outside.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    city: {
-                        type: 'string',
-                        description: 'City name'
-                    }
-                },
-                required: ['city']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
             name: 'get_parking',
             description: 'Find parking availability and costs near a specific area. Returns garages, lots, street parking, and park-and-ride options with rates and availability.',
             parameters: {
@@ -371,8 +353,6 @@ const executeToolCall = async (toolName, args, context) => {
                 return await free_stuff_1.freeStuffService.getFreeStuff(args.city, context?.rightNow, context?.currentHour);
             case 'get_sunrise_sunset':
                 return await sunrise_sunset_1.sunriseSunsetService.getSunriseSunset(args.city);
-            case 'get_pollen_count':
-                return await pollen_1.pollenService.getPollenCount(args.city);
             case 'get_parking':
                 return await parking_1.parkingService.getParking(args.city, args.area || '');
             case 'get_public_transit_routes':

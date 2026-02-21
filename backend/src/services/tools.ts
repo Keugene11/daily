@@ -9,7 +9,6 @@ import { gasPriceService } from './apis/gas_prices';
 import { happyHourService } from './apis/happy_hours';
 import { freeStuffService } from './apis/free_stuff';
 import { sunriseSunsetService } from './apis/sunrise_sunset';
-import { pollenService } from './apis/pollen';
 import { parkingService } from './apis/parking';
 import { transitRouteService } from './apis/transit_routes';
 import { waitTimeService } from './apis/wait_times';
@@ -230,23 +229,6 @@ export const tools: Tool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_pollen_count',
-      description: 'Get pollen and air quality data for a city. Returns tree, grass, weed, and mold levels plus air quality index. Use to warn allergy sufferers before outdoor plans and suggest best times to be outside.',
-      parameters: {
-        type: 'object',
-        properties: {
-          city: {
-            type: 'string',
-            description: 'City name'
-          }
-        },
-        required: ['city']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
       name: 'get_parking',
       description: 'Find parking availability and costs near a specific area. Returns garages, lots, street parking, and park-and-ride options with rates and availability.',
       parameters: {
@@ -403,9 +385,6 @@ export const executeToolCall = async (
 
       case 'get_sunrise_sunset':
         return await sunriseSunsetService.getSunriseSunset(args.city);
-
-      case 'get_pollen_count':
-        return await pollenService.getPollenCount(args.city);
 
       case 'get_parking':
         return await parkingService.getParking(args.city, args.area || '');
