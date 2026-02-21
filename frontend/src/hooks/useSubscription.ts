@@ -41,9 +41,20 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/sync-subscription`, {
+      let res = await fetch(`${API_URL}/api/sync-subscription`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      // Retry once with a fresh token if auth failed
+      if (res.status === 401) {
+        console.warn('[Subscription] Sync got 401, refreshing token...');
+        const retryToken = await getAccessToken();
+        if (retryToken && retryToken !== token) {
+          res = await fetch(`${API_URL}/api/sync-subscription`, {
+            headers: { Authorization: `Bearer ${retryToken}` },
+          });
+        }
+      }
 
       if (res.ok) {
         const result = await res.json();
@@ -70,9 +81,30 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       // First sync with Stripe (fixes stale DB), then fetch full subscription data
       await syncSubscription();
 
-      const res = await fetch(`${API_URL}/api/subscription`, {
-        headers: { Authorization: `Bearer ${token}` },
+      // Get a fresh token after sync — the sync call may have taken time and
+      // the original token could be closer to expiry now
+      const freshToken = await getAccessToken();
+      if (!freshToken) {
+        console.warn('[Subscription] Token expired during sync');
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
+      let res = await fetch(`${API_URL}/api/subscription`, {
+        headers: { Authorization: `Bearer ${freshToken}` },
       });
+
+      // If auth failed (401), force a session refresh and retry once
+      if (res.status === 401) {
+        console.warn('[Subscription] Got 401, refreshing session and retrying...');
+        const retryToken = await getAccessToken();
+        if (retryToken) {
+          res = await fetch(`${API_URL}/api/subscription`, {
+            headers: { Authorization: `Bearer ${retryToken}` },
+          });
+        }
+      }
 
       if (res.ok) {
         const result = await res.json();

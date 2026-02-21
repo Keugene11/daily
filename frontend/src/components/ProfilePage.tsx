@@ -23,7 +23,7 @@ export const ProfilePage: React.FC<Props> = ({ user, planCount, tier, loading, o
   // Auto-refresh subscription on mount
   useEffect(() => {
     onRefresh();
-  }, []);
+  }, [onRefresh]);
 
   const handleRefresh = async () => {
     setSyncing(true);

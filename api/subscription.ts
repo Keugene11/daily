@@ -67,8 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (authError || !user) {
       steps.push(`Auth failed: ${authError?.message || 'no user'}`);
       console.log(`[Subscription] Auth failed: ${authError?.message}`);
-      if (debug) return res.json({ ...freeTierResponse, _debug: steps });
-      return res.json(freeTierResponse);
+      if (debug) return res.status(401).json({ error: 'auth_failed', _debug: steps });
+      return res.status(401).json({ error: 'auth_failed', message: authError?.message || 'Invalid token' });
     }
 
     const userId = user.id;
