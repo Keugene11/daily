@@ -24,8 +24,8 @@ const freeFeatures = [
 
 const monthlyFeatures = [
   'Unlimited plans',
-  'All mood & energy filters',
-  'Date night mode',
+  'Anti-routine mode',
+  'Dietary & accessibility filters',
   'Priority support',
 ];
 
