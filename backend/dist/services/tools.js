@@ -73,7 +73,7 @@ exports.tools = [
         type: 'function',
         function: {
             name: 'get_restaurant_recommendations',
-            description: 'Get restaurant recommendations for a city. Returns curated dining options with cuisine type, price range, and ratings.',
+            description: 'Get restaurant recommendations for a city. Returns real restaurant data with name, cuisine type, price range ($-$$$$), rating, neighborhood, and Google Maps link. Does NOT include specific menu items or dish prices — suggest signature dishes from your own knowledge.',
             parameters: {
                 type: 'object',
                 properties: {

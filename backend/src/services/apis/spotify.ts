@@ -1050,6 +1050,24 @@ const CITY_PLAYLISTS: Record<string, PlaylistSuggestion> = {
       track('Could It Be I\'m Falling in Love', 'The Spinners'),
     ]
   },
+  'boston': {
+    name: 'Boston Sound',
+    description: 'Rock, punk, folk, and the spirit of New England',
+    mood: 'classic & anthemic',
+    playlistUrl: 'https://open.spotify.com/search/boston%20rock%20classics',
+    tracks: [
+      track('More Than a Feeling', 'Boston'),
+      track('Shipping Up to Boston', 'Dropkick Murphys'),
+      track('Sweet Caroline', 'Neil Diamond'),
+      track('Don\'t Look Back', 'Boston'),
+      track('Peace of Mind', 'Boston'),
+      track('Rock and Roll Band', 'Boston'),
+      track('Dream On', 'Aerosmith'),
+      track('Walk This Way', 'Aerosmith'),
+      track('Roadrunner', 'The Modern Lovers'),
+      track('I\'m Gonna Be (500 Miles)', 'The Proclaimers'),
+    ]
+  },
   'honolulu': {
     name: 'Aloha Vibes',
     description: 'Hawaiian music, island rhythms, and Pacific surf',
@@ -1264,8 +1282,11 @@ const CITY_ALIASES: Record<string, string> = {
   'denver': 'seattle', 'boulder': 'seattle', 'salt lake city': 'seattle', 'boise': 'seattle',
   // Northeast → philadelphia
   'washington dc': 'philadelphia', 'washington d.c.': 'philadelphia', 'dc': 'philadelphia',
-  'baltimore': 'philadelphia', 'boston': 'philadelphia', 'pittsburgh': 'philadelphia',
+  'baltimore': 'philadelphia', 'pittsburgh': 'philadelphia',
   'buffalo': 'new york', 'richmond': 'philadelphia',
+  // Boston-area universities & neighborhoods
+  'harvard': 'boston', 'cambridge': 'boston', 'mit': 'boston',
+  'somerville': 'boston', 'brookline': 'boston',
   // Midwest → detroit or chicago
   'cleveland': 'detroit', 'cincinnati': 'detroit', 'columbus': 'detroit',
   'milwaukee': 'chicago', 'indianapolis': 'chicago', 'kansas city': 'chicago',
@@ -1733,6 +1754,18 @@ const SONG_REASONS: Record<string, string> = {
   'summertime|dj jazzy jeff': 'The Fresh Prince\'s lazy summer anthem',
   'streets of philadelphia|bruce springsteen': 'Springsteen\'s haunting Philly elegy',
 
+  // Boston
+  'more than a feeling|boston': 'Boston the band, from Boston the city — arena rock perfection',
+  'shipping up to boston|dropkick murphys': 'The Departed put this song in everyone\'s head permanently',
+  'sweet caroline|neil diamond': 'Fenway Park\'s 8th-inning tradition — the whole city sings along',
+  "don't look back|boston": 'Boston keeping the momentum going — pure guitar rock',
+  'peace of mind|boston': 'Tom Scholz\'s guitar tone is basically a warm hug',
+  'rock and roll band|boston': 'Boston writing about being Boston — meta and magnificent',
+  'dream on|aerosmith': 'Steven Tyler\'s wail echoing through every classic rock station',
+  'walk this way|aerosmith': 'Aerosmith x Run-DMC — the crossover that changed music',
+  'roadrunner|the modern lovers': 'Jonathan Richman cruising Route 128 — Boston punk\'s origin',
+  "i'm gonna be (500 miles)|the proclaimers": 'Not from Boston, but try not singing it at a Red Sox game',
+
   // Honolulu
   'somewhere over the rainbow|israel kamakawiwo\'ole': 'IZ\'s ukulele version — the sound of pure peace',
   'blue hawaii|elvis presley': 'Elvis in paradise — tropical romanticism',
@@ -1902,9 +1935,10 @@ async function aiPickSongs(city: string, mood?: string): Promise<AiTrack[] | nul
 
 Rules:
 - Pick POPULAR, widely-recognized songs — songs most people would know and enjoy. Think Spotify top charts, movie soundtracks, iconic hits.
-- Consider the city's musical culture (e.g. jazz for New Orleans, bossa nova for Rio, K-pop for Seoul)
+- Songs MUST be connected to the city — either from artists born/based there, songs about that city, or songs that define its musical culture (e.g. jazz for New Orleans, bossa nova for Rio, K-pop for Seoul)
 - At least 3 of the 5 songs should be mainstream hits with hundreds of millions of streams
 - Include at least one song from the last 5 years
+- Use the EXACT original song title — no remixes, covers, or alternate versions. Use the most well-known version by the original artist.
 - Each song needs a short, specific reason (1 sentence, casual tone — like a friend explaining why they added it)
 - Respond ONLY with valid JSON array, no other text
 

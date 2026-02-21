@@ -2,6 +2,196 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.restaurantService = void 0;
 const location_aliases_1 = require("./location_aliases");
+// ── Google Places API integration ───────────────────────────────────────
+const GOOGLE_PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
+const PRICE_LEVEL_MAP = {
+    'PRICE_LEVEL_FREE': '$',
+    'PRICE_LEVEL_INEXPENSIVE': '$',
+    'PRICE_LEVEL_MODERATE': '$$',
+    'PRICE_LEVEL_EXPENSIVE': '$$$',
+    'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
+};
+const CUISINE_TYPE_MAP = {
+    'italian_restaurant': 'Italian',
+    'japanese_restaurant': 'Japanese',
+    'chinese_restaurant': 'Chinese',
+    'mexican_restaurant': 'Mexican',
+    'indian_restaurant': 'Indian',
+    'thai_restaurant': 'Thai',
+    'french_restaurant': 'French',
+    'korean_restaurant': 'Korean',
+    'vietnamese_restaurant': 'Vietnamese',
+    'mediterranean_restaurant': 'Mediterranean',
+    'american_restaurant': 'American',
+    'seafood_restaurant': 'Seafood',
+    'pizza_restaurant': 'Pizza',
+    'sushi_restaurant': 'Sushi',
+    'steak_house': 'Steakhouse',
+    'barbecue_restaurant': 'BBQ',
+    'brunch_restaurant': 'Brunch',
+    'hamburger_restaurant': 'Burgers',
+    'ramen_restaurant': 'Ramen',
+    'sandwich_shop': 'Sandwiches',
+    'cafe': 'Cafe',
+    'bakery': 'Bakery',
+    'ice_cream_shop': 'Ice Cream',
+    'vegan_restaurant': 'Vegan',
+    'vegetarian_restaurant': 'Vegetarian',
+    'spanish_restaurant': 'Spanish',
+    'greek_restaurant': 'Greek',
+    'turkish_restaurant': 'Turkish',
+    'lebanese_restaurant': 'Lebanese',
+    'middle_eastern_restaurant': 'Middle Eastern',
+    'indonesian_restaurant': 'Indonesian',
+    'brazilian_restaurant': 'Brazilian',
+    'peruvian_restaurant': 'Peruvian',
+};
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const cache = new Map();
+function getCacheKey(city, cuisine, budget) {
+    return `${city.toLowerCase().trim()}|${(cuisine || '').toLowerCase()}|${budget || ''}`;
+}
+function getFromCache(key) {
+    const entry = cache.get(key);
+    if (!entry)
+        return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+        cache.delete(key);
+        return null;
+    }
+    return entry.data;
+}
+function setCache(key, data) {
+    // Cap at 200 entries to prevent memory bloat in serverless
+    if (cache.size > 200) {
+        const entries = Array.from(cache.entries())
+            .sort((a, b) => a[1].timestamp - b[1].timestamp);
+        for (let i = 0; i < 50; i++) {
+            cache.delete(entries[i][0]);
+        }
+    }
+    cache.set(key, { data, timestamp: Date.now() });
+}
+// ── Google Places API search ────────────────────────────────────────────
+function mapPlaceToRestaurant(place, city) {
+    const name = place.displayName?.text || 'Unknown';
+    // Extract cuisine from types array
+    const types = place.types || [];
+    let cuisine = 'Restaurant';
+    for (const type of types) {
+        if (CUISINE_TYPE_MAP[type]) {
+            cuisine = CUISINE_TYPE_MAP[type];
+            break;
+        }
+        if (type.endsWith('_restaurant') && type !== 'restaurant') {
+            cuisine = type.replace('_restaurant', '').replace(/_/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+            break;
+        }
+    }
+    const priceRange = PRICE_LEVEL_MAP[place.priceLevel] || '$$';
+    const ratingNum = place.rating || 0;
+    const rating = ratingNum > 0 ? `${ratingNum}/5` : 'N/A';
+    const ratingCount = place.userRatingCount || 0;
+    // Description: prefer editorialSummary, fall back to first review
+    let description = '';
+    if (place.editorialSummary?.text) {
+        description = place.editorialSummary.text;
+    }
+    else if (place.reviews?.length > 0) {
+        const reviewText = place.reviews[0].text?.text || '';
+        description = reviewText.length > 120
+            ? reviewText.substring(0, 117) + '...'
+            : reviewText;
+    }
+    // Neighborhood: parse from address (2nd component is usually the area)
+    const addressParts = (place.formattedAddress || '').split(',').map((s) => s.trim());
+    const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
+    const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+    return {
+        name,
+        cuisine,
+        priceRange,
+        rating,
+        ratingCount,
+        description,
+        neighborhood,
+        address: place.formattedAddress || '',
+        url: googleMapsUri,
+        link: `[${name}](${googleMapsUri})`,
+    };
+}
+async function searchGooglePlaces(city, cuisine, budget) {
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!apiKey)
+        return []; // triggers fallback
+    let query = `best restaurants in ${city}`;
+    if (cuisine)
+        query = `best ${cuisine} restaurants in ${city}`;
+    if (budget === 'low')
+        query += ' affordable cheap';
+    if (budget === 'high')
+        query += ' upscale fine dining';
+    const priceLevels = [];
+    if (budget === 'low')
+        priceLevels.push('PRICE_LEVEL_INEXPENSIVE');
+    if (budget === 'medium') {
+        priceLevels.push('PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE');
+    }
+    const requestBody = {
+        textQuery: query,
+        languageCode: 'en',
+        maxResultCount: 8,
+    };
+    if (priceLevels.length > 0) {
+        requestBody.priceLevels = priceLevels;
+    }
+    const fieldMask = [
+        'places.displayName',
+        'places.formattedAddress',
+        'places.rating',
+        'places.userRatingCount',
+        'places.priceLevel',
+        'places.types',
+        'places.editorialSummary',
+        'places.googleMapsUri',
+        'places.reviews',
+    ].join(',');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+        const response = await fetch(GOOGLE_PLACES_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey,
+                'X-Goog-FieldMask': fieldMask,
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+        });
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            console.error(`[Restaurants] Google Places API error ${response.status}: ${errorText}`);
+            return [];
+        }
+        const data = await response.json();
+        const places = data.places || [];
+        return places.map((p) => mapPlaceToRestaurant(p, city));
+    }
+    catch (error) {
+        if (error?.name === 'AbortError') {
+            console.error('[Restaurants] Google Places request timed out');
+        }
+        else {
+            console.error('[Restaurants] Google Places fetch error:', error);
+        }
+        return [];
+    }
+    finally {
+        clearTimeout(timeoutId);
+    }
+}
 const CITY_RESTAURANTS = {
     'new york': [
         { name: 'Joe\'s Pizza', cuisine: 'New York Pizza', priceRange: '$', avgCost: '$5/person', rating: '4.5/5', neighborhood: 'Greenwich Village', description: 'Iconic NYC slice joint since 1975 — thin crust, perfectly charred, folded in half', mustTry: 'Classic cheese slice ($3.50)' },
@@ -152,15 +342,30 @@ const DEFAULT_RESTAURANTS = [
     { name: 'The Brick Oven', cuisine: 'Italian', priceRange: '$$', avgCost: '$18/person', rating: '4.3/5', neighborhood: 'Old Town', description: 'Wood-fired pizzas and house-made pasta in a cozy setting', mustTry: 'Margherita pizza ($14)' },
     { name: 'Sunrise Café', cuisine: 'Brunch', priceRange: '$', avgCost: '$14/person', rating: '4.6/5', neighborhood: 'Arts District', description: 'All-day breakfast with locally roasted coffee and fresh pastries', mustTry: 'Eggs Benedict ($13)' }
 ];
-function matchCity(city) {
+function matchCityFallback(city) {
     const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_RESTAURANTS));
     return resolved ? CITY_RESTAURANTS[resolved] : DEFAULT_RESTAURANTS;
 }
+// ── Main export ─────────────────────────────────────────────────────────
 exports.restaurantService = {
     async getRestaurants(city, cuisine, budget) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        let restaurants = [...matchCity(city)];
-        // Filter by budget
+        // Check cache first
+        const cacheKey = getCacheKey(city, cuisine, budget);
+        const cached = getFromCache(cacheKey);
+        if (cached) {
+            console.log(`[Restaurants] Cache hit for "${cacheKey}"`);
+            return { success: true, data: cached.slice(0, 4) };
+        }
+        // Try Google Places API
+        const googleResults = await searchGooglePlaces(city, cuisine, budget);
+        if (googleResults.length > 0) {
+            console.log(`[Restaurants] Google Places returned ${googleResults.length} results for ${city}`);
+            setCache(cacheKey, googleResults);
+            return { success: true, data: googleResults.slice(0, 4) };
+        }
+        // Fallback: hardcoded data
+        console.log(`[Restaurants] Falling back to hardcoded data for ${city}`);
+        let restaurants = [...matchCityFallback(city)];
         if (budget) {
             const budgetMap = {
                 'free': ['$'],
@@ -173,21 +378,16 @@ exports.restaurantService = {
             if (filtered.length > 0)
                 restaurants = filtered;
         }
-        // Filter by cuisine preference
         if (cuisine) {
             const match = restaurants.filter(r => r.cuisine.toLowerCase().includes(cuisine.toLowerCase()) ||
                 r.description.toLowerCase().includes(cuisine.toLowerCase()));
             if (match.length > 0)
                 restaurants = match;
         }
-        // Add Google Maps links (pre-formatted markdown for AI to use directly)
         const withUrls = restaurants.map(r => {
             const url = `https://maps.google.com/?q=${encodeURIComponent(r.name + ', ' + city)}`;
             return { ...r, url, link: `[${r.name}](${url})` };
         });
-        return {
-            success: true,
-            data: withUrls.slice(0, 4)
-        };
+        return { success: true, data: withUrls.slice(0, 4) };
     }
 };

@@ -36,6 +36,25 @@ function parseViewCount(text) {
         return num * 1_000;
     return num;
 }
+/** Parse "X years/months/weeks/days ago" into approximate age in years */
+function parseAge(text) {
+    if (!text)
+        return null;
+    const match = text.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i);
+    if (!match)
+        return null;
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    if (unit === 'year')
+        return num;
+    if (unit === 'month')
+        return num / 12;
+    if (unit === 'week')
+        return num / 52;
+    if (unit === 'day')
+        return num / 365;
+    return 0; // hours/minutes/seconds = brand new
+}
 /** Parse duration text like "12:34" into seconds */
 function parseDuration(text) {
     if (!text)
@@ -206,21 +225,37 @@ function scoreCandidate(c, position, poolSize, query) {
         if (capsRatio > 0.5)
             score -= 5;
     }
-    // ── Recency bonus ───────────────────────────────────────────
-    // Prefer recent content — videos mentioning recent years get a boost
-    const currentYear = new Date().getFullYear();
-    const yearMatch = c.title.match(/\b(20\d{2})\b/);
-    if (yearMatch) {
-        const videoYear = parseInt(yearMatch[1]);
-        const age = currentYear - videoYear;
-        if (age === 0)
-            score += 5; // this year
-        else if (age === 1)
-            score += 3; // last year
-        else if (age <= 3)
-            score += 1; // recent
-        else if (age >= 6)
-            score -= 3; // old
+    // ── Recency (upload age) ────────────────────────────────────
+    // Strongly prefer recent uploads — a 13-year-old tour is stale
+    if (c.ageYears !== null) {
+        if (c.ageYears < 1)
+            score += 6; // under 1 year — fresh
+        else if (c.ageYears < 2)
+            score += 4; // 1-2 years
+        else if (c.ageYears < 3)
+            score += 2; // 2-3 years
+        else if (c.ageYears < 5)
+            score += 0; // 3-5 years — neutral
+        else if (c.ageYears < 8)
+            score -= 5; // 5-8 years — stale
+        else
+            score -= 15; // 8+ years — heavily penalized
+    }
+    // Fallback: check year in title if upload age not available
+    else {
+        const currentYear = new Date().getFullYear();
+        const yearMatch = c.title.match(/\b(20\d{2})\b/);
+        if (yearMatch) {
+            const age = currentYear - parseInt(yearMatch[1]);
+            if (age === 0)
+                score += 5;
+            else if (age === 1)
+                score += 3;
+            else if (age <= 3)
+                score += 1;
+            else if (age >= 6)
+                score -= 3;
+        }
     }
     // ── Small position bonus ──────────────────────────────────────
     // YouTube's search ranking is decent, give a small nod to top results
@@ -271,16 +306,20 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
             const badges = vr.ownerBadges || [];
             const isVerified = badges.some((b) => b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED' ||
                 b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED_ARTIST');
-            candidates.push({ videoId, title, views, durationSec, isVerified, channel });
+            // Extract upload age (e.g., "13 years ago")
+            const publishedText = vr.publishedTimeText?.simpleText || '';
+            const ageYears = parseAge(publishedText);
+            candidates.push({ videoId, title, views, durationSec, isVerified, channel, ageYears });
             if (candidates.length >= 20)
                 break;
         }
         if (candidates.length === 0)
             return [];
         // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-        // and any video under 10K views (no tiny channels with 100 subs)
+        // videos under 10K views, and videos older than 10 years
         const filtered = candidates.filter(c => (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)) &&
-            c.views >= 10_000);
+            c.views >= 10_000 &&
+            (c.ageYears === null || c.ageYears < 10));
         // If all candidates are under 10K views, relax to 1K minimum
         const pool = filtered.length > 0
             ? filtered

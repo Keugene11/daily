@@ -9,7 +9,7 @@ const stripe_1 = __importDefault(require("stripe"));
 exports.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '');
 exports.TIERS = {
     free: {
-        planLimit: 2,
+        planLimit: 1,
         period: 'week',
         features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
     },
