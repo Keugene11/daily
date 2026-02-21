@@ -74,6 +74,34 @@ function App() {
     }
   }, []);
 
+  // Resume pending plan after OAuth redirect
+  useEffect(() => {
+    if (!session || authLoading) return;
+    const raw = sessionStorage.getItem('daily_pending_plan');
+    if (!raw) return;
+    sessionStorage.removeItem('daily_pending_plan');
+    try {
+      const pending = JSON.parse(raw);
+      if (!pending.city?.trim()) return;
+      // Restore form state
+      setCity(pending.city);
+      setBudget(pending.budget || 'any');
+      if (pending.mood) setMood(pending.mood);
+      if (pending.rightNow) setRightNow(true);
+      setTripDays(pending.tripDays || 1);
+      // Build extras from the saved params
+      const extras: Record<string, any> = {};
+      if (pending.mood?.trim()) extras.mood = pending.mood.trim();
+      extras.currentHour = new Date().getHours();
+      extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (pending.rightNow) extras.rightNow = true;
+      if (pending.tripDays > 1) extras.days = pending.tripDays;
+      // Auto-start the plan
+      localStorage.setItem('daily_prefs', JSON.stringify({ city: pending.city, budget: pending.budget || 'any' }));
+      startStream(pending.city, pending.budget || 'any', extras, getAccessToken);
+    } catch { /* ignore malformed data */ }
+  }, [session, authLoading]);
+
   // Save preferences when plan starts
   const savePrefs = useCallback(() => {
     localStorage.setItem('daily_prefs', JSON.stringify({ city, budget }));
@@ -131,7 +159,14 @@ function App() {
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
-    if (!session) { signInWithGoogle(); return; }
+    if (!session) {
+      // Save pending plan so we can resume after OAuth redirect
+      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
+        city, budget, mood, rightNow: false, tripDays,
+      }));
+      signInWithGoogle();
+      return;
+    }
     savePrefs();
     startStream(city, budget, buildExtras(), getAccessToken);
   };
@@ -395,7 +430,13 @@ function App() {
             <button
               onClick={() => {
                 if (!city.trim()) return;
-                if (!session) { signInWithGoogle(); return; }
+                if (!session) {
+                  sessionStorage.setItem('daily_pending_plan', JSON.stringify({
+                    city, budget, mood, rightNow: true, tripDays: 1,
+                  }));
+                  signInWithGoogle();
+                  return;
+                }
                 setRightNow(true);
                 setTripDays(1);
                 savePrefs();
