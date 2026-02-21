@@ -329,18 +329,14 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
                 return false;
             return true;
         });
-        // If no candidates pass the 50K threshold, relax to 10K minimum but keep age filter
-        const pool = filtered.length > 0
-            ? filtered
-            : candidates.filter(c => c.views >= 10_000 &&
-                (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)) &&
-                (c.ageYears === null || c.ageYears < 8));
-        if (pool.length === 0)
+        // No relaxed fallback — if nothing passes filters, return nothing.
+        // A missing video is better than a bad video.
+        if (filtered.length === 0)
             return [];
         // Score and rank
-        const scored = pool.map((c, i) => ({
+        const scored = filtered.map((c, i) => ({
             ...c,
-            score: scoreCandidate(c, i, pool.length, query)
+            score: scoreCandidate(c, i, filtered.length, query)
         }));
         scored.sort((a, b) => b.score - a.score);
         // Filter: require at least one meaningful (non-filler) query term in the title.
@@ -352,7 +348,12 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
                 return terms.some(t => titleLower.includes(t));
             })
             : scored; // if ALL terms are filler (unlikely), fall back to full list
-        return relevant.slice(0, count).map(c => ({ videoId: c.videoId, title: c.title }));
+        // Minimum quality bar — if the best video still scores poorly, return nothing.
+        // A score of 10 means the video is at least somewhat relevant and decent.
+        const quality = relevant.filter(c => c.score >= 10);
+        if (quality.length === 0)
+            return [];
+        return quality.slice(0, count).map(c => ({ videoId: c.videoId, title: c.title }));
     }
     catch {
         // Scraping failed

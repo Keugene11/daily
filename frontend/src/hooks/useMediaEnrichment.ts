@@ -13,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 1 * 24 * 60 * 60 * 1000; // 1 day
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 7;
+const MEDIA_CACHE_VERSION = 8;
 
 interface MediaCacheEntry {
   imageUrl?: string;
