@@ -284,7 +284,7 @@ ${timeSections}
 - If the tool returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
 - EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
-- For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://www.google.com/maps/place/Hotel+Name/@LAT,LNG,17z) with approximate coordinates
+- For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z) with approximate coordinates
 - Do NOT skip or truncate this section — it must appear in full before the Pro Tips section]
 
 ## Pro Tips
@@ -299,11 +299,11 @@ Writing style:
 - Name REAL landmarks, streets, parks, and venues. Include cross-streets or neighborhoods so someone could actually find them.
 - **LINKS**: EVERY venue, restaurant, event, bar, and attraction MUST be a clickable markdown link — NO EXCEPTIONS.
   - For places from tool data: copy the pre-formatted "link" or "markdownLink" field directly.
-  - For places from YOUR OWN knowledge: create the link yourself as [Place Name](https://www.google.com/maps/place/Place+Name/@LAT,LNG,17z) — include the approximate latitude and longitude so the map can pin the exact location. Use + for spaces in the place name.
+  - For places from YOUR OWN knowledge: create the link yourself as [Place Name](https://www.google.com/maps/search/Place+Name/@LAT,LNG,17z) — include the approximate latitude and longitude so the map can pin the exact location. Use + for spaces in the place name.
   - WRONG: https://maps.google.com/?q=Griffith%20Observatory — NEVER write a raw URL
   - WRONG: "Visit Griffith Observatory" — NEVER write a place name without a link
-  - RIGHT: "Hike up to [Griffith Observatory](https://www.google.com/maps/place/Griffith+Observatory/@34.1184,-118.3004,17z) for panoramic views"
-  - RIGHT: "Grab a coffee at [Blue Bottle Coffee](https://www.google.com/maps/place/Blue+Bottle+Coffee/@34.0407,-118.2468,17z)"
+  - RIGHT: "Hike up to [Griffith Observatory](https://www.google.com/maps/search/Griffith+Observatory/@34.1184,-118.3004,17z) for panoramic views"
+  - RIGHT: "Grab a coffee at [Blue Bottle Coffee](https://www.google.com/maps/search/Blue+Bottle+Coffee/@34.0407,-118.2468,17z)"
 - **PRICES ARE REQUIRED**: Always cite specific dollar/currency amounts — never say "affordable" or "cheap" without a number. For restaurants, the tool provides price level ($-$$$$) but NOT specific dish prices — use your own knowledge to estimate dish prices with a ~ prefix (e.g., "~$14"). Use dealPrice, price fields from other tool data. Examples:
   - "~$3.50/slice" not "cheap pizza"
   - "$8 craft cocktails, $5 beers" not "drink specials"

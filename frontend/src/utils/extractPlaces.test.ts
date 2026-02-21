@@ -312,8 +312,8 @@ Dinner at [Peter Luger Steak House](https://maps.google.com/?q=Peter+Luger+Steak
     expect(places).toContain('Brooklyn Bridge Park');
   });
 
-  it('extracts from new /maps/place/@lat,lng format', () => {
-    const content = 'Visit [Griffith Observatory](https://www.google.com/maps/place/Griffith+Observatory/@34.1184,-118.3004,17z) for views';
+  it('extracts from new /maps/search/@lat,lng format', () => {
+    const content = 'Visit [Griffith Observatory](https://www.google.com/maps/search/Griffith+Observatory/@34.1184,-118.3004,17z) for views';
     const places = extractPlaces(content, 'Los Angeles');
     expect(places).toContain('Griffith Observatory');
   });
@@ -323,7 +323,7 @@ Dinner at [Peter Luger Steak House](https://maps.google.com/?q=Peter+Luger+Steak
 
 describe('extractPlaceCoords', () => {
   it('extracts lat/lng from /maps/place/@lat,lng URLs', () => {
-    const content = '[Griffith Observatory](https://www.google.com/maps/place/Griffith+Observatory/@34.1184,-118.3004,17z)';
+    const content = '[Griffith Observatory](https://www.google.com/maps/search/Griffith+Observatory/@34.1184,-118.3004,17z)';
     const coords = extractPlaceCoords(content);
     expect(coords.has('Griffith Observatory')).toBe(true);
     const c = coords.get('Griffith Observatory')!;
@@ -333,8 +333,8 @@ describe('extractPlaceCoords', () => {
 
   it('extracts multiple places', () => {
     const content = `
-[Place A](https://www.google.com/maps/place/Place+A/@40.7128,-74.0060,17z)
-[Place B](https://www.google.com/maps/place/Place+B/@34.0522,-118.2437,17z)
+[Place A](https://www.google.com/maps/search/Place+A/@40.7128,-74.0060,17z)
+[Place B](https://www.google.com/maps/search/Place+B/@34.0522,-118.2437,17z)
     `;
     const coords = extractPlaceCoords(content);
     expect(coords.size).toBe(2);
@@ -349,13 +349,13 @@ describe('extractPlaceCoords', () => {
   });
 
   it('validates coordinate ranges', () => {
-    const content = '[Bad Place](https://www.google.com/maps/place/Bad/@999,999,17z)';
+    const content = '[Bad Place](https://www.google.com/maps/search/Bad/@999,999,17z)';
     const coords = extractPlaceCoords(content);
     expect(coords.size).toBe(0);
   });
 
   it('handles negative coordinates', () => {
-    const content = '[Buenos Aires](https://www.google.com/maps/place/Buenos+Aires/@-34.6037,-58.3816,17z)';
+    const content = '[Buenos Aires](https://www.google.com/maps/search/Buenos+Aires/@-34.6037,-58.3816,17z)';
     const coords = extractPlaceCoords(content);
     expect(coords.has('Buenos Aires')).toBe(true);
     const c = coords.get('Buenos Aires')!;
