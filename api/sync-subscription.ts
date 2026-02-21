@@ -8,6 +8,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+/** Check if a Stripe error means the customer ID is invalid (test mode, deleted, etc.) */
+function isInvalidCustomer(err: any): boolean {
+  const msg = err?.message || '';
+  return msg.includes('No such customer') || err?.code === 'resource_missing';
+}
+
 /**
  * GET /api/sync-subscription
  *
@@ -16,6 +22,7 @@ const supabase = createClient(
  *  - No subscription row exists yet
  *  - No stripe_customer_id is saved (searches by email)
  *  - The purchase was a one-time payment (not a subscription)
+ *  - The stored customer ID is from test mode (auto-clears and re-searches)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -50,11 +57,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let customerId = subRow?.stripe_customer_id || null;
     console.log(`[Sync] DB row: ${JSON.stringify(subRow)}`);
 
-    // 2. If DB already says pro and period is valid, return early
+    // 2. If DB already says pro and period is valid, verify customer is still valid
     if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
         subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
-      console.log(`[Sync] DB already says pro, returning`);
-      return res.json({ tier: 'pro', synced: false, userId });
+      // Quick validation: if we have a customer ID, make sure it's valid in live mode
+      if (customerId) {
+        try {
+          await stripe.customers.retrieve(customerId);
+          console.log(`[Sync] DB already says pro, customer valid, returning`);
+          return res.json({ tier: 'pro', synced: false, userId });
+        } catch (err: any) {
+          if (isInvalidCustomer(err)) {
+            console.warn(`[Sync] Stale customer ID ${customerId}: ${err.message}`);
+            // Clear stale customer and re-check from scratch
+            await supabase
+              .from('subscriptions')
+              .update({
+                stripe_customer_id: null,
+                plan_type: 'free',
+                status: 'active',
+                current_period_end: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', userId);
+            customerId = null;
+            // Fall through to email-based search below
+          } else {
+            // Other Stripe error — trust DB, return pro
+            console.log(`[Sync] DB already says pro (Stripe error: ${err.message}), returning`);
+            return res.json({ tier: 'pro', synced: false, userId });
+          }
+        }
+      } else {
+        console.log(`[Sync] DB already says pro, returning`);
+        return res.json({ tier: 'pro', synced: false, userId });
+      }
     }
 
     // 3. If no customer ID in DB, search Stripe by email
@@ -92,20 +129,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let periodEnd: string | null = null;
     let synced = false;
 
-    const subs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: 'active',
-      limit: 1,
-    });
+    try {
+      const subs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'active',
+        limit: 1,
+      });
 
-    if (subs.data.length > 0) {
-      const activeSub = subs.data[0] as any;
-      tier = 'pro';
-      synced = true;
-      if (activeSub.current_period_end) {
-        periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+      if (subs.data.length > 0) {
+        const activeSub = subs.data[0] as any;
+        tier = 'pro';
+        synced = true;
+        if (activeSub.current_period_end) {
+          periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+        }
+        console.log(`[Sync] Found active subscription, periodEnd=${periodEnd}`);
       }
-      console.log(`[Sync] Found active subscription, periodEnd=${periodEnd}`);
+    } catch (err: any) {
+      if (isInvalidCustomer(err)) {
+        console.warn(`[Sync] Invalid customer ${customerId} during subscription check: ${err.message}`);
+        // Clear it so next call uses email search
+        await supabase
+          .from('subscriptions')
+          .update({ stripe_customer_id: null, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+        return res.json({ tier: 'free', synced: false, userId });
+      }
+      throw err;
     }
 
     // 5. If no active subscription, check for completed one-time payment sessions

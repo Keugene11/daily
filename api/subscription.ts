@@ -12,6 +12,12 @@ const ALL_FEATURES = ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'date
 
 const FREE_PLAN_LIMIT = 3; // plans per month
 
+/** Check if a Stripe error means the customer ID is invalid (test mode, deleted, etc.) */
+function isInvalidCustomer(err: any): boolean {
+  const msg = err?.message || '';
+  return msg.includes('No such customer') || err?.code === 'resource_missing';
+}
+
 /** Sum plan_count from usage table for the current calendar month */
 async function getMonthlyUsage(userId: string): Promise<number> {
   const monthStart = new Date().toISOString().slice(0, 7) + '-01';
@@ -21,6 +27,22 @@ async function getMonthlyUsage(userId: string): Promise<number> {
     .eq('user_id', userId)
     .gte('date', monthStart);
   return (rows || []).reduce((sum: number, row: any) => sum + (row.plan_count ?? 0), 0);
+}
+
+/** Clear a stale/invalid customer ID from the DB and reset plan to free */
+async function clearStaleCustomer(userId: string, steps: string[]) {
+  steps.push('Clearing stale/test-mode customer ID from DB');
+  console.log(`[Subscription] Clearing stale customer ID for user ${userId}`);
+  await supabase
+    .from('subscriptions')
+    .update({
+      stripe_customer_id: null,
+      plan_type: 'free',
+      status: 'active',
+      current_period_end: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
 }
 
 /**
@@ -87,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     steps.push(`DB row: ${JSON.stringify(subRow)}, dbError: ${dbError?.message || 'none'}`);
     console.log(`[Subscription] DB row: ${JSON.stringify(subRow)}`);
 
-    // If DB already says pro and period is valid, return early (with interval from Stripe)
+    // If DB already says pro and period is valid, try to return early (with interval from Stripe)
     if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
         subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
       steps.push('DB says pro — getting interval from Stripe');
@@ -104,25 +126,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (recurringInterval === 'year') interval = 'yearly';
             else if (recurringInterval === 'month') interval = 'monthly';
           }
-        } catch { /* interval stays null */ }
+          // Stripe call succeeded — return pro
+          steps.push(`Returning pro, interval=${interval}`);
+          console.log(`[Subscription] DB says pro, interval=${interval}, returning`);
+          const proResponse = {
+            tier: 'pro' as const,
+            interval,
+            period: 'month' as const,
+            limits: { plans: -1 },
+            usage: { plans: 0 },
+            features: ALL_FEATURES,
+          };
+          if (debug) return res.json({ ...proResponse, _debug: steps });
+          return res.json(proResponse);
+        } catch (stripeErr: any) {
+          if (isInvalidCustomer(stripeErr)) {
+            // Customer ID is stale (test mode, deleted, etc.) — clear it and fall through
+            // to re-check from scratch via email search
+            steps.push(`Stale customer ID: ${stripeErr.message}`);
+            console.warn(`[Subscription] Stale customer ID ${subRow.stripe_customer_id}: ${stripeErr.message}`);
+            await clearStaleCustomer(userId, steps);
+            // DON'T return early — fall through to email-based lookup below
+          } else {
+            // Some other Stripe error — still return pro from DB (just without interval)
+            steps.push(`Stripe error (non-fatal): ${stripeErr.message}`);
+            const proResponse = {
+              tier: 'pro' as const,
+              interval: null,
+              period: 'month' as const,
+              limits: { plans: -1 },
+              usage: { plans: 0 },
+              features: ALL_FEATURES,
+            };
+            if (debug) return res.json({ ...proResponse, _debug: steps });
+            return res.json(proResponse);
+          }
+        }
+      } else {
+        // No customer ID in DB but DB says pro — return pro without interval
+        steps.push('Returning pro (no customer ID for interval)');
+        const proResponse = {
+          tier: 'pro' as const,
+          interval: null,
+          period: 'month' as const,
+          limits: { plans: -1 },
+          usage: { plans: 0 },
+          features: ALL_FEATURES,
+        };
+        if (debug) return res.json({ ...proResponse, _debug: steps });
+        return res.json(proResponse);
       }
-      steps.push(`Returning pro, interval=${interval}`);
-      console.log(`[Subscription] DB says pro, interval=${interval}, returning`);
-      const proResponse = {
-        tier: 'pro' as const,
-        interval,
-        period: 'month' as const,
-        limits: { plans: -1 },
-        usage: { plans: 0 },
-        features: ALL_FEATURES,
-      };
-      if (debug) return res.json({ ...proResponse, _debug: steps });
-      return res.json(proResponse);
     }
 
     // 2. Find Stripe customer (from DB or by email search)
+    // Skip the DB customer ID if we just cleared it above
     let customerId = subRow?.stripe_customer_id || null;
-    steps.push(`Customer ID from DB: ${customerId || 'none'}`);
+
+    // Re-read DB in case clearStaleCustomer nulled it
+    if (customerId) {
+      const { data: freshRow } = await supabase
+        .from('subscriptions')
+        .select('stripe_customer_id')
+        .eq('user_id', userId)
+        .single();
+      customerId = freshRow?.stripe_customer_id || null;
+    }
+
+    steps.push(`Customer ID: ${customerId || 'none'}`);
 
     if (!customerId && userEmail) {
       steps.push(`Searching Stripe by email: ${userEmail}`);
@@ -161,52 +231,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let periodEnd: string | null = null;
     let interval: 'monthly' | 'yearly' | null = null;
 
-    const subs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: 'active',
-      limit: 1,
-    });
-    steps.push(`Active subscriptions: ${subs.data.length}`);
+    try {
+      const subs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'active',
+        limit: 1,
+      });
+      steps.push(`Active subscriptions: ${subs.data.length}`);
 
-    if (subs.data.length > 0) {
-      const activeSub = subs.data[0] as any;
-      tier = 'pro';
-      if (activeSub.current_period_end) {
-        periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+      if (subs.data.length > 0) {
+        const activeSub = subs.data[0] as any;
+        tier = 'pro';
+        if (activeSub.current_period_end) {
+          periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+        }
+        // Determine billing interval from Stripe price
+        const recurringInterval = activeSub.items?.data?.[0]?.price?.recurring?.interval;
+        if (recurringInterval === 'year') interval = 'yearly';
+        else if (recurringInterval === 'month') interval = 'monthly';
+        steps.push(`Subscription found! periodEnd=${periodEnd}, interval=${interval}`);
+        console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}, interval=${interval}`);
       }
-      // Determine billing interval from Stripe price
-      const recurringInterval = activeSub.items?.data?.[0]?.price?.recurring?.interval;
-      if (recurringInterval === 'year') interval = 'yearly';
-      else if (recurringInterval === 'month') interval = 'monthly';
-      steps.push(`Subscription found! periodEnd=${periodEnd}, interval=${interval}`);
-      console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}, interval=${interval}`);
+    } catch (stripeErr: any) {
+      if (isInvalidCustomer(stripeErr)) {
+        steps.push(`Invalid customer during subscription check: ${stripeErr.message}`);
+        console.warn(`[Subscription] Invalid customer ${customerId}: ${stripeErr.message}`);
+        await clearStaleCustomer(userId, steps);
+        // Customer was invalid — no subscription exists
+      } else {
+        throw stripeErr; // re-throw unexpected errors
+      }
     }
 
     // 4. If no subscription, check for one-time payments
-    if (tier === 'free') {
+    if (tier === 'free' && customerId) {
       steps.push('No active subscription, checking checkout sessions...');
       console.log(`[Subscription] Checking for one-time payment sessions...`);
-      const sessions = await stripe.checkout.sessions.list({
-        customer: customerId,
-        status: 'complete',
-        limit: 10,
-      });
-      steps.push(`Checkout sessions: ${sessions.data.length}`);
+      try {
+        const sessions = await stripe.checkout.sessions.list({
+          customer: customerId,
+          status: 'complete',
+          limit: 10,
+        });
+        steps.push(`Checkout sessions: ${sessions.data.length}`);
 
-      for (const session of sessions.data) {
-        steps.push(`Session ${session.id}: mode=${session.mode}, payment_status=${session.payment_status}`);
-        if (session.mode === 'payment' && session.payment_status === 'paid') {
-          const paidAt = new Date((session.created || 0) * 1000);
-          const expiresAt = new Date(paidAt);
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        for (const session of sessions.data) {
+          steps.push(`Session ${session.id}: mode=${session.mode}, payment_status=${session.payment_status}`);
+          if (session.mode === 'payment' && session.payment_status === 'paid') {
+            const paidAt = new Date((session.created || 0) * 1000);
+            const expiresAt = new Date(paidAt);
+            expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
-          if (expiresAt > new Date()) {
-            tier = 'pro';
-            periodEnd = expiresAt.toISOString();
-            steps.push(`One-time payment found! expires=${periodEnd}`);
-            console.log(`[Subscription] Found one-time payment, expires ${periodEnd}`);
-            break;
+            if (expiresAt > new Date()) {
+              tier = 'pro';
+              periodEnd = expiresAt.toISOString();
+              steps.push(`One-time payment found! expires=${periodEnd}`);
+              console.log(`[Subscription] Found one-time payment, expires ${periodEnd}`);
+              break;
+            }
           }
+        }
+      } catch (stripeErr: any) {
+        if (isInvalidCustomer(stripeErr)) {
+          steps.push(`Invalid customer during checkout check: ${stripeErr.message}`);
+        } else {
+          throw stripeErr;
         }
       }
     }

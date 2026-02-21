@@ -71,7 +71,22 @@ export async function checkSubscription(req: SubscriptionRequest, _res: Response
           console.log(`[Sub] No active Stripe subscriptions found`);
         }
       } catch (syncErr: any) {
-        console.warn('[Sub] Stripe sync failed:', syncErr?.message || syncErr);
+        const msg = syncErr?.message || '';
+        if (msg.includes('No such customer') || syncErr?.code === 'resource_missing') {
+          // Stale customer ID (test mode, deleted, etc.) — clear it
+          console.warn(`[Sub] Stale customer ID ${data.stripe_customer_id}: ${msg}`);
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({
+              stripe_customer_id: null,
+              plan_type: 'free',
+              current_period_end: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', req.userId);
+        } else {
+          console.warn('[Sub] Stripe sync failed:', msg);
+        }
       }
     }
 
