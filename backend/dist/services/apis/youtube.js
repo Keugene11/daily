@@ -125,8 +125,8 @@ function scoreCandidate(c, position, poolSize, query) {
         score += relevance * 20; // up to 20 points for full match — must beat views
     }
     // ── View count (dominant quality signal) ──────────────────────
-    // Popular videos are almost always better for travel content.
-    // View count is the strongest signal after relevance filtering.
+    // Popular videos are almost always better. Low-view videos from
+    // tiny channels should NEVER win — penalties must be uncatchable.
     if (c.views >= 10_000_000) {
         score += 25; // 10M+ — viral, top-tier
     }
@@ -143,16 +143,13 @@ function scoreCandidate(c, position, poolSize, query) {
         score += 8; // 100K+ — decent
     }
     else if (c.views >= 50_000) {
-        score += 3; // 50K+ — marginal
+        score += 2; // 50K+ — marginal
     }
     else if (c.views >= 10_000) {
-        score -= 3; // under 50K: penalize
-    }
-    else if (c.views >= 1_000) {
-        score -= 8; // under 10K: heavy penalty
+        score -= 10; // under 50K: serious penalty
     }
     else {
-        score -= 15; // under 1K: near-disqualifying
+        score -= 50; // under 10K: disqualifying
     }
     // ── Channel quality signals ───────────────────────────────────
     const channelLower = c.channel.toLowerCase();
@@ -280,10 +277,16 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
         }
         if (candidates.length === 0)
             return [];
-        // Filter: skip Shorts (<45s) and full-length movies/docs (>45min)
-        const filtered = candidates.filter(c => c.durationSec === 0 ||
-            (c.durationSec >= 45 && c.durationSec <= 2700));
-        const pool = filtered.length > 0 ? filtered : candidates;
+        // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
+        // and any video under 10K views (no tiny channels with 100 subs)
+        const filtered = candidates.filter(c => (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)) &&
+            c.views >= 10_000);
+        // If all candidates are under 10K views, relax to 1K minimum
+        const pool = filtered.length > 0
+            ? filtered
+            : candidates.filter(c => c.views >= 1_000 && (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)));
+        if (pool.length === 0)
+            return [];
         // Score and rank
         const scored = pool.map((c, i) => ({
             ...c,
