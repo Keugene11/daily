@@ -12,8 +12,8 @@ interface TierConfig {
 
 export const TIERS: Record<TierName, TierConfig> = {
   free: {
-    planLimit: 1,
-    period: 'week',
+    planLimit: 3,
+    period: 'month',
     features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
   },
   pro: {

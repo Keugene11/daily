@@ -103,8 +103,8 @@ app.get('/api/privacy', (_req, res) => {
 // Stripe routes (checkout, portal, subscription status)
 app.use('/api', requireAuth, checkSubscription, stripeRouter);
 
-// API routes (usage checks disabled for testing)
-app.use('/api', requireAuth, planRouter);
+// API routes (auth → subscription tier → usage limit → plan generation)
+app.use('/api', requireAuth, checkSubscription, checkUsage('plan'), planRouter);
 
 // 404 handler
 app.use((_req, res) => {

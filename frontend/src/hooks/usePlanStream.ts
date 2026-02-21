@@ -52,6 +52,9 @@ export const usePlanStream = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403 && errorData.error === 'limit_reached') {
+          throw new Error('limit_reached');
+        }
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 

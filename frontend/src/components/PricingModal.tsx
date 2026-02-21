@@ -14,7 +14,7 @@ interface Props {
 }
 
 const freeFeatures = [
-  '1 plan per week',
+  '3 plans per month',
   'Multi-day trip planning',
   'Real-time weather & events',
   'Restaurant recommendations',

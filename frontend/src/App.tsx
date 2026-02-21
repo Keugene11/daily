@@ -110,7 +110,7 @@ function App() {
     localStorage.setItem('daily_prefs', JSON.stringify({ city, budget }));
   }, [city, budget]);
 
-  // Auto-save plan to history when generation completes
+  // Auto-save plan to history when generation completes + refresh subscription usage
   useEffect(() => {
     if (!state.isStreaming && state.content && city && !planSavedRef.current) {
       planSavedRef.current = true;
@@ -124,6 +124,8 @@ function App() {
         days: tripDays > 1 ? tripDays : undefined,
       };
       savePlan(newPlan);
+      // Refresh subscription so usage count reflects the plan we just generated
+      subscription.refresh();
     }
     if (state.isStreaming) {
       planSavedRef.current = false;
@@ -135,6 +137,10 @@ function App() {
   };
 
   const handleSelectPlan = (plan: SavedPlan) => {
+    if (subscription.isLimitReached('plan')) {
+      setShowPricing(true);
+      return;
+    }
     setCity(plan.city);
     setBudget(plan.budget);
     setTripDays(plan.days || 1);
@@ -170,6 +176,10 @@ function App() {
       signInWithGoogle();
       return;
     }
+    if (subscription.isLimitReached('plan')) {
+      setShowPricing(true);
+      return;
+    }
     savePrefs();
     startStream(city, budget, buildExtras(), getAccessToken);
   };
@@ -189,6 +199,10 @@ function App() {
   const handleReplan = () => {
     speechSynthesis.cancel();
     setIsSpeaking(false);
+    if (subscription.isLimitReached('plan')) {
+      setShowPricing(true);
+      return;
+    }
     if (city.trim()) {
       startStream(city, budget, buildExtras(), getAccessToken);
     }
@@ -440,6 +454,10 @@ function App() {
                   signInWithGoogle();
                   return;
                 }
+                if (subscription.isLimitReached('plan')) {
+                  setShowPricing(true);
+                  return;
+                }
                 setRightNow(true);
                 setTripDays(1);
                 savePrefs();
@@ -488,7 +506,7 @@ function App() {
           )}
 
           {/* Error */}
-          {state.error && (
+          {state.error && state.error !== 'limit_reached' && (
             <div className="border border-red-500/30 rounded-lg p-6 mb-10 animate-fadeIn">
               <p className="text-red-500 text-sm font-medium mb-1">Something went wrong</p>
               <p className="text-on-surface/60 text-sm">{state.error}</p>
@@ -498,6 +516,28 @@ function App() {
               >
                 Try Again
               </button>
+            </div>
+          )}
+
+          {/* Usage limit reached */}
+          {state.error === 'limit_reached' && (
+            <div className="border border-accent/30 rounded-lg p-6 mb-10 animate-fadeIn text-center">
+              <p className="text-on-surface text-sm font-medium mb-1">You've used all 3 free plans this month</p>
+              <p className="text-on-surface/50 text-sm mb-4">Upgrade to Pro for unlimited plans.</p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="px-6 py-2.5 text-sm bg-accent text-on-accent rounded-full font-medium hover:bg-accent/90 transition-colors"
+                >
+                  View Plans
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="px-5 py-2.5 text-sm border border-on-surface/20 rounded-full text-on-surface/60 hover:bg-on-surface/5 transition-colors"
+                >
+                  Go Back
+                </button>
+              </div>
             </div>
           )}
 

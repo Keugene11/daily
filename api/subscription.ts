@@ -10,6 +10,19 @@ const supabase = createClient(
 
 const ALL_FEATURES = ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'];
 
+const FREE_PLAN_LIMIT = 3; // plans per month
+
+/** Sum plan_count from usage table for the current calendar month */
+async function getMonthlyUsage(userId: string): Promise<number> {
+  const monthStart = new Date().toISOString().slice(0, 7) + '-01';
+  const { data: rows } = await supabase
+    .from('usage')
+    .select('plan_count')
+    .eq('user_id', userId)
+    .gte('date', monthStart);
+  return (rows || []).reduce((sum: number, row: any) => sum + (row.plan_count ?? 0), 0);
+}
+
 /**
  * GET /api/subscription
  *
@@ -32,9 +45,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const freeTierResponse = {
     tier: 'free' as const,
-    period: 'day' as const,
-    limits: { plans: -1, explores: -1 },
-    usage: { plans: 0, explores: 0 },
+    period: 'month' as const,
+    limits: { plans: FREE_PLAN_LIMIT },
+    usage: { plans: 0 },
     features: ALL_FEATURES,
   };
 
@@ -80,8 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const proResponse = {
         tier: 'pro' as const,
         period: 'month' as const,
-        limits: { plans: -1, explores: -1 },
-        usage: { plans: 0, explores: 0 },
+        limits: { plans: -1 },
+        usage: { plans: 0 },
         features: ALL_FEATURES,
       };
       if (debug) return res.json({ ...proResponse, _debug: steps });
@@ -118,8 +131,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!customerId) {
       steps.push('No Stripe customer found — returning free');
       console.log(`[Subscription] No Stripe customer found, returning free`);
-      if (debug) return res.json({ ...freeTierResponse, _debug: steps });
-      return res.json(freeTierResponse);
+      const used = await getMonthlyUsage(userId);
+      const freeWithUsage = { ...freeTierResponse, usage: { plans: used } };
+      if (debug) return res.json({ ...freeWithUsage, _debug: steps });
+      return res.json(freeWithUsage);
     }
 
     // 3. Check Stripe for active subscriptions (recurring plans)
@@ -190,11 +205,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     steps.push(`Final tier=${tier}`);
     console.log(`[Subscription] Final tier=${tier}`);
+    const used = tier === 'free' ? await getMonthlyUsage(userId) : 0;
     const response = {
       tier,
-      period: tier === 'pro' ? 'month' : 'day',
-      limits: { plans: -1, explores: -1 },
-      usage: { plans: 0, explores: 0 },
+      period: 'month' as const,
+      limits: { plans: tier === 'pro' ? -1 : FREE_PLAN_LIMIT },
+      usage: { plans: used },
       features: ALL_FEATURES,
     };
     if (debug) return res.json({ ...response, _debug: steps });
