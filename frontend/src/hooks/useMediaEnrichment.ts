@@ -13,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 1 * 24 * 60 * 60 * 1000; // 1 day
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 10;
+const MEDIA_CACHE_VERSION = 11;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -200,8 +200,12 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
           videoId: videoId || undefined,
         };
 
-        // Cache result for next time
-        cacheMedia(place, searchCity, media);
+        // Only cache successful results — failed lookups (YouTube blocked,
+        // timeout, no match) should retry next time instead of being stuck
+        // with no thumbnail for the full cache TTL.
+        if (media.videoId) {
+          cacheMedia(place, searchCity, media);
+        }
 
         setData(prev => {
           const next = new Map(prev);
