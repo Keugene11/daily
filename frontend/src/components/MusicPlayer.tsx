@@ -27,7 +27,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 async function resolveYouTubeId(artist: string, title: string): Promise<string | null> {
   try {
     const q = encodeURIComponent(`${artist} - ${title} audio`);
-    const res = await fetch(`${API_URL}/api/youtube-search?q=${q}`);
+    const res = await fetch(`${API_URL}/api/youtube-search?q=${q}&type=music`);
     if (!res.ok) return null;
     const data = await res.json();
     return data.videoId || null;

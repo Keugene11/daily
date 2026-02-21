@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { streamPlanGeneration } from '../services/dedalus';
-import { searchYouTubeVideo } from '../services/apis/youtube';
+import { searchYouTubeVideo, searchYouTubeMusic } from '../services/apis/youtube';
 import { SubscriptionRequest } from '../middleware/subscription';
 
 const router = Router();
@@ -129,7 +129,10 @@ router.get('/youtube-search', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await searchYouTubeVideo(q);
+    const type = req.query.type as string;
+    const result = type === 'music'
+      ? await searchYouTubeMusic(q)
+      : await searchYouTubeVideo(q);
     res.json(result || { videoId: null, title: null });
   } catch (error) {
     console.error('[YouTube Search] Error:', error);

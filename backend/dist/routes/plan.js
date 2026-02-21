@@ -114,7 +114,10 @@ router.get('/youtube-search', async (req, res) => {
         return res.status(400).json({ error: 'Query parameter "q" is required' });
     }
     try {
-        const result = await (0, youtube_1.searchYouTubeVideo)(q);
+        const type = req.query.type;
+        const result = type === 'music'
+            ? await (0, youtube_1.searchYouTubeMusic)(q)
+            : await (0, youtube_1.searchYouTubeVideo)(q);
         res.json(result || { videoId: null, title: null });
     }
     catch (error) {

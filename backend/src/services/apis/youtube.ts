@@ -382,6 +382,60 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
   return [];
 }
 
+/** Music-specific search — finds the actual song, not travel content or tutorials */
+export async function searchYouTubeMusic(query: string): Promise<VideoResult | null> {
+  try {
+    // Search without any suffix — the query is already "Artist - Song audio"
+    const searchQuery = query;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+    const res = await fetchWithTimeout(url, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+    if (!res.ok) return null;
+
+    const html = await res.text();
+    const match = html.match(/var ytInitialData = (.+?);<\/script>/);
+    if (!match) return null;
+
+    const data = JSON.parse(match[1]);
+    const contents = data?.contents?.twoColumnSearchResultsRenderer
+      ?.primaryContents?.sectionListRenderer?.contents;
+    if (!contents) return null;
+
+    const items = contents[0]?.itemSectionRenderer?.contents || [];
+
+    // Reject covers, tutorials, karaoke, reaction videos
+    const MUSIC_REJECT = /\b(tutorial|lesson|how to play|piano cover|cover|karaoke|instrumental|minus one|backing track|drum cover|guitar cover|bass cover|reaction|react|reacts|live at|concert|remix|slowed|reverb|sped up|nightcore|8d audio|lofi|lo-fi|mashup|parody)\b/i;
+
+    for (const item of items) {
+      if (!item.videoRenderer) continue;
+      const vr = item.videoRenderer;
+      const videoId = vr.videoId;
+      const title = vr.title?.runs?.[0]?.text || '';
+      if (!videoId || !title) continue;
+
+      // Skip non-music content
+      if (MUSIC_REJECT.test(title)) continue;
+
+      // Duration: songs are 1.5-10 min
+      const durationSec = parseDuration(vr.lengthText?.simpleText || '');
+      if (durationSec > 0 && (durationSec < 90 || durationSec > 600)) continue;
+
+      // Basic view floor — 10K minimum
+      const viewText = vr.viewCountText?.simpleText || vr.viewCountText?.runs?.[0]?.text || '';
+      const views = parseViewCount(viewText);
+      if (views < 10_000) continue;
+
+      // Check embeddability
+      if (await isEmbeddable(videoId)) {
+        return { videoId, title };
+      }
+    }
+  } catch { /* search failed */ }
+  return null;
+}
+
 /** Single best travel-biased video (used by itinerary planner) */
 export async function searchYouTubeVideo(query: string): Promise<VideoResult | null> {
   // Fetch a few candidates so we can skip non-embeddable ones
