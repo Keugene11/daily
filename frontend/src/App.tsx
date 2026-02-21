@@ -420,57 +420,77 @@ function App() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={handlePlanClick}
-                disabled={state.isStreaming || !city.trim()}
-                className="flex-1 py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {state.isStreaming ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Planning...
-                  </span>
-                ) : tripDays > 1 ? (
-                  `Plan My ${tripDays}-Day Trip`
-                ) : (
-                  'Plan My Day'
+            {subscription.isLimitReached('plan') ? (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="w-full py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all"
+                >
+                  Upgrade to Pro for Unlimited Plans
+                </button>
+                <p className="text-xs text-red-400 text-center">You've used all 3 free plans this month</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handlePlanClick}
+                    disabled={state.isStreaming || !city.trim()}
+                    className="flex-1 py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {state.isStreaming ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Planning...
+                      </span>
+                    ) : tripDays > 1 ? (
+                      `Plan My ${tripDays}-Day Trip`
+                    ) : (
+                      'Plan My Day'
+                    )}
+                  </button>
+                </div>
+
+                {/* Right Now mode */}
+                <button
+                  onClick={() => {
+                    if (!city.trim()) return;
+                    if (!session) {
+                      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
+                        city, budget, mood, rightNow: true, tripDays: 1,
+                      }));
+                      signInWithGoogle();
+                      return;
+                    }
+                    if (subscription.isLimitReached('plan')) {
+                      setShowPricing(true);
+                      return;
+                    }
+                    setRightNow(true);
+                    setTripDays(1);
+                    savePrefs();
+                    startStream(city, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
+                  }}
+                  disabled={state.isStreaming || !city.trim() || tripDays > 1}
+                  className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  What's happening right now?
+                </button>
+
+                {/* Remaining plans counter */}
+                {session && subscription.data && subscription.data.limits.plans > 0 && (
+                  <p className="text-xs text-on-surface/30 text-center">
+                    {subscription.data.limits.plans - subscription.data.usage.plans} of {subscription.data.limits.plans} free plans remaining this month
+                  </p>
                 )}
-              </button>
-
-            </div>
-
-            {/* Right Now mode */}
-            <button
-              onClick={() => {
-                if (!city.trim()) return;
-                if (!session) {
-                  sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-                    city, budget, mood, rightNow: true, tripDays: 1,
-                  }));
-                  signInWithGoogle();
-                  return;
-                }
-                if (subscription.isLimitReached('plan')) {
-                  setShowPricing(true);
-                  return;
-                }
-                setRightNow(true);
-                setTripDays(1);
-                savePrefs();
-                startStream(city, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
-              }}
-              disabled={state.isStreaming || !city.trim() || tripDays > 1}
-              className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              What's happening right now?
-            </button>
+              </>
+            )}
           </div>
 
         </div>
