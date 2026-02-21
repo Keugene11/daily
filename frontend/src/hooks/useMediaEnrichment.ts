@@ -13,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 1 * 24 * 60 * 60 * 1000; // 1 day
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 8;
+const MEDIA_CACHE_VERSION = 9;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -174,6 +174,9 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
   // Resolved state/region for geographic disambiguation in YouTube queries
   // e.g., "New York" for Ardsley — prevents returning Savannah, GA results
   const regionRef = useRef<string>('');
+  // Resolved city name from Nominatim — when the user types a non-city name
+  // (e.g., "Cornell" → resolvedCity is "Ithaca"), use the real city for searches
+  const resolvedCityRef = useRef<string>('');
 
   // Reset everything when the city changes (new plan)
   useEffect(() => {
@@ -181,6 +184,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       prevCityRef.current = city;
       fetchedRef.current.clear();
       regionRef.current = '';
+      resolvedCityRef.current = '';
       setData(new Map());
     }
   }, [city]);
@@ -193,6 +197,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     if (!city) return;
     geocodeCity(city).then(result => {
       if (result?.state) regionRef.current = result.state;
+      if (result?.resolvedCity) resolvedCityRef.current = result.resolvedCity;
     });
   }, [city]);
 
@@ -204,10 +209,13 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     // During streaming this means we batch up new text rather than
     // running extraction on every single token.
     const timer = setTimeout(async () => {
+      // Use the resolved city name for searches — e.g., "Cornell" → "Ithaca"
+      // so Wikipedia/YouTube return results for the actual city, not the university
+      const searchCity = resolvedCityRef.current || city;
       const extracted = extractPlaces(content, city, maxPlaces);
-      // Always include the city itself as the first "place" so we get a general
-      // city overview/travel guide video (e.g., "Best things to do in NYC")
-      const places = [city, ...extracted.filter(p => p.toLowerCase() !== city.toLowerCase())];
+      // Always include the search city as the first "place" so we get a general
+      // city overview/travel guide video (e.g., "Best things to do in Ithaca")
+      const places = [searchCity, ...extracted.filter(p => p.toLowerCase() !== city.toLowerCase() && p.toLowerCase() !== searchCity.toLowerCase())];
       const newPlaces = places.filter(p => !fetchedRef.current.has(p));
 
       if (newPlaces.length === 0) return;
@@ -221,7 +229,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       // Separate cached (instant) from uncached (needs API) places
       const uncached: string[] = [];
       for (const place of newPlaces) {
-        const cached = getCachedMedia(place, city);
+        const cached = getCachedMedia(place, searchCity);
         if (cached) {
           // Instant — set from cache without any network call
           setData(prev => {
@@ -239,14 +247,14 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
         await new Promise(r => setTimeout(r, i * 50));
 
         const [wikiImage, videoId] = await Promise.all([
-          fetchWikipediaImage(place, city),
-          fetchYouTubeVideoId(place, city, regionRef.current, token),
+          fetchWikipediaImage(place, searchCity),
+          fetchYouTubeVideoId(place, searchCity, regionRef.current, token),
         ]);
 
         // Image fallback chain: Wikipedia → Wikimedia Commons → YouTube thumbnail
         let finalImage = wikiImage;
         if (!finalImage) {
-          finalImage = await fetchCommonsImage(place, city);
+          finalImage = await fetchCommonsImage(place, searchCity);
         }
         if (!finalImage && videoId) {
           finalImage = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
@@ -258,7 +266,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
         };
 
         // Cache result for next time
-        cacheMedia(place, city, media);
+        cacheMedia(place, searchCity, media);
 
         setData(prev => {
           const next = new Map(prev);
