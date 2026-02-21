@@ -21,7 +21,6 @@ interface UseSubscriptionReturn {
   tier: TierName;
   interval: BillingInterval;
   features: Set<string>;
-  debugInfo: string | null;
   hasFeature: (feature: string) => boolean;
   isLimitReached: (type: 'plan') => boolean;
   refresh: () => Promise<void>;
@@ -33,8 +32,6 @@ interface UseSubscriptionReturn {
 export function useSubscription(getAccessToken: () => Promise<string | null>): UseSubscriptionReturn {
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
-
   // Sync subscription with Stripe via standalone endpoint (bypasses Express app cache)
   const syncSubscription = useCallback(async () => {
     try {
@@ -73,22 +70,16 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       // First sync with Stripe (fixes stale DB), then fetch full subscription data
       await syncSubscription();
 
-      const res = await fetch(`${API_URL}/api/subscription?debug=1`, {
+      const res = await fetch(`${API_URL}/api/subscription`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
         const result = await res.json();
-        console.log('[Subscription] Fetched:', result.tier, result);
-        if (result._debug) {
-          console.log('[Subscription] Debug steps:', result._debug);
-          setDebugInfo(JSON.stringify(result._debug, null, 2));
-        }
         setData(result);
       } else {
         const text = await res.text();
         console.error('[Subscription] Fetch failed:', res.status, text);
-        setDebugInfo(`Fetch failed: ${res.status} ${text}`);
       }
     } catch (err) {
       console.error('[Subscription] Fetch error:', err);
@@ -224,6 +215,5 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     createCheckout,
     openPortal,
     deleteAccount,
-    debugInfo,
   };
 }

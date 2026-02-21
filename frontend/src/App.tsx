@@ -272,7 +272,6 @@ function App() {
           planCount={savedPlans.length}
           tier={subscription.tier}
           loading={subscription.loading}
-          debugInfo={subscription.debugInfo}
           onClose={() => navigate('/')}
           onSignOut={signOut}
           onManage={subscription.openPortal}
