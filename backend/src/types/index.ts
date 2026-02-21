@@ -4,6 +4,7 @@ export interface ToolResult<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  note?: string;
 }
 
 export interface WeatherData {

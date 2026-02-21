@@ -154,9 +154,9 @@ function scoreCandidate(
     // No points if the primary place name isn't in the title at all
   }
 
-  // ── View count (dominant quality signal) ──────────────────────
-  // Popular videos are almost always better. Low-view videos from
-  // tiny channels should NEVER win — penalties must be uncatchable.
+  // ── View count (quality signal) ─────────────────────────────
+  // Popular videos are generally better, but good niche content
+  // (50K-500K views) is common for smaller destinations.
   if (c.views >= 10_000_000) {
     score += 25;                       // 10M+ — viral, top-tier
   } else if (c.views >= 5_000_000) {
@@ -164,7 +164,11 @@ function scoreCandidate(
   } else if (c.views >= 1_000_000) {
     score += 14;                       // 1M+ — very popular
   } else if (c.views >= 500_000) {
-    score += 8;                        // 500K+ — minimum quality bar
+    score += 8;                        // 500K+ — solid
+  } else if (c.views >= 100_000) {
+    score += 4;                        // 100K+ — decent niche content
+  } else if (c.views >= 50_000) {
+    score += 1;                        // 50K+ — minimum quality bar
   }
 
   // ── Channel quality signals ───────────────────────────────────
@@ -336,11 +340,10 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
 
     // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
     // videos under 50K views, and videos older than 8 years.
-    // If age is unknown (null), require 100K+ views as a quality safeguard.
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
       if (c.ageYears !== null && c.ageYears >= 8) return false;
-      if (c.views < 500_000) return false;
+      if (c.views < 50_000) return false;
       return true;
     });
 

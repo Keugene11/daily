@@ -140,7 +140,9 @@ export const accommodationService = {
   async getAccommodations(city: string, budget?: string, type?: string): Promise<ToolResult<Accommodation[]>> {
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    let accommodations = [...matchCity(city)];
+    const resolved = resolveLocation(city, Object.keys(CITY_ACCOMMODATIONS));
+    const isDefault = !resolved;
+    let accommodations = [...(resolved ? CITY_ACCOMMODATIONS[resolved] : DEFAULT_ACCOMMODATIONS)];
 
     // Filter by budget
     if (budget) {
@@ -169,7 +171,8 @@ export const accommodationService = {
 
     return {
       success: true,
-      data: withUrls.slice(0, 4)
+      data: withUrls.slice(0, 4),
+      ...(isDefault && { note: `No curated data for "${city}" — these are generic placeholders. REPLACE every entry with real hotels/hostels/apartments you know in or near ${city}.` })
     };
   }
 };
