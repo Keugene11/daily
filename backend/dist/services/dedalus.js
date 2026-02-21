@@ -208,7 +208,7 @@ ${timeSections}
 - Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
 ## Soundtrack
-[Include the playlist name and EXACTLY 5 tracks as markdown links: [Track Title - Artist](spotifyUrl). Use ONLY the spotifyUrl field from the tool data — NEVER use YouTube URLs or any other URL. Do NOT add extra songs beyond the 5 returned by the playlist tool. Include the playlistUrl as an "Open in Spotify" link.]
+[REQUIRED — copy-paste the pre-formatted "markdownLink" field for each track directly from the tool data. Do NOT create your own links, do NOT use YouTube URLs, do NOT add extra songs beyond what the tool returned. Include the playlistUrl as an "Open in Spotify" link.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").

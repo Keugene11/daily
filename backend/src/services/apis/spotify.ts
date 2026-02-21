@@ -5,6 +5,7 @@ interface Track {
   title: string;
   artist: string;
   spotifyUrl: string;
+  markdownLink: string;
   previewUrl: string;
   reason?: string;
 }
@@ -34,10 +35,12 @@ function trackUrl(artist: string, title: string): string {
 }
 
 function track(title: string, artist: string): Track {
+  const url = trackUrl(artist, title);
   return {
     title,
     artist,
-    spotifyUrl: trackUrl(artist, title),
+    spotifyUrl: url,
+    markdownLink: `[${title} - ${artist}](${url})`,
     previewUrl: ''
   };
 }

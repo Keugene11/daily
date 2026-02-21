@@ -20,10 +20,12 @@ function trackUrl(artist, title) {
     return `https://open.spotify.com/search/${query}`;
 }
 function track(title, artist) {
+    const url = trackUrl(artist, title);
     return {
         title,
         artist,
-        spotifyUrl: trackUrl(artist, title),
+        spotifyUrl: url,
+        markdownLink: `[${title} - ${artist}](${url})`,
         previewUrl: ''
     };
 }
