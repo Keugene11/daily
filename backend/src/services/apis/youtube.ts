@@ -158,7 +158,9 @@ function scoreCandidate(
   } else if (c.views >= 5_000_000) {
     score += 20;                       // 5M+ — extremely popular
   } else if (c.views >= 1_000_000) {
-    score += 12;                       // 1M+ — minimum quality bar
+    score += 14;                       // 1M+ — very popular
+  } else if (c.views >= 500_000) {
+    score += 8;                        // 500K+ — minimum quality bar
   }
 
   // ── Channel quality signals ───────────────────────────────────
@@ -334,7 +336,7 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
       if (c.ageYears !== null && c.ageYears >= 8) return false;
-      if (c.views < 1_000_000) return false;
+      if (c.views < 500_000) return false;
       return true;
     });
 
