@@ -7,10 +7,9 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
   const soundtrackIdx = content.search(/##\s*Soundtrack/i);
   const mainContent = soundtrackIdx > -1 ? content.slice(0, soundtrackIdx) : content;
 
-  // Split out "Where to Stay" section so we can guarantee accommodation places are included
+  // Strip "Where to Stay" section — hotels don't need video thumbnails
   const stayIdx = mainContent.search(/##\s*Where to Stay/i);
   const itineraryContent = stayIdx > -1 ? mainContent.slice(0, stayIdx) : mainContent;
-  const stayContent = stayIdx > -1 ? mainContent.slice(stayIdx) : '';
 
   const cityLower = city.toLowerCase();
 
@@ -81,19 +80,5 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
       .filter(p => !p.match(/\d+°/));
   }
 
-  // Extract accommodation places separately so they're never cut off by the limit
-  const stayPlaces = filterNames(extractFromText(stayContent));
-  const itineraryPlaces = filterNames(extractFromText(itineraryContent));
-
-  // Reserve up to 4 slots for accommodations, rest for itinerary places
-  const stayReserve = Math.min(stayPlaces.length, 4);
-  const itineraryLimit = maxResults - stayReserve;
-
-  // Merge: itinerary places first (capped), then accommodation places
-  const merged = itineraryPlaces.slice(0, itineraryLimit);
-  for (const p of stayPlaces) {
-    if (!merged.includes(p)) merged.push(p);
-  }
-
-  return merged.slice(0, maxResults + stayReserve);
+  return filterNames(extractFromText(itineraryContent)).slice(0, maxResults);
 }
