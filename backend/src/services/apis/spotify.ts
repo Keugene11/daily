@@ -1250,149 +1250,6 @@ function moodToVibes(mood?: string): string[] {
   return [];
 }
 
-// ── City alias matching ─────────────────────────────────────────────────
-
-const CITY_ALIASES: Record<string, string> = {
-  // City abbreviations & neighborhoods
-  'nyc': 'new york', 'ny': 'new york', 'manhattan': 'new york',
-  'brooklyn': 'new york', 'queens': 'new york', 'new york city': 'new york',
-  'la': 'los angeles', 'sf': 'san francisco', 'frisco': 'san francisco',
-  'nola': 'new orleans', 'cdmx': 'mexico city',
-  'río': 'rio de janeiro', 'rio': 'rio de janeiro', 'bombay': 'mumbai',
-  // Country → representative city (for playlist matching)
-  'spain': 'madrid', 'españa': 'madrid', 'seville': 'madrid', 'sevilla': 'madrid', 'malaga': 'madrid', 'valencia': 'madrid',
-  'france': 'paris', 'lyon': 'paris', 'marseille': 'paris', 'nice': 'paris',
-  'japan': 'tokyo', 'osaka': 'tokyo', 'kyoto': 'tokyo',
-  'south korea': 'seoul', 'korea': 'seoul', 'busan': 'seoul',
-  'germany': 'berlin', 'munich': 'berlin', 'hamburg': 'berlin', 'frankfurt': 'berlin',
-  'italy': 'rome', 'milan': 'rome', 'florence': 'rome', 'naples': 'rome', 'venice': 'rome',
-  'uk': 'london', 'england': 'london', 'britain': 'london', 'manchester': 'london', 'edinburgh': 'london',
-  'brazil': 'rio de janeiro', 'são paulo': 'rio de janeiro', 'sao paulo': 'rio de janeiro',
-  'mexico': 'mexico city', 'cancun': 'mexico city', 'guadalajara': 'mexico city',
-  'australia': 'sydney', 'melbourne': 'sydney', 'brisbane': 'sydney',
-  'egypt': 'cairo', 'alexandria': 'cairo',
-  'nigeria': 'lagos', 'accra': 'lagos', 'ghana': 'lagos',
-  'cuba': 'havana',
-  'india': 'mumbai', 'delhi': 'mumbai', 'new delhi': 'mumbai', 'bangalore': 'mumbai',
-  'thailand': 'bangkok', 'phuket': 'bangkok', 'chiang mai': 'bangkok',
-  'netherlands': 'amsterdam', 'holland': 'amsterdam', 'rotterdam': 'amsterdam',
-  'colombia': 'havana', 'bogota': 'havana', 'medellin': 'havana',
-  'usa': 'new york', 'united states': 'new york', 'america': 'new york',
-
-  // ── Expanded US city aliases ──
-  // Texas → austin
-  'houston': 'austin', 'dallas': 'austin', 'san antonio': 'austin',
-  'fort worth': 'austin', 'el paso': 'austin',
-  // SoCal → los angeles
-  'san diego': 'los angeles', 'long beach': 'los angeles', 'anaheim': 'los angeles',
-  'santa monica': 'los angeles', 'pasadena': 'los angeles', 'hollywood': 'los angeles',
-  // Southwest → los angeles
-  'phoenix': 'los angeles', 'tucson': 'los angeles', 'albuquerque': 'los angeles',
-  // NorCal → san francisco
-  'san jose': 'san francisco', 'sacramento': 'san francisco', 'oakland': 'san francisco',
-  'berkeley': 'san francisco', 'palo alto': 'san francisco',
-  // PNW → seattle
-  'portland': 'seattle', 'tacoma': 'seattle', 'anchorage': 'seattle',
-  // Mountain → seattle (closest indie/alternative vibe)
-  'denver': 'seattle', 'boulder': 'seattle', 'salt lake city': 'seattle', 'boise': 'seattle',
-  // Northeast → philadelphia
-  'washington dc': 'philadelphia', 'washington d.c.': 'philadelphia', 'dc': 'philadelphia',
-  'baltimore': 'philadelphia', 'pittsburgh': 'philadelphia',
-  'buffalo': 'new york', 'richmond': 'philadelphia',
-  // Boston-area universities & neighborhoods
-  'harvard': 'boston', 'cambridge': 'boston', 'mit': 'boston',
-  'somerville': 'boston', 'brookline': 'boston',
-  // Midwest → detroit or chicago
-  'cleveland': 'detroit', 'cincinnati': 'detroit', 'columbus': 'detroit',
-  'milwaukee': 'chicago', 'indianapolis': 'chicago', 'kansas city': 'chicago',
-  'st. louis': 'memphis', 'st louis': 'memphis',
-  // South → atlanta
-  'charlotte': 'atlanta', 'raleigh': 'atlanta', 'savannah': 'atlanta',
-  'charleston': 'atlanta', 'raleigh-durham': 'atlanta',
-  // Florida → miami
-  'jacksonville': 'miami', 'tampa': 'miami', 'orlando': 'miami',
-  'fort lauderdale': 'miami', 'west palm beach': 'miami', 'key west': 'miami',
-  // Kentucky/Tennessee → nashville
-  'louisville': 'nashville', 'knoxville': 'nashville', 'chattanooga': 'nashville',
-  // Las Vegas → los angeles
-  'las vegas': 'los angeles', 'vegas': 'los angeles', 'reno': 'los angeles',
-  // Hawaii
-  'hawaii': 'honolulu', 'maui': 'honolulu', 'waikiki': 'honolulu', 'oahu': 'honolulu',
-  // Minneapolis
-  'saint paul': 'minneapolis', 'st. paul': 'minneapolis', 'twin cities': 'minneapolis',
-  'madison': 'minneapolis',
-
-  // ── Expanded Canadian aliases ──
-  'montreal': 'toronto', 'vancouver': 'toronto', 'ottawa': 'toronto',
-  'calgary': 'toronto', 'winnipeg': 'toronto', 'quebec': 'toronto', 'canada': 'toronto',
-
-  // ── Expanded European aliases ──
-  // Ireland → dublin
-  'ireland': 'dublin', 'belfast': 'dublin', 'cork': 'dublin', 'galway': 'dublin',
-  // Move Edinburgh to Dublin (Celtic connection is stronger than London)
-  // Scandinavia → stockholm
-  'copenhagen': 'stockholm', 'oslo': 'stockholm', 'helsinki': 'stockholm',
-  'sweden': 'stockholm', 'denmark': 'stockholm', 'norway': 'stockholm',
-  'finland': 'stockholm', 'iceland': 'stockholm', 'reykjavik': 'stockholm',
-  // Central Europe → vienna
-  'prague': 'vienna', 'budapest': 'vienna', 'zurich': 'vienna',
-  'salzburg': 'vienna', 'austria': 'vienna', 'czech republic': 'vienna',
-  'hungary': 'vienna', 'switzerland': 'vienna', 'krakow': 'vienna', 'warsaw': 'vienna',
-  'geneva': 'paris',
-  // Belgium → amsterdam
-  'brussels': 'amsterdam', 'antwerp': 'amsterdam', 'belgium': 'amsterdam',
-  // Portugal → lisbon
-  'portugal': 'lisbon', 'porto': 'lisbon', 'faro': 'lisbon',
-  // Greece → rome (Mediterranean connection)
-  'athens': 'rome', 'greece': 'rome', 'santorini': 'rome', 'mykonos': 'rome',
-  // Turkey → istanbul
-  'turkey': 'istanbul', 'ankara': 'istanbul', 'izmir': 'istanbul', 'antalya': 'istanbul',
-
-  // ── Expanded Middle East aliases ──
-  'dubai': 'cairo', 'abu dhabi': 'cairo', 'doha': 'cairo', 'qatar': 'cairo',
-  'riyadh': 'cairo', 'jeddah': 'cairo', 'saudi arabia': 'cairo',
-  'tel aviv': 'istanbul', 'jerusalem': 'cairo', 'beirut': 'istanbul',
-  'jordan': 'cairo', 'amman': 'cairo', 'uae': 'cairo',
-
-  // ── Expanded North Africa ──
-  'marrakech': 'cairo', 'casablanca': 'cairo', 'morocco': 'cairo',
-  'tunis': 'cairo', 'tunisia': 'cairo', 'algiers': 'cairo',
-
-  // ── Expanded Sub-Saharan Africa ──
-  'cape town': 'lagos', 'johannesburg': 'lagos', 'south africa': 'lagos',
-  'nairobi': 'lagos', 'kenya': 'lagos', 'addis ababa': 'lagos',
-  'ethiopia': 'lagos', 'dar es salaam': 'lagos', 'tanzania': 'lagos',
-  'senegal': 'lagos', 'dakar': 'lagos',
-
-  // ── Expanded Latin America ──
-  'buenos aires': 'buenos aires',
-  'argentina': 'buenos aires', 'montevideo': 'buenos aires', 'uruguay': 'buenos aires',
-  'santiago': 'buenos aires', 'chile': 'buenos aires',
-  'lima': 'mexico city', 'peru': 'mexico city',
-  'cartagena': 'havana', 'panama': 'havana', 'panama city': 'havana',
-  'costa rica': 'havana', 'san jose costa rica': 'havana',
-  'quito': 'havana', 'ecuador': 'havana',
-  'venezuela': 'havana', 'caracas': 'havana',
-  'dominican republic': 'havana', 'santo domingo': 'havana',
-  'puerto rico': 'havana', 'san juan': 'havana',
-
-  // ── Expanded East/Southeast Asia ──
-  'hong kong': 'tokyo', 'shanghai': 'tokyo', 'beijing': 'tokyo',
-  'china': 'tokyo', 'taiwan': 'tokyo', 'taipei': 'tokyo',
-  'singapore': 'tokyo',
-  'bali': 'bangkok', 'jakarta': 'bangkok', 'indonesia': 'bangkok',
-  'ho chi minh city': 'bangkok', 'hanoi': 'bangkok', 'vietnam': 'bangkok',
-  'manila': 'bangkok', 'philippines': 'bangkok',
-  'kuala lumpur': 'bangkok', 'malaysia': 'bangkok',
-  'cambodia': 'bangkok', 'phnom penh': 'bangkok',
-  'myanmar': 'bangkok', 'laos': 'bangkok',
-
-  // ── Expanded Oceania ──
-  'auckland': 'sydney', 'wellington': 'sydney', 'new zealand': 'sydney',
-  'fiji': 'sydney', 'perth': 'sydney', 'adelaide': 'sydney',
-  'gold coast': 'sydney',
-};
-
 // True alternate names / abbreviations for cities with curated playlists.
 // Only maps where input refers to THE SAME city (not a different one nearby).
 const PLAYLIST_ABBREVS: Record<string, string> = {
@@ -1955,16 +1812,16 @@ async function aiPickSongs(city: string, mood?: string): Promise<AiTrack[] | nul
       messages: [
         {
           role: 'system',
-          content: `You are a music curator. Given a city and mood, suggest 5 songs that perfectly match the vibe.
+          content: `You are a music curator building the perfect travel soundtrack. Given a city and mood, suggest 5 songs.
 
 Rules:
-- Pick POPULAR, widely-recognized songs — songs most people would know and enjoy. Think Spotify top charts, movie soundtracks, iconic hits.
-- Songs MUST be connected to the city — either from artists born/based there, songs about that city, or songs that define its musical culture (e.g. jazz for New Orleans, bossa nova for Rio, K-pop for Seoul)
-- At least 3 of the 5 songs should be mainstream hits with hundreds of millions of streams
-- Include at least one song from the last 5 years
-- Use the EXACT original song title — no remixes, covers, or alternate versions. Use the most well-known version by the original artist.
-- Each song needs a short, specific reason (1 sentence, casual tone — like a friend explaining why they added it)
-- Respond ONLY with valid JSON array, no other text
+- EVERY song must be a well-known HIT — the kind of song most people recognize within the first few seconds. Think Billboard Hot 100, Spotify's most-streamed, viral TikTok hits, iconic anthems. NO obscure, niche, or local-only artists.
+- Prioritize: catchy, feel-good, singalong energy. Songs that make you want to roll the windows down.
+- Mix it up: include 2-3 current/recent hits (2020s), 1-2 timeless classics, and at least 1 song that fits the city's vibe or culture (but it still must be a mainstream hit).
+- Do NOT pick slow, depressing, or obscure songs unless the mood specifically calls for it.
+- Use the EXACT original song title and the most well-known artist version — no remixes, covers, or alternate versions.
+- Each song needs a short reason (1 sentence, casual tone — like a friend explaining why they added it).
+- Respond ONLY with valid JSON array, no other text.
 
 Format: [{"title":"Song Name","artist":"Artist Name","reason":"Why this song fits"}]`,
         },
