@@ -10,7 +10,7 @@ async function resolveCity(city: string): Promise<string> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: AbortSignal.timeout(3000) }
     );
     if (!res.ok) return city;
     const data = await res.json() as any[];
@@ -33,7 +33,7 @@ async function resolveCity(city: string): Promise<string> {
       await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
       const res2 = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(3000) }
       );
       if (res2.ok) {
         const data2 = await res2.json() as any[];
@@ -59,7 +59,7 @@ function getClient(): Dedalus {
   if (!client) {
     const apiKey = process.env.DEDALUS_API_KEY || '';
     console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-    client = new Dedalus({ apiKey, timeout: 45000 });
+    client = new Dedalus({ apiKey, timeout: 30000 });
   }
   return client;
 }
@@ -309,6 +309,12 @@ Writing style:
 export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerator<StreamEvent> {
   console.log('[Dedalus] Starting stream for:', request);
 
+  // Track elapsed time to gracefully stop before Vercel's 60s hard limit
+  const startTime = Date.now();
+  const DEADLINE_MS = 55_000; // stop initiating new phases after 55s
+  const elapsed = () => Date.now() - startTime;
+  const timeRemaining = () => DEADLINE_MS - elapsed();
+
   if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
     yield { type: 'error', error: 'Dedalus API key not configured.' };
     return;
@@ -360,7 +366,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
     let assistantMessage: any = null;
 
-    for (let step1Attempt = 0; step1Attempt < 3; step1Attempt++) {
+    for (let step1Attempt = 0; step1Attempt < 2; step1Attempt++) {
       console.log(`[Dedalus] Step 1 (attempt ${step1Attempt + 1}): Requesting tool calls...`);
 
       const firstResponse = await dedalus.chat.completions.create({
@@ -427,11 +433,21 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       yield { type: 'tool_call_start', tool: toolName, args };
     }
 
-    // Execute ALL tools in parallel (saves 4-7 seconds vs sequential)
+    // Execute ALL tools in parallel, but cap at remaining time minus buffer for LLM streaming
+    const toolDeadline = Math.max(timeRemaining() - 20_000, 5_000); // reserve 20s for LLM
+    console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
+
+    const toolTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('tool_timeout')), toolDeadline)
+    );
+
     const toolSettled = await Promise.allSettled(
       toolCallInfos.map(async ({ toolCall, toolName, args }) => {
         console.log(`[Dedalus] Executing tool: ${toolName}`, args);
-        const result = await executeToolCall(toolName!, args, { rightNow: request.rightNow, currentHour: request.currentHour });
+        const result = await Promise.race([
+          executeToolCall(toolName!, args, { rightNow: request.rightNow, currentHour: request.currentHour }),
+          toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
+        ]);
         return { toolCall, toolName, result };
       })
     );
@@ -460,6 +476,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     }
 
     // ── Step 2b: Force-call any missing critical tools in parallel ──
+    // Skip if we're running low on time — better to generate with fewer tools than timeout
     const calledTools = new Set(
       assistantMessage.tool_calls
         .filter((tc: any) => tc.type === 'function')
@@ -467,11 +484,15 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     );
 
     const forceCalls: { name: string; args: Record<string, any> }[] = [];
-    if (!calledTools.has('get_playlist_suggestion') && toolCity) {
-      forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
-    }
-    if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
-      forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+    if (timeRemaining() > 25_000) { // only force-call if we have >25s left
+      if (!calledTools.has('get_playlist_suggestion') && toolCity) {
+        forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
+      }
+      if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
+        forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+      }
+    } else {
+      console.log(`[Dedalus] Skipping force-calls — only ${timeRemaining()}ms remaining`);
     }
 
     if (forceCalls.length > 0) {
@@ -513,12 +534,31 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       }
     }
 
+    console.log(`[Dedalus] Pre-Step 3 elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
+
+    if (timeRemaining() < 8_000) {
+      console.log('[Dedalus] Not enough time for Step 3 — aborting');
+      yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
+      return;
+    }
+
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
     let contentReceived = false;
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // Scale token budget for multi-day trips, but reduce if we're short on time
+    let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 8000;
+    if (timeRemaining() < 25_000) {
+      // Under 25s left — cap output to finish in time
+      tokenBudget = Math.min(tokenBudget, 4000);
+      console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
+    }
+
+    // Only retry if we have enough time
+    const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isRetry = attempt > 0;
       if (isRetry) {
         console.log('[Dedalus] Step 3 retry: Non-streaming fallback...');
@@ -526,9 +566,6 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       } else {
         console.log('[Dedalus] Step 3: Streaming itinerary from tool results...');
       }
-
-      // Scale token budget for multi-day trips
-      const tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 8000;
 
       if (!isRetry) {
         // Streaming attempt

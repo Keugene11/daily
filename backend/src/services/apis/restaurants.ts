@@ -243,7 +243,7 @@ async function searchGooglePlaces(
   ].join(',');
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
     const response = await fetch(GOOGLE_PLACES_URL, {

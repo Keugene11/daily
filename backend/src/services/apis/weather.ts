@@ -7,7 +7,7 @@ import { ToolResult, WeatherData } from '../../types';
 export const weatherService = {
   async getWeather(city: string): Promise<ToolResult<WeatherData>> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
