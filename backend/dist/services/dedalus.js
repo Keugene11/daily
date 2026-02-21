@@ -6,6 +6,47 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.streamPlanGeneration = streamPlanGeneration;
 const dedalus_labs_1 = __importDefault(require("dedalus-labs"));
 const tools_1 = require("./tools");
+// ── City name resolution via Nominatim ────────────────────────────────
+// When the user types a non-city name (e.g., "Cornell", "Stanford"),
+// resolve it to the actual city (e.g., "Ithaca", "Palo Alto") so all
+// tool calls and the system prompt use the correct city.
+async function resolveCity(city) {
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok)
+            return city;
+        const data = await res.json();
+        if (data.length === 0)
+            return city;
+        const best = data.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
+        const importance = parseFloat(best.importance) || 0;
+        const addr = best.address || {};
+        const rawCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet;
+        const resolved = rawCity?.replace(/^City of\s+/i, '').trim();
+        // If importance is high and we have a resolved city, use it
+        if (resolved && resolved.toLowerCase() !== city.toLowerCase())
+            return resolved;
+        // If importance is low and resolved matches input (no disambiguation),
+        // try "{input} university" — handles Cornell, Stanford, MIT, etc.
+        if (importance < 0.5 && (!resolved || resolved.toLowerCase() === city.toLowerCase())) {
+            await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
+            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(5000) });
+            if (res2.ok) {
+                const data2 = await res2.json();
+                if (data2.length > 0) {
+                    const best2 = data2.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
+                    const addr2 = best2.address || {};
+                    const rawCity2 = addr2.city || addr2.town || addr2.village || addr2.municipality || addr2.hamlet;
+                    const resolved2 = rawCity2?.replace(/^City of\s+/i, '').trim();
+                    if (resolved2 && resolved2.toLowerCase() !== city.toLowerCase())
+                        return resolved2;
+                }
+            }
+        }
+    }
+    catch { /* Nominatim failed — use raw city */ }
+    return city;
+}
 // Lazy-initialize the client so dotenv has time to load first
 let client = null;
 function getClient() {
@@ -246,12 +287,21 @@ async function* streamPlanGeneration(request) {
         yield { type: 'error', error: 'Dedalus API key not configured.' };
         return;
     }
+    // Resolve the city name — "Cornell" → "Ithaca", "Stanford" → "Palo Alto", etc.
+    // Runs before the LLM call so all tool calls use the correct city.
+    const resolvedCity = await resolveCity(request.city);
+    if (resolvedCity !== request.city) {
+        console.log(`[Dedalus] Resolved city: "${request.city}" → "${resolvedCity}"`);
+    }
+    // Use resolvedCity for tool calls, but keep the original for the user message
+    // so the LLM knows what the user actually typed.
+    const toolCity = resolvedCity;
     // Build user message with context
     const isMultiDay = request.days && request.days > 1;
     const userParts = [
         isMultiDay
-            ? `I'm planning a ${request.days}-day vacation in ${request.city}.`
-            : `I'm visiting ${request.city}. Plan my day there.`
+            ? `I'm planning a ${request.days}-day vacation in ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}.`
+            : `I'm visiting ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}. Plan my day there.`
     ];
     if (request.budget && request.budget !== 'any')
         userParts.push(`Budget: ${request.budget}`);
@@ -343,8 +393,8 @@ async function* streamPlanGeneration(request) {
             catch {
                 args = {};
             }
-            if (!args.city && request.city)
-                args.city = request.city;
+            if (!args.city && toolCity)
+                args.city = toolCity;
             toolCallInfos.push({ toolCall, toolName, args });
             yield { type: 'tool_call_start', tool: toolName, args };
         }
@@ -382,11 +432,11 @@ async function* streamPlanGeneration(request) {
             .filter((tc) => tc.type === 'function')
             .map((tc) => tc.function?.name));
         const forceCalls = [];
-        if (!calledTools.has('get_playlist_suggestion') && request.city) {
-            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: request.city } });
+        if (!calledTools.has('get_playlist_suggestion') && toolCity) {
+            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
         }
-        if (!calledTools.has('get_accommodations') && request.city && !request.rightNow) {
-            forceCalls.push({ name: 'get_accommodations', args: { city: request.city, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+        if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
+            forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
         }
         if (forceCalls.length > 0) {
             console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
