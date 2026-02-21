@@ -6,6 +6,21 @@ import { PlanRequest, StreamEvent } from '../types';
 // When the user types a non-city name (e.g., "Cornell", "Stanford"),
 // resolve it to the actual city (e.g., "Ithaca", "Palo Alto") so all
 // tool calls and the system prompt use the correct city.
+/** Disambiguate a city name by appending state (for US/AU/etc.) to avoid
+ *  ambiguity — "Cambridge" alone could be England or Massachusetts. */
+function disambiguate(cityName: string, addr: any): string {
+  const state = addr.state;
+  if (!state) return cityName;
+  // Only disambiguate well-known ambiguous names
+  const ambiguous = new Set(['cambridge', 'springfield', 'portland', 'richmond', 'columbia',
+    'jackson', 'lincoln', 'franklin', 'madison', 'clinton', 'greenville', 'burlington',
+    'manchester', 'windsor', 'hamilton', 'georgetown', 'newcastle', 'victoria']);
+  if (ambiguous.has(cityName.toLowerCase())) {
+    return `${cityName}, ${state}`;
+  }
+  return cityName;
+}
+
 async function resolveCity(city: string): Promise<string> {
   try {
     const res = await fetch(
@@ -25,7 +40,7 @@ async function resolveCity(city: string): Promise<string> {
     const resolved = rawCity?.replace(/^City of\s+/i, '').trim();
 
     // If importance is high and we have a resolved city, use it
-    if (resolved && resolved.toLowerCase() !== city.toLowerCase()) return resolved;
+    if (resolved && resolved.toLowerCase() !== city.toLowerCase()) return disambiguate(resolved, addr);
 
     // If importance is low and resolved matches input (no disambiguation),
     // try "{input} university" — handles Cornell, Stanford, MIT, etc.
@@ -44,7 +59,7 @@ async function resolveCity(city: string): Promise<string> {
           const addr2 = best2.address || {};
           const rawCity2 = addr2.city || addr2.town || addr2.village || addr2.municipality || addr2.hamlet;
           const resolved2 = rawCity2?.replace(/^City of\s+/i, '').trim();
-          if (resolved2 && resolved2.toLowerCase() !== city.toLowerCase()) return resolved2;
+          if (resolved2 && resolved2.toLowerCase() !== city.toLowerCase()) return disambiguate(resolved2, addr2);
         }
       }
     }
