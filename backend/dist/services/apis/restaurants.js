@@ -73,6 +73,44 @@ function setCache(key, data) {
     cache.set(key, { data, timestamp: Date.now() });
 }
 // ── Google Places API search ────────────────────────────────────────────
+/**
+ * Extract short food-related snippets from Google Places reviews.
+ * Looks for sentences that mention specific dishes, drinks, or menu items.
+ * Returns up to 3 unique, short highlights like:
+ *   "The cacio e pepe was incredible"
+ *   "Get the spicy margarita — best I've had"
+ */
+function extractReviewHighlights(reviews) {
+    if (!reviews || reviews.length === 0)
+        return [];
+    // Food/dish signal words — if a sentence contains these, it's likely about a specific item
+    const foodSignals = /\b(order(?:ed)?|try|tried|got|get|had|must.have|recommend|amazing|incredible|best|delicious|fantastic|perfect|loved|favorite|famous|signature|special)\b/i;
+    const dishSignals = /\b(pizza|pasta|burger|steak|tacos?|sushi|ramen|noodles?|soup|salad|sandwich|wings?|ribs?|brisket|fries|chicken|fish|shrimp|lobster|crab|oyster|pho|curry|pad thai|dim sum|dumpling|roll|burrito|quesadilla|ceviche|risotto|gnocchi|lasagna|carbonara|tiramisu|cheesecake|pancake|waffle|croissant|beignet|gelato|ice cream|cocktail|margarita|martini|wine|beer|coffee|latte|espresso|chai|matcha|smoothie|juice|brunch|breakfast|dessert|appetizer|entree|special|menu)\b/i;
+    const highlights = [];
+    const seen = new Set();
+    for (const review of reviews.slice(0, 5)) {
+        const text = review.text?.text || '';
+        if (!text || text.length < 20)
+            continue;
+        // Split into sentences
+        const sentences = text.split(/[.!?]+/).map((s) => s.trim()).filter((s) => s.length > 10 && s.length < 150);
+        for (const sentence of sentences) {
+            if (foodSignals.test(sentence) && dishSignals.test(sentence)) {
+                // Normalize and deduplicate
+                const normalized = sentence.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+                if (seen.has(normalized))
+                    continue;
+                seen.add(normalized);
+                // Clean up — capitalize first letter
+                const clean = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+                highlights.push(clean);
+                if (highlights.length >= 3)
+                    return highlights;
+            }
+        }
+    }
+    return highlights;
+}
 function mapPlaceToRestaurant(place, city) {
     const name = place.displayName?.text || 'Unknown';
     // Extract cuisine from types array
@@ -104,6 +142,8 @@ function mapPlaceToRestaurant(place, city) {
             ? reviewText.substring(0, 117) + '...'
             : reviewText;
     }
+    // Extract dish/food mentions from reviews — real items that real people ordered
+    const reviewHighlights = extractReviewHighlights(place.reviews || []);
     // Neighborhood: parse from address (2nd component is usually the area)
     const addressParts = (place.formattedAddress || '').split(',').map((s) => s.trim());
     const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
@@ -119,6 +159,7 @@ function mapPlaceToRestaurant(place, city) {
         address: place.formattedAddress || '',
         url: googleMapsUri,
         link: `[${name}](${googleMapsUri})`,
+        reviewHighlights,
     };
 }
 async function searchGooglePlaces(city, cuisine, budget) {
