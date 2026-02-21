@@ -141,13 +141,17 @@ function scoreCandidate(
   const titleLower = c.title.toLowerCase();
 
   // ── Title relevance (dominant factor) ─────────────────────────
-  // Check how many meaningful (non-filler) query terms appear in the title.
-  // A video about "Ardsley" should beat a generic "travel" video.
+  // The first non-filler term is the primary place name — it's the most
+  // important signal. Secondary terms (region, state) help but aren't enough.
   const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2 && !FILLER_WORDS.has(t));
   if (queryTerms.length > 0) {
-    const matched = queryTerms.filter(t => titleLower.includes(t));
-    const relevance = matched.length / queryTerms.length;
-    score += relevance * 20; // up to 20 points for full match — must beat views
+    // Primary place name must be in title for any relevance points
+    if (titleLower.includes(queryTerms[0])) {
+      const matched = queryTerms.filter(t => titleLower.includes(t));
+      const relevance = matched.length / queryTerms.length;
+      score += relevance * 20; // up to 20 points for full match
+    }
+    // No points if the primary place name isn't in the title at all
   }
 
   // ── View count (dominant quality signal) ──────────────────────
@@ -352,13 +356,17 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
 
     scored.sort((a, b) => b.score - a.score);
 
-    // Filter: require at least one meaningful (non-filler) query term in the title.
-    // Without this, "cornell things to do" would match any video with "things" in it.
+    // Filter: require the PRIMARY place name to appear in the title.
+    // The first non-filler term is always the place name (e.g., "cornell" from
+    // "Cornell Illinois things to do"). Region/state terms help YouTube's search
+    // algorithm but should NOT substitute for actual place-name matching.
+    // Without this, "Cornell Illinois" would match any video about Illinois.
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2 && !FILLER_WORDS.has(t));
     const relevant = terms.length > 0
       ? scored.filter(c => {
           const titleLower = c.title.toLowerCase();
-          return terms.some(t => titleLower.includes(t));
+          // Primary place name (first non-filler term) MUST be in the title
+          return titleLower.includes(terms[0]);
         })
       : scored; // if ALL terms are filler (unlikely), fall back to full list
 
