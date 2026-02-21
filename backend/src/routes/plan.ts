@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { streamPlanGeneration } from '../services/dedalus';
 import { searchYouTubeVideo, searchYouTubeMusic } from '../services/apis/youtube';
 import { SubscriptionRequest } from '../middleware/subscription';
+import { checkUsage } from '../middleware/usage';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ const FEATURE_TIER: Record<string, string> = {
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
-router.post('/plan', async (req: SubscriptionRequest, res: Response) => {
+router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: Response) => {
   const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
 
   // Validate input

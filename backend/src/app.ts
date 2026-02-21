@@ -5,7 +5,7 @@ import stripeRouter from './routes/stripe';
 import webhookRouter from './routes/webhooks';
 import { requireAuth } from './middleware/auth';
 import { checkSubscription } from './middleware/subscription';
-import { checkUsage } from './middleware/usage';
+
 
 const app = express();
 
@@ -103,8 +103,8 @@ app.get('/api/privacy', (_req, res) => {
 // Stripe routes (checkout, portal, subscription status)
 app.use('/api', requireAuth, checkSubscription, stripeRouter);
 
-// API routes (auth → subscription tier → usage limit → plan generation)
-app.use('/api', requireAuth, checkSubscription, checkUsage('plan'), planRouter);
+// API routes — usage limit is on the POST /plan route only (not youtube-search)
+app.use('/api', requireAuth, checkSubscription, planRouter);
 
 // 404 handler
 app.use((_req, res) => {
