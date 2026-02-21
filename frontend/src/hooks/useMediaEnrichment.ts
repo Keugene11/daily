@@ -13,7 +13,7 @@ export interface PlaceMediaData {
 const MEDIA_CACHE_KEY = 'daily_mediacache';
 const MEDIA_CACHE_TTL = 1 * 24 * 60 * 60 * 1000; // 1 day
 // Bump to invalidate all cached media entries (forces re-fetch with new scoring)
-const MEDIA_CACHE_VERSION = 9;
+const MEDIA_CACHE_VERSION = 10;
 
 interface MediaCacheEntry {
   imageUrl?: string;
@@ -80,62 +80,6 @@ function cacheMedia(place: string, city: string, media: PlaceMediaData) {
     sorted.slice(0, keys.length - 200).forEach(k => delete cache[k]);
   }
   setMediaCache(cache);
-}
-
-/**
- * Search Wikipedia using the MediaWiki search API, which is far more
- * reliable than the REST summary endpoint (which requires exact titles).
- * Returns the first article thumbnail found.
- */
-async function fetchWikipediaImage(place: string, city: string): Promise<string | null> {
-  const queries = [`${place} ${city}`, place];
-  for (const q of queries) {
-    try {
-      const res = await fetch(
-        `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
-        { headers: { 'User-Agent': 'DailyPlannerApp/1.0' } }
-      );
-      if (!res.ok) continue;
-      const data = await res.json();
-      const pages = data?.query?.pages;
-      if (!pages) continue;
-      // Pages are returned as an object keyed by page ID — find first with a thumbnail
-      for (const page of Object.values(pages) as any[]) {
-        if (page.thumbnail?.source) {
-          return page.thumbnail.source;
-        }
-      }
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-/**
- * Search Wikimedia Commons for photos of a place.
- * Fallback when Wikipedia articles don't have images.
- */
-async function fetchCommonsImage(place: string, city: string): Promise<string | null> {
-  try {
-    const q = `${place} ${city}`;
-    const res = await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json&origin=*`,
-      { headers: { 'User-Agent': 'DailyPlannerApp/1.0' } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const pages = data?.query?.pages;
-    if (!pages) return null;
-    for (const page of Object.values(pages) as any[]) {
-      const info = page.imageinfo?.[0];
-      if (info?.thumburl) return info.thumburl;
-      if (info?.url && /\.(jpe?g|png|webp)/i.test(info.url)) return info.url;
-    }
-  } catch {
-    // Commons search failed
-  }
-  return null;
 }
 
 async function fetchYouTubeVideoId(place: string, city: string, region: string, token?: string | null): Promise<string | null> {
@@ -250,22 +194,9 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       uncached.forEach(async (place, i) => {
         await new Promise(r => setTimeout(r, i * 50));
 
-        const [wikiImage, videoId] = await Promise.all([
-          fetchWikipediaImage(place, searchCity),
-          fetchYouTubeVideoId(place, searchCity, regionRef.current, token),
-        ]);
-
-        // Image fallback chain: Wikipedia → Wikimedia Commons → YouTube thumbnail
-        let finalImage = wikiImage;
-        if (!finalImage) {
-          finalImage = await fetchCommonsImage(place, searchCity);
-        }
-        if (!finalImage && videoId) {
-          finalImage = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-        }
+        const videoId = await fetchYouTubeVideoId(place, searchCity, regionRef.current, token);
 
         const media: PlaceMediaData = {
-          imageUrl: finalImage || undefined,
           videoId: videoId || undefined,
         };
 
