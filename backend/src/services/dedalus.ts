@@ -223,7 +223,7 @@ ${timeSections}
 - Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
 ## Soundtrack
-[REQUIRED — copy-paste the pre-formatted "markdownLink" field for each track directly from the tool data. Do NOT create your own links, do NOT use YouTube URLs, do NOT add extra songs beyond what the tool returned. Include the playlistUrl as an "Open in Spotify" link.]
+[REQUIRED — copy the "formattedMarkdown" field from the get_playlist_suggestion tool result EXACTLY as-is. Do NOT rewrite it, do NOT replace Spotify URLs with YouTube URLs, do NOT add extra songs. Just paste the formattedMarkdown value verbatim.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").

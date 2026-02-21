@@ -27,6 +27,18 @@ interface PlaylistSuggestion {
   tracks: Track[];
   mood: string;
   playlistUrl: string;
+  formattedMarkdown?: string;
+}
+
+/** Build the complete ## Soundtrack markdown so the LLM can paste it verbatim */
+function buildSoundtrackMarkdown(playlist: { name: string; tracks: Track[]; playlistUrl: string }): string {
+  const lines = [`🎵 **${playlist.name}**`];
+  for (const t of playlist.tracks) {
+    lines.push(`- ${t.markdownLink}`);
+  }
+  lines.push('');
+  lines.push(`[Open in Spotify](${playlist.playlistUrl})`);
+  return lines.join('\n');
 }
 
 function trackUrl(artist: string, title: string): string {
@@ -1993,10 +2005,9 @@ export const spotifyService = {
         }))
       );
 
-      return {
-        success: true,
-        data: { ...cityPlaylist, tracks: tracksWithPreviews }
-      };
+      const data = { ...cityPlaylist, tracks: tracksWithPreviews, formattedMarkdown: '' };
+      data.formattedMarkdown = buildSoundtrackMarkdown(data);
+      return { success: true, data };
     }
 
     // 2. Unknown city — try AI-powered song picking
@@ -2020,16 +2031,16 @@ export const spotifyService = {
       ];
       const playlistName = playlistNames[Math.floor(Math.random() * playlistNames.length)];
 
-      return {
-        success: true,
-        data: {
-          name: playlistName,
-          description: `Curated for your day in ${city}`,
-          tracks: tracksWithPreviews,
-          mood: mood || 'curated',
-          playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(`${city} vibes`)}`
-        }
+      const data = {
+        name: playlistName,
+        description: `Curated for your day in ${city}`,
+        tracks: tracksWithPreviews,
+        mood: mood || 'curated',
+        playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(`${city} vibes`)}`,
+        formattedMarkdown: ''
       };
+      data.formattedMarkdown = buildSoundtrackMarkdown(data);
+      return { success: true, data };
     }
 
     // 3. Last resort — vibe-based playlist from mood
@@ -2066,15 +2077,15 @@ export const spotifyService = {
       }))
     );
 
-    return {
-      success: true,
-      data: {
-        name,
-        description,
-        tracks: tracksWithPreviews,
-        mood: primaryVibe,
-        playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(name)}`
-      }
+    const data = {
+      name,
+      description,
+      tracks: tracksWithPreviews,
+      mood: primaryVibe,
+      playlistUrl: `https://open.spotify.com/search/${encodeURIComponent(name)}`,
+      formattedMarkdown: ''
     };
+    data.formattedMarkdown = buildSoundtrackMarkdown(data);
+    return { success: true, data };
   }
 };
