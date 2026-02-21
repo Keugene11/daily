@@ -175,8 +175,10 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
   // e.g., "New York" for Ardsley — prevents returning Savannah, GA results
   const regionRef = useRef<string>('');
   // Resolved city name from Nominatim — when the user types a non-city name
-  // (e.g., "Cornell" → resolvedCity is "Ithaca"), use the real city for searches
-  const resolvedCityRef = useRef<string>('');
+  // (e.g., "Cornell" → resolvedCity is "Ithaca"), use the real city for searches.
+  // Uses state (not ref) so the content effect re-runs when geocode resolves.
+  // null = not yet resolved, '' = resolved but no different city found
+  const [resolvedCity, setResolvedCity] = useState<string | null>(null);
 
   // Reset everything when the city changes (new plan)
   useEffect(() => {
@@ -184,26 +186,28 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
       prevCityRef.current = city;
       fetchedRef.current.clear();
       regionRef.current = '';
-      resolvedCityRef.current = '';
+      setResolvedCity(null);
       setData(new Map());
     }
   }, [city]);
 
-  // Resolve state from Nominatim for geographic disambiguation.
+  // Resolve state + city name from Nominatim for geographic disambiguation.
   // Only use state (e.g. "New York" for Ardsley), NOT country — appending
   // "India" to "Akshardham Temple Delhi" dilutes into generic travel vlogs.
-  // Major cities don't need country-level disambiguation.
+  // Must resolve BEFORE media fetching starts (resolvedCity is state, not ref).
   useEffect(() => {
     if (!city) return;
     geocodeCity(city).then(result => {
       if (result?.state) regionRef.current = result.state;
-      if (result?.resolvedCity) resolvedCityRef.current = result.resolvedCity;
-    });
+      setResolvedCity(result?.resolvedCity || '');
+    }).catch(() => setResolvedCity(''));
   }, [city]);
 
   // Debounced extraction + fetch for new places
   useEffect(() => {
-    if (!content || !city) return;
+    // Wait for geocode to resolve before fetching — prevents race condition
+    // where media fetches fire with the raw city name before resolvedCity is available
+    if (!content || !city || resolvedCity === null) return;
 
     // Wait 400ms after last content change before extracting places.
     // During streaming this means we batch up new text rather than
@@ -211,7 +215,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     const timer = setTimeout(async () => {
       // Use the resolved city name for searches — e.g., "Cornell" → "Ithaca"
       // so Wikipedia/YouTube return results for the actual city, not the university
-      const searchCity = resolvedCityRef.current || city;
+      const searchCity = resolvedCity || city;
       const extracted = extractPlaces(content, city, maxPlaces);
       // Always include the search city as the first "place" so we get a general
       // city overview/travel guide video (e.g., "Best things to do in Ithaca")
@@ -277,7 +281,7 @@ export function useMediaEnrichment(content: string, city: string, maxPlaces = 12
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [content, city]);
+  }, [content, city, resolvedCity]);
 
   return { data };
 }

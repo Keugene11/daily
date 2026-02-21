@@ -13,7 +13,7 @@ export interface MapLocation {
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 7;
+const GEO_CACHE_VERSION = 8;
 
 interface GeoCacheEntry {
   lat: number;
@@ -197,43 +197,73 @@ export function boundingBoxRadiusKm(bbox: [number, number, number, number]): num
   return distanceKm(south, west, north, east) / 2;
 }
 
-export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
+/** Normalize Nominatim city names — strips "City of" prefix (e.g., "City of Ithaca" → "Ithaca") */
+function normalizeCity(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  return name.replace(/^City of\s+/i, '').trim() || undefined;
+}
+
+/** Parse a single Nominatim result into a CityGeoResult */
+function parseNominatimResult(best: any): CityGeoResult {
+  const bbox = best.boundingbox;
+  const addr = best.address || {};
+  const rawCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet || undefined;
+  return {
+    lat: parseFloat(best.lat),
+    lng: parseFloat(best.lon),
+    countryCode: addr.country_code || undefined,
+    country: addr.country || undefined,
+    state: addr.state || undefined,
+    resolvedCity: normalizeCity(rawCity),
+    boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
+  };
+}
+
+/** Query Nominatim and return the highest-importance result with its importance score */
+async function queryNominatim(query: string): Promise<{ result: CityGeoResult; importance: number } | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    // Request multiple results so we can pick the most important one.
-    // Nominatim's default ordering isn't by importance — e.g. "Yosemite"
-    // returns a tiny Australian neighbourhood before Yosemite National Park.
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
       { signal: controller.signal }
     );
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.length > 0) {
-      // Pick the result with the highest importance score
       const best = data.reduce((a: any, b: any) =>
         (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a
       );
-      const bbox = best.boundingbox;
-      // Extract the actual city/town from address details — this may differ from
-      // what the user typed. E.g., "Cornell" → university → address city is "Ithaca".
-      // Nominatim uses different keys: city, town, village, hamlet, municipality.
-      const addr = best.address || {};
-      const resolvedCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet || undefined;
-      return {
-        lat: parseFloat(best.lat),
-        lng: parseFloat(best.lon),
-        countryCode: best.address?.country_code || undefined,
-        country: best.address?.country || undefined,
-        state: best.address?.state || undefined,
-        resolvedCity,
-        boundingBox: bbox ? [parseFloat(bbox[0]), parseFloat(bbox[1]), parseFloat(bbox[2]), parseFloat(bbox[3])] : undefined,
-      };
+      return { result: parseNominatimResult(best), importance: parseFloat(best.importance) || 0 };
     }
   } catch { /* timeout or network error */ }
   return null;
+}
+
+export async function geocodeCity(city: string): Promise<CityGeoResult | null> {
+  const primary = await queryNominatim(city);
+  if (!primary) return null;
+
+  // If the result has low importance and resolvedCity matches the input (no resolution),
+  // the input might be a university/institution name. E.g., "Cornell" returns Cornell, IL
+  // (importance 0.46, resolvedCity "Cornell") instead of Cornell University in Ithaca.
+  // Try "{input} university" as a fallback to find the actual city.
+  if (primary.importance < 0.5) {
+    const resolvedSame = !primary.result.resolvedCity ||
+      primary.result.resolvedCity.toLowerCase() === city.toLowerCase();
+    if (resolvedSame) {
+      // Respect Nominatim rate limit (1 req/sec)
+      await new Promise(r => setTimeout(r, 1100));
+      const fallback = await queryNominatim(`${city} university`);
+      if (fallback?.result.resolvedCity &&
+          fallback.result.resolvedCity.toLowerCase() !== city.toLowerCase()) {
+        return fallback.result;
+      }
+    }
+  }
+
+  return primary.result;
 }
 
 // Check if coords are within a given range of a reference point
