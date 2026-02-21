@@ -150,22 +150,10 @@ function scoreCandidate(c, position, poolSize, query) {
         score += 25; // 10M+ — viral, top-tier
     }
     else if (c.views >= 5_000_000) {
-        score += 22; // 5M+ — extremely popular
+        score += 20; // 5M+ — extremely popular
     }
     else if (c.views >= 1_000_000) {
-        score += 18; // 1M+ — very popular
-    }
-    else if (c.views >= 500_000) {
-        score += 14; // 500K+ — solid
-    }
-    else if (c.views >= 100_000) {
-        score += 8; // 100K+ — decent
-    }
-    else if (c.views >= 50_000) {
-        score += 0; // 50K+ — minimum quality bar
-    }
-    else {
-        score -= 20; // under 50K: only in fallback pool
+        score += 12; // 1M+ — minimum quality bar
     }
     // ── Channel quality signals ───────────────────────────────────
     const channelLower = c.channel.toLowerCase();
@@ -323,9 +311,7 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
                 return false;
             if (c.ageYears !== null && c.ageYears >= 8)
                 return false;
-            if (c.ageYears === null && c.views < 100_000)
-                return false;
-            if (c.ageYears !== null && c.views < 50_000)
+            if (c.views < 1_000_000)
                 return false;
             return true;
         });
