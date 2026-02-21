@@ -12,7 +12,7 @@ const tools_1 = require("./tools");
 // tool calls and the system prompt use the correct city.
 async function resolveCity(city) {
     try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(3000) });
         if (!res.ok)
             return city;
         const data = await res.json();
@@ -30,7 +30,7 @@ async function resolveCity(city) {
         // try "{input} university" — handles Cornell, Stanford, MIT, etc.
         if (importance < 0.5 && (!resolved || resolved.toLowerCase() === city.toLowerCase())) {
             await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
-            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(5000) });
+            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(3000) });
             if (res2.ok) {
                 const data2 = await res2.json();
                 if (data2.length > 0) {
@@ -53,7 +53,7 @@ function getClient() {
     if (!client) {
         const apiKey = process.env.DEDALUS_API_KEY || '';
         console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-        client = new dedalus_labs_1.default({ apiKey, timeout: 45000 });
+        client = new dedalus_labs_1.default({ apiKey, timeout: 30000 });
     }
     return client;
 }
@@ -241,11 +241,11 @@ Structure the itinerary with these exact sections:
 ${timeSections}
 
 ## Where to Stay
-[REQUIRED — you MUST include this section with ALL of the following:
-- List 3-4 accommodation options. If the tool returned real, specific hotels, use those. If it returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
+[REQUIRED — you MUST include this section:
+- List 2-4 accommodation options — only include as many as there are genuinely good picks for the destination. Small towns may only have 2; big cities can have 4.
+- If the tool returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
 - EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
-- Mix budget levels (at least one budget and one upscale option)
 - For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://maps.google.com/?q=Hotel+Name,+${encodeURIComponent(request.city)})
 - Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
@@ -283,6 +283,11 @@ Writing style:
  */
 async function* streamPlanGeneration(request) {
     console.log('[Dedalus] Starting stream for:', request);
+    // Track elapsed time to gracefully stop before Vercel's 60s hard limit
+    const startTime = Date.now();
+    const DEADLINE_MS = 55_000; // stop initiating new phases after 55s
+    const elapsed = () => Date.now() - startTime;
+    const timeRemaining = () => DEADLINE_MS - elapsed();
     if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
         yield { type: 'error', error: 'Dedalus API key not configured.' };
         return;
@@ -336,7 +341,7 @@ async function* streamPlanGeneration(request) {
         // Retry up to 3 times if the model returns content instead of tool calls
         yield { type: 'thinking_chunk', thinking: isMultiDay ? `Planning your ${request.days}-day adventure in ${request.city}...` : `Planning your perfect day in ${request.city}...` };
         let assistantMessage = null;
-        for (let step1Attempt = 0; step1Attempt < 3; step1Attempt++) {
+        for (let step1Attempt = 0; step1Attempt < 2; step1Attempt++) {
             console.log(`[Dedalus] Step 1 (attempt ${step1Attempt + 1}): Requesting tool calls...`);
             const firstResponse = await dedalus.chat.completions.create({
                 model: 'anthropic/claude-sonnet-4-5',
@@ -398,10 +403,16 @@ async function* streamPlanGeneration(request) {
             toolCallInfos.push({ toolCall, toolName, args });
             yield { type: 'tool_call_start', tool: toolName, args };
         }
-        // Execute ALL tools in parallel (saves 4-7 seconds vs sequential)
+        // Execute ALL tools in parallel, but cap at remaining time minus buffer for LLM streaming
+        const toolDeadline = Math.max(timeRemaining() - 20_000, 5_000); // reserve 20s for LLM
+        console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
+        const toolTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('tool_timeout')), toolDeadline));
         const toolSettled = await Promise.allSettled(toolCallInfos.map(async ({ toolCall, toolName, args }) => {
             console.log(`[Dedalus] Executing tool: ${toolName}`, args);
-            const result = await (0, tools_1.executeToolCall)(toolName, args, { rightNow: request.rightNow, currentHour: request.currentHour });
+            const result = await Promise.race([
+                (0, tools_1.executeToolCall)(toolName, args, { rightNow: request.rightNow, currentHour: request.currentHour }),
+                toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
+            ]);
             return { toolCall, toolName, result };
         }));
         for (let idx = 0; idx < toolSettled.length; idx++) {
@@ -428,15 +439,21 @@ async function* streamPlanGeneration(request) {
             }
         }
         // ── Step 2b: Force-call any missing critical tools in parallel ──
+        // Skip if we're running low on time — better to generate with fewer tools than timeout
         const calledTools = new Set(assistantMessage.tool_calls
             .filter((tc) => tc.type === 'function')
             .map((tc) => tc.function?.name));
         const forceCalls = [];
-        if (!calledTools.has('get_playlist_suggestion') && toolCity) {
-            forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
+        if (timeRemaining() > 25_000) { // only force-call if we have >25s left
+            if (!calledTools.has('get_playlist_suggestion') && toolCity) {
+                forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
+            }
+            if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
+                forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+            }
         }
-        if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
-            forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
+        else {
+            console.log(`[Dedalus] Skipping force-calls — only ${timeRemaining()}ms remaining`);
         }
         if (forceCalls.length > 0) {
             console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
@@ -469,10 +486,25 @@ async function* streamPlanGeneration(request) {
                 });
             }
         }
+        console.log(`[Dedalus] Pre-Step 3 elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
+        if (timeRemaining() < 8_000) {
+            console.log('[Dedalus] Not enough time for Step 3 — aborting');
+            yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
+            return;
+        }
         yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
         // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
         let contentReceived = false;
-        for (let attempt = 0; attempt < 2; attempt++) {
+        // Scale token budget for multi-day trips, but reduce if we're short on time
+        let tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 8000;
+        if (timeRemaining() < 25_000) {
+            // Under 25s left — cap output to finish in time
+            tokenBudget = Math.min(tokenBudget, 4000);
+            console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
+        }
+        // Only retry if we have enough time
+        const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const isRetry = attempt > 0;
             if (isRetry) {
                 console.log('[Dedalus] Step 3 retry: Non-streaming fallback...');
@@ -481,8 +513,6 @@ async function* streamPlanGeneration(request) {
             else {
                 console.log('[Dedalus] Step 3: Streaming itinerary from tool results...');
             }
-            // Scale token budget for multi-day trips
-            const tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 6000;
             if (!isRetry) {
                 // Streaming attempt
                 const stream = await dedalus.chat.completions.create({

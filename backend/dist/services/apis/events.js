@@ -181,14 +181,16 @@ function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 function matchCity(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_EVENTS));
-    return resolved ? CITY_EVENTS[resolved] : DEFAULT_EVENTS;
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_EVENTS), true);
+    return resolved
+        ? { events: CITY_EVENTS[resolved], isDefault: false }
+        : { events: DEFAULT_EVENTS, isDefault: true };
 }
 exports.eventsService = {
     async getEvents(city, rightNow, localHour) {
         await new Promise(r => setTimeout(r, 200));
         const dow = dayOfWeek();
-        const allEvents = matchCity(city);
+        const { events: allEvents, isDefault } = matchCity(city);
         // Filter to events available today
         let available = allEvents.filter(e => !e.days || e.days.includes(dow));
         // Right Now mode: only show events happening now or in the next 2 hours
@@ -251,7 +253,8 @@ exports.eventsService = {
                     freeEvents: `https://eventbrite.com/d/${encodeURIComponent(city)}/free--events--today/`,
                     allEvents: `https://eventbrite.com/d/${encodeURIComponent(city)}/events--today/`,
                 },
-            }
+            },
+            ...(isDefault && { note: `No local event data for "${city}". These are generic placeholders — use your own knowledge of real events and activities in ${city}.` })
         };
     }
 };

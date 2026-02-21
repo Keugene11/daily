@@ -199,7 +199,7 @@ async function searchGooglePlaces(city, cuisine, budget) {
         'places.reviews',
     ].join(',');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     try {
         const response = await fetch(GOOGLE_PLACES_URL, {
             method: 'POST',
@@ -384,7 +384,7 @@ const DEFAULT_RESTAURANTS = [
     { name: 'Sunrise Café', cuisine: 'Brunch', priceRange: '$', avgCost: '$14/person', rating: '4.6/5', neighborhood: 'Arts District', description: 'All-day breakfast with locally roasted coffee and fresh pastries', mustTry: 'Eggs Benedict ($13)' }
 ];
 function matchCityFallback(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_RESTAURANTS));
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_RESTAURANTS), true);
     return resolved ? CITY_RESTAURANTS[resolved] : DEFAULT_RESTAURANTS;
 }
 // ── Main export ─────────────────────────────────────────────────────────

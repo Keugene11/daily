@@ -1357,12 +1357,20 @@ const CITY_ALIASES = {
     'fiji': 'sydney', 'perth': 'sydney', 'adelaide': 'sydney',
     'gold coast': 'sydney',
 };
+// True alternate names / abbreviations for cities with curated playlists.
+// Only maps where input refers to THE SAME city (not a different one nearby).
+const PLAYLIST_ABBREVS = {
+    'nyc': 'new york', 'manhattan': 'new york', 'brooklyn': 'new york',
+    'the big apple': 'new york', 'sf': 'san francisco', 'frisco': 'san francisco',
+    'la': 'los angeles', 'nola': 'new orleans', 'bkk': 'bangkok',
+    'bcn': 'barcelona', 'hcmc': 'ho chi minh city', 'saigon': 'ho chi minh city',
+};
 function matchCity(city) {
     const c = city.toLowerCase().trim();
     if (CITY_PLAYLISTS[c])
         return c;
-    if (CITY_ALIASES[c])
-        return CITY_ALIASES[c];
+    if (PLAYLIST_ABBREVS[c] && CITY_PLAYLISTS[PLAYLIST_ABBREVS[c]])
+        return PLAYLIST_ABBREVS[c];
     for (const key of Object.keys(CITY_PLAYLISTS)) {
         if (c.includes(key) || key.includes(c))
             return key;

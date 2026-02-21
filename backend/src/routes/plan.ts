@@ -22,7 +22,7 @@ const FEATURE_TIER: Record<string, string> = {
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', async (req: SubscriptionRequest, res: Response) => {
-  const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
+  const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
 
   // Validate input
   if (!city) {
@@ -83,7 +83,7 @@ router.post('/plan', async (req: SubscriptionRequest, res: Response) => {
   res.write('data: {"type":"connected"}\n\n');
 
   try {
-    const stream = streamPlanGeneration({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
+    const stream = streamPlanGeneration({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone });
 
     for await (const event of stream) {
       if (clientDisconnected) break;

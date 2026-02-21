@@ -97,10 +97,10 @@ const DEFAULT_HH = {
     tip: 'Happy hours typically run 4-7 PM on weekdays. Check Yelp for today\'s specials.'
 };
 function matchCity(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_HH));
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_HH), true);
     if (resolved)
-        return { ...CITY_HH[resolved], city };
-    return { ...DEFAULT_HH, city };
+        return { ...CITY_HH[resolved], city, isDefault: false };
+    return { ...DEFAULT_HH, city, isDefault: true };
 }
 function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
@@ -119,6 +119,11 @@ exports.happyHourService = {
             const url = mapsUrl(hh.bar, data.city);
             return { ...hh, url, link: `[${hh.bar}](${url})` };
         });
-        return { success: true, data: { ...data, happyHours: withUrls } };
+        const { isDefault, ...rest } = data;
+        return {
+            success: true,
+            data: { ...rest, happyHours: withUrls },
+            ...(isDefault && { note: `No local happy hour data for "${city}". These are generic placeholders — use your own knowledge of real bars and happy hours in ${city}.` })
+        };
     }
 };

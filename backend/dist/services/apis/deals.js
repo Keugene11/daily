@@ -120,8 +120,10 @@ function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 function matchCity(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_DEALS));
-    return resolved ? CITY_DEALS[resolved] : { ...DEFAULT_DEALS, tip: DEFAULT_DEALS.tip };
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_DEALS), true);
+    return resolved
+        ? { ...CITY_DEALS[resolved], isDefault: false }
+        : { ...DEFAULT_DEALS, tip: DEFAULT_DEALS.tip, isDefault: true };
 }
 exports.dealsService = {
     async getDeals(city, category, rightNow, localHour) {
@@ -170,7 +172,8 @@ exports.dealsService = {
                 resourceLinks: {
                     groupon: `https://groupon.com/local/${encodeURIComponent(city)}/things-to-do`,
                 },
-            }
+            },
+            ...(matched.isDefault && { note: `No local deal data for "${city}". These are generic placeholders — use your own knowledge of real deals and discounts in ${city}.` })
         };
     }
 };

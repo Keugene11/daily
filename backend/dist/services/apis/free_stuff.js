@@ -128,8 +128,10 @@ function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 function matchCity(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_FREE));
-    return resolved ? CITY_FREE[resolved] : DEFAULT_FREE;
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_FREE), true);
+    return resolved
+        ? { ...CITY_FREE[resolved], isDefault: false }
+        : { ...DEFAULT_FREE, isDefault: true };
 }
 exports.freeStuffService = {
     async getFreeStuff(city, rightNow, localHour) {
@@ -166,7 +168,8 @@ exports.freeStuffService = {
                 resourceLinks: {
                     freeEvents: `https://eventbrite.com/d/${encodeURIComponent(city)}/free--events--today/`,
                 },
-            }
+            },
+            ...(matched.isDefault && { note: `No local data for "${city}". These are generic placeholders — use your own knowledge of real free activities in ${city}.` })
         };
     }
 };

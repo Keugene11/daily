@@ -20,7 +20,7 @@ const FEATURE_TIER = {
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', async (req, res) => {
-    const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = req.body;
+    const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
     // Validate input
     if (!city) {
         return res.status(400).json({ error: 'City is required' });
@@ -72,7 +72,7 @@ router.post('/plan', async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days });
+        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;

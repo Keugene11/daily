@@ -157,7 +157,7 @@ function mapsUrl(name, city) {
     return `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
 }
 function matchCity(city) {
-    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_MEETUPS));
+    const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_MEETUPS), true);
     return resolved ? CITY_MEETUPS[resolved] : DEFAULT_MEETUPS;
 }
 exports.meetupService = {

@@ -125,7 +125,9 @@ function matchCity(city) {
 exports.accommodationService = {
     async getAccommodations(city, budget, type) {
         await new Promise(resolve => setTimeout(resolve, 200));
-        let accommodations = [...matchCity(city)];
+        const resolved = (0, location_aliases_1.resolveLocation)(city, Object.keys(CITY_ACCOMMODATIONS), true);
+        const isDefault = !resolved;
+        let accommodations = [...(resolved ? CITY_ACCOMMODATIONS[resolved] : DEFAULT_ACCOMMODATIONS)];
         // Filter by budget
         if (budget) {
             const budgetMap = {
@@ -152,7 +154,8 @@ exports.accommodationService = {
         });
         return {
             success: true,
-            data: withUrls.slice(0, 4)
+            data: withUrls.slice(0, 4),
+            ...(isDefault && { note: `No curated data for "${city}" — these are generic placeholders. REPLACE every entry with real hotels/hostels/apartments you know in or near ${city}.` })
         };
     }
 };
