@@ -201,10 +201,11 @@ ${timeSections}
 
 ## Where to Stay
 [REQUIRED — you MUST include this section with ALL of the following:
-- List 3-4 accommodation options from get_accommodations tool data
+- List 3-4 accommodation options. If the tool returned real, specific hotels, use those. If it returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN ${request.city}.
+- EVERY accommodation MUST physically be in or immediately adjacent to ${request.city}. NEVER suggest a hotel that is in a different city, suburb, or region.
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
 - Mix budget levels (at least one budget and one upscale option)
-- Use the "link" field from tool data for the markdown link
+- For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://maps.google.com/?q=Hotel+Name,+${encodeURIComponent(request.city)})
 - Do NOT skip or truncate this section — it must appear in full before the Soundtrack section]
 
 ## Soundtrack
