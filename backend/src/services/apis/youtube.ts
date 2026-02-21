@@ -255,6 +255,8 @@ function scoreCandidate(
       else if (age === 1) score += 3;
       else if (age <= 3) score += 1;
       else if (age >= 6) score -= 3;
+    } else {
+      score -= 3; // unknown age, no year in title — mild penalty
     }
   }
 
@@ -337,17 +339,24 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     if (candidates.length === 0) return [];
 
     // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-    // videos under 10K views, and videos older than 10 years
-    const filtered = candidates.filter(c =>
-      (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)) &&
-      c.views >= 10_000 &&
-      (c.ageYears === null || c.ageYears < 10)
-    );
+    // videos under 10K views, and videos older than 8 years.
+    // If age is unknown (null), require 50K+ views as a quality safeguard.
+    const filtered = candidates.filter(c => {
+      if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
+      if (c.ageYears !== null && c.ageYears >= 8) return false;
+      if (c.ageYears === null && c.views < 50_000) return false;
+      if (c.ageYears !== null && c.views < 10_000) return false;
+      return true;
+    });
 
-    // If all candidates are under 10K views, relax to 1K minimum
+    // If all candidates are under 10K views, relax to 1K minimum but keep age filter
     const pool = filtered.length > 0
       ? filtered
-      : candidates.filter(c => c.views >= 1_000 && (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)));
+      : candidates.filter(c =>
+          c.views >= 1_000 &&
+          (c.durationSec === 0 || (c.durationSec >= 45 && c.durationSec <= 2700)) &&
+          (c.ageYears === null || c.ageYears < 10)
+        );
     if (pool.length === 0) return [];
 
     // Score and rank
