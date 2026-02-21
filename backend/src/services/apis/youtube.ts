@@ -166,9 +166,7 @@ function scoreCandidate(
   } else if (c.views >= 500_000) {
     score += 8;                        // 500K+ — solid
   } else if (c.views >= 100_000) {
-    score += 4;                        // 100K+ — decent niche content
-  } else if (c.views >= 50_000) {
-    score += 1;                        // 50K+ — minimum quality bar
+    score += 2;                        // 100K+ — minimum quality bar
   }
 
   // ── Channel quality signals ───────────────────────────────────
@@ -343,7 +341,7 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
       if (c.ageYears !== null && c.ageYears >= 8) return false;
-      if (c.views < 10_000) return false;
+      if (c.views < 100_000) return false;
       return true;
     });
 
