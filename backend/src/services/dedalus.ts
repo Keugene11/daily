@@ -209,7 +209,6 @@ Available tools (call all that are relevant):
 - get_public_transit_routes: Step-by-step transit directions.
 - get_transit_estimates: Travel time estimates between locations.
 - get_accommodations: Where to stay — always call this. Returns curated hotels, hostels, boutiques, and apartments with prices and neighborhoods.
-- get_tech_meetups: Tech meetups, hackathons, coding events, startup networking, and coworking spaces. DAY-AWARE. Highlight upcoming meetups and hackathons in the itinerary.
 
 Structure the itinerary with these exact sections:
 

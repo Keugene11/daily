@@ -15,7 +15,7 @@ import { transitRouteService } from './apis/transit_routes';
 import { waitTimeService } from './apis/wait_times';
 import { dealsService } from './apis/deals';
 import { accommodationService } from './apis/accommodations';
-import { meetupService } from './apis/meetups';
+
 
 /**
  * Tool definitions in OpenAI-compatible format
@@ -359,23 +359,6 @@ export const tools: Tool[] = [
       }
     }
   },
-  {
-    type: 'function',
-    function: {
-      name: 'get_tech_meetups',
-      description: 'Find tech meetups, hackathons, coding events, startup networking, and coworking spaces in a city. Day-aware — filters to events available today.',
-      parameters: {
-        type: 'object',
-        properties: {
-          city: {
-            type: 'string',
-            description: 'City name to search for tech events'
-          }
-        },
-        required: ['city']
-      }
-    }
-  }
 ];
 
 /**
@@ -438,9 +421,6 @@ export const executeToolCall = async (
 
       case 'get_accommodations':
         return await accommodationService.getAccommodations(args.city, args.budget, args.type);
-
-      case 'get_tech_meetups':
-        return await meetupService.getMeetups(args.city, context?.rightNow, context?.currentHour);
 
       default:
         return {

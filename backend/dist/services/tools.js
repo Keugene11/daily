@@ -4,7 +4,6 @@ exports.executeToolCall = exports.tools = void 0;
 const weather_1 = require("./apis/weather");
 const events_1 = require("./apis/events");
 const news_1 = require("./apis/news");
-const activity_1 = require("./apis/activity");
 const restaurants_1 = require("./apis/restaurants");
 const spotify_1 = require("./apis/spotify");
 const transit_1 = require("./apis/transit");
@@ -18,7 +17,6 @@ const transit_routes_1 = require("./apis/transit_routes");
 const wait_times_1 = require("./apis/wait_times");
 const deals_1 = require("./apis/deals");
 const accommodations_1 = require("./apis/accommodations");
-const meetups_1 = require("./apis/meetups");
 exports.tools = [
     {
         type: 'function',
@@ -65,27 +63,6 @@ exports.tools = [
                     city: {
                         type: 'string',
                         description: 'City or region for localized news (optional)'
-                    }
-                },
-                required: []
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'get_random_activity',
-            description: 'Get a random activity suggestion from the Bored API. Great for spontaneous ideas and when the user wants something unexpected.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    type: {
-                        type: 'string',
-                        description: 'Activity type: "education", "recreational", "social", "diy", "charity", "cooking", "relaxation", "music", "busywork"',
-                        enum: [
-                            'education', 'recreational', 'social', 'diy',
-                            'charity', 'cooking', 'relaxation', 'music', 'busywork'
-                        ]
                     }
                 },
                 required: []
@@ -365,23 +342,6 @@ exports.tools = [
             }
         }
     },
-    {
-        type: 'function',
-        function: {
-            name: 'get_tech_meetups',
-            description: 'Find tech meetups, hackathons, coding events, startup networking, and coworking spaces in a city. Day-aware — filters to events available today.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    city: {
-                        type: 'string',
-                        description: 'City name to search for tech events'
-                    }
-                },
-                required: ['city']
-            }
-        }
-    }
 ];
 /**
  * Execute a tool call and return the result
@@ -397,8 +357,6 @@ const executeToolCall = async (toolName, args, context) => {
                 return await events_1.eventsService.getEvents(args.city, context?.rightNow, context?.currentHour);
             case 'get_trending_news':
                 return await news_1.newsService.getNews(args.city);
-            case 'get_random_activity':
-                return await activity_1.activityService.getActivity(args.type);
             case 'get_restaurant_recommendations':
                 return await restaurants_1.restaurantService.getRestaurants(args.city, args.cuisine, args.budget);
             case 'get_playlist_suggestion':
@@ -425,8 +383,6 @@ const executeToolCall = async (toolName, args, context) => {
                 return await deals_1.dealsService.getDeals(args.city, args.category, context?.rightNow, context?.currentHour);
             case 'get_accommodations':
                 return await accommodations_1.accommodationService.getAccommodations(args.city, args.budget, args.type);
-            case 'get_tech_meetups':
-                return await meetups_1.meetupService.getMeetups(args.city, context?.rightNow, context?.currentHour);
             default:
                 return {
                     success: false,
