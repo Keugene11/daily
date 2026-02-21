@@ -45,6 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const freeTierResponse = {
     tier: 'free' as const,
+    interval: null,
     period: 'month' as const,
     limits: { plans: FREE_PLAN_LIMIT },
     usage: { plans: 0 },
@@ -85,13 +86,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     steps.push(`DB row: ${JSON.stringify(subRow)}, dbError: ${dbError?.message || 'none'}`);
     console.log(`[Subscription] DB row: ${JSON.stringify(subRow)}`);
 
-    // If DB already says pro and period is valid, return immediately
+    // If DB already says pro and period is valid, return early (with interval from Stripe)
     if (subRow?.plan_type === 'pro' && subRow?.status === 'active' &&
         subRow?.current_period_end && new Date(subRow.current_period_end) > new Date()) {
-      steps.push('DB says pro — returning');
-      console.log(`[Subscription] DB says pro, returning`);
+      steps.push('DB says pro — getting interval from Stripe');
+      let interval: 'monthly' | 'yearly' | null = null;
+      if (subRow.stripe_customer_id) {
+        try {
+          const subs = await stripe.subscriptions.list({
+            customer: subRow.stripe_customer_id,
+            status: 'active',
+            limit: 1,
+          });
+          if (subs.data.length > 0) {
+            const recurringInterval = (subs.data[0] as any).items?.data?.[0]?.price?.recurring?.interval;
+            if (recurringInterval === 'year') interval = 'yearly';
+            else if (recurringInterval === 'month') interval = 'monthly';
+          }
+        } catch { /* interval stays null */ }
+      }
+      steps.push(`Returning pro, interval=${interval}`);
+      console.log(`[Subscription] DB says pro, interval=${interval}, returning`);
       const proResponse = {
         tier: 'pro' as const,
+        interval,
         period: 'month' as const,
         limits: { plans: -1 },
         usage: { plans: 0 },
@@ -140,6 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 3. Check Stripe for active subscriptions (recurring plans)
     let tier: 'free' | 'pro' = 'free';
     let periodEnd: string | null = null;
+    let interval: 'monthly' | 'yearly' | null = null;
 
     const subs = await stripe.subscriptions.list({
       customer: customerId,
@@ -154,8 +173,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (activeSub.current_period_end) {
         periodEnd = new Date(activeSub.current_period_end * 1000).toISOString();
       }
-      steps.push(`Subscription found! periodEnd=${periodEnd}`);
-      console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}`);
+      // Determine billing interval from Stripe price
+      const recurringInterval = activeSub.items?.data?.[0]?.price?.recurring?.interval;
+      if (recurringInterval === 'year') interval = 'yearly';
+      else if (recurringInterval === 'month') interval = 'monthly';
+      steps.push(`Subscription found! periodEnd=${periodEnd}, interval=${interval}`);
+      console.log(`[Subscription] Stripe active subscription, periodEnd=${periodEnd}, interval=${interval}`);
     }
 
     // 4. If no subscription, check for one-time payments
@@ -203,11 +226,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[Subscription] Synced DB to pro`);
     }
 
-    steps.push(`Final tier=${tier}`);
-    console.log(`[Subscription] Final tier=${tier}`);
+    steps.push(`Final tier=${tier}, interval=${interval}`);
+    console.log(`[Subscription] Final tier=${tier}, interval=${interval}`);
     const used = tier === 'free' ? await getMonthlyUsage(userId) : 0;
     const response = {
       tier,
+      interval,
       period: 'month' as const,
       limits: { plans: tier === 'pro' ? -1 : FREE_PLAN_LIMIT },
       usage: { plans: used },
