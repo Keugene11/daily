@@ -224,24 +224,26 @@ function FormattedContent({ text }: { text: string }) {
  * right, completely outside the text column. Text width is never affected.
  * Videos play inline when clicked. Max 1 video, 2 items total per section.
  */
-function ContentWithMedia({ text, places, mediaData }: {
+function ContentWithMedia({ text, places, mediaData, city }: {
   text: string;
   places: string[];
   mediaData: Map<string, PlaceMediaData>;
+  city?: string;
 }) {
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
   // Collect media items: max 1 video, 2 total — keep them big rather than cramped
+  // Places with videos get priority, then fill remaining slots with static fallbacks
   let videoCount = 0;
-  const mediaItems = places.filter(p => {
+  const withVideo = places.filter(p => {
     const d = mediaData.get(p);
-    if (!d || (!d.imageUrl && !d.videoId)) return false;
-    if (d.videoId) {
-      if (videoCount >= 1) return false;
-      videoCount++;
-    }
+    if (!d?.videoId) return false;
+    if (videoCount >= 1) return false;
+    videoCount++;
     return true;
-  }).slice(0, 2);
+  });
+  const withoutVideo = places.filter(p => !withVideo.includes(p));
+  const mediaItems = [...withVideo, ...withoutVideo].slice(0, 2);
 
   if (mediaItems.length === 0) {
     return <FormattedContent text={text} />;
@@ -304,25 +306,25 @@ function ContentWithMedia({ text, places, mediaData }: {
             );
           }
 
-          // Image card with caption
+          // Static place card fallback — location pin + place name
+          const mapsQuery = city ? `${place}, ${city}` : place;
+          const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(mapsQuery)}`;
           return (
-            <div key={place} className="rounded-xl overflow-hidden">
-              <div className="relative aspect-[4/3] bg-on-surface/[0.03]">
-                <img
-                  src={media.imageUrl!}
-                  alt={place}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    // Hide broken images gracefully
-                    e.currentTarget.parentElement!.style.display = 'none';
-                  }}
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2 pt-8">
-                  <p className="text-xs font-medium text-white truncate">{place}</p>
-                </div>
+            <a
+              key={place}
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-xl overflow-hidden group"
+            >
+              <div className="relative aspect-[3/1] bg-on-surface/[0.04] flex items-center gap-3 px-4">
+                <svg className="w-5 h-5 text-on-surface/25 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+                <p className="text-sm font-medium text-on-surface/50 group-hover:text-on-surface/70 transition-colors truncate">{place}</p>
               </div>
-            </div>
+            </a>
           );
         })}
       </div>
@@ -474,6 +476,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, city, onSpeak, onSh
                     text={slot.content}
                     places={sectionPlaces}
                     mediaData={mediaData}
+                    city={city}
                   />
                 ) : (
                   <FormattedContent text={isSoundtrack ? capSoundtrackTracks(slot.content) : slot.content} />
