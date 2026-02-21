@@ -144,9 +144,10 @@ async function fetchYouTubeVideoId(place: string, city: string, region: string, 
     if (token) headers['Authorization'] = `Bearer ${token}`;
     // When place IS the city, search for a general overview video instead of
     // duplicating ("NYC NYC"). Backend appends "travel guide" suffix automatically.
+    // Always include region for disambiguation (e.g., "Cornell New York" not just "Cornell").
     const isCity = place.toLowerCase() === city.toLowerCase();
     const query = isCity
-      ? `${city} things to do`
+      ? (region ? `${city} ${region} things to do` : `${city} things to do`)
       : region ? `${place} ${city} ${region}` : `${place} ${city}`;
     const res = await fetch(
       `${API_URL}/api/youtube-search?q=${encodeURIComponent(query)}`,
