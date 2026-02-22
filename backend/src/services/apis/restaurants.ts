@@ -461,16 +461,30 @@ export const restaurantService = {
     const cached = getFromCache(cacheKey);
     if (cached) {
       console.log(`[Restaurants] Cache hit for "${cacheKey}"`);
-      return { success: true, data: cached.slice(0, 8) };
+      return { success: true, data: cached.slice(0, 10) };
     }
 
-    // Try Google Places API
-    const googleResults = await searchGooglePlaces(city, cuisine, budget);
+    // Search restaurants AND cafes/bars in parallel for broader coverage
+    const [googleResults, cafeBarResults] = await Promise.all([
+      searchGooglePlaces(city, cuisine, budget),
+      cuisine ? Promise.resolve([]) : searchGooglePlaces(city, 'cafes coffee bars', budget),
+    ]);
 
-    if (googleResults.length > 0) {
-      console.log(`[Restaurants] Google Places returned ${googleResults.length} results for ${city}`);
-      setCache(cacheKey, googleResults);
-      return { success: true, data: googleResults.slice(0, 8) };
+    // Merge and deduplicate by name
+    const seen = new Set<string>();
+    const merged: Restaurant[] = [];
+    for (const r of [...googleResults, ...cafeBarResults]) {
+      const key = r.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(r);
+      }
+    }
+
+    if (merged.length > 0) {
+      console.log(`[Restaurants] Google Places returned ${googleResults.length} restaurants + ${cafeBarResults.length} cafes/bars for ${city}`);
+      setCache(cacheKey, merged);
+      return { success: true, data: merged.slice(0, 10) };
     }
 
     // Fallback: hardcoded data

@@ -255,7 +255,7 @@ This is important! Many events, free museum days, deals, and specials are day-sp
 IMPORTANT RULES:
 1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations tool.
 2. Tools give you structured data, but YOU are the expert. If a tool returns generic/placeholder data, REPLACE it with real places you know. Never recommend a restaurant called "Local Favorite Grill" or an event called "Community Art Walk" — use actual real places, real restaurant names, real landmarks, and real neighborhoods that exist in that city.
-3. For ALL restaurants, cafés, bars, and food spots: ONLY use places returned by the restaurant tool — these are verified as currently open via Google Places. Do NOT add restaurants from your own knowledge, as your training data is outdated and places close frequently. You have 8 restaurant options from the tool — that's enough for breakfast, lunch, dinner, and snacks. For non-food venues (landmarks, museums, parks, markets, attractions), you may use your own knowledge but ONLY recommend well-established, long-running places (major landmarks, public parks, museums open 10+ years). Never recommend trendy pop-ups, recently opened spots, or niche shops that may have closed.
+3. For ALL restaurants, cafés, bars, and food spots: ONLY use places returned by the restaurant tool — these are verified as currently open via Google Places. Do NOT add ANY food/drink venues from your own knowledge, as your training data is outdated and places close frequently. You have ~10 options from the tool (restaurants, cafes, bars) — use ONLY those. For non-food venues (landmarks, museums, parks), ONLY recommend major world-famous landmarks, public parks, and long-established museums. Do NOT recommend any shops, boutiques, galleries, or small businesses from your own knowledge — they may have closed.
 4. Include the destination's ICONIC experiences — the reason people actually go there. If the destination is known for a specific activity (skiing in Chamonix/Aspen, surfing in Pipeline/Bali, hiking in Patagonia/Zermatt, diving in Cozumel, wine tasting in Napa), that activity MUST be the centerpiece of the plan, not an afterthought. For cities, include signature attractions (NYC → High Line, Paris → Eiffel Tower, Tokyo → Shibuya Crossing). Mix marquee experiences with local gems.
 5. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
    a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
@@ -585,7 +585,9 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
 3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
-You MUST write all 3. Do NOT stop early.`
+You MUST write all 3. Do NOT stop early.
+
+CRITICAL: For restaurants, cafés, bars, and food — ONLY use the exact places returned by the restaurant tool above. Do NOT add ANY food/drink venues from your own knowledge. For non-food venues, ONLY recommend major landmarks, public parks, and museums that are world-famous and definitely still open. Do NOT invent or guess venue names — if you're unsure a place exists, leave it out.`
     });
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
