@@ -80,6 +80,18 @@ function loadLeaflet(): Promise<void> {
   return _leafletPromise;
 }
 
+// Extract the first accommodation name from the "Where to Stay" section
+function extractFirstAccommodation(text: string): string | null {
+  const stayMatch = text.match(/##\s*Where to Stay\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (!stayMatch) return null;
+  // Look for the first markdown link in the section — that's the hotel name
+  const linkMatch = stayMatch[1].match(/\[([^\]]+)\]\(/);
+  if (linkMatch) return linkMatch[1].replace(/\+/g, ' ').trim();
+  // Fallback: first bold text
+  const boldMatch = stayMatch[1].match(/\*\*([^*]+)\*\*/);
+  return boldMatch ? boldMatch[1].trim() : null;
+}
+
 // Auto-loading map with all plan locations — renders progressively as markers resolve
 export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [locations, setLocations] = useState<MapLocation[]>([]);
@@ -424,9 +436,13 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
             </span>
           )}
         </div>
-        {locations.length >= 2 && (
-          <a
-            href={`https://www.google.com/maps/dir/${locations.map(l => encodeURIComponent(`${l.name}, ${city}`)).join('/')}`}
+        {locations.length >= 2 && (() => {
+          const hotel = extractFirstAccommodation(content);
+          const hotelEncoded = hotel ? encodeURIComponent(`${hotel}, ${city}`) : null;
+          const stops = locations.map(l => encodeURIComponent(`${l.name}, ${city}`));
+          const path = hotelEncoded ? [hotelEncoded, ...stops, hotelEncoded].join('/') : stops.join('/');
+          return <a
+            href={`https://www.google.com/maps/dir/${path}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs text-on-surface/60 hover:text-on-surface transition-colors px-3 py-1.5 rounded-full border border-on-surface/15 hover:border-on-surface/30"
@@ -435,8 +451,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
             Open in Google Maps
-          </a>
-        )}
+          </a>;
+        })()}
       </div>
 
       {/* Map wrapper — container is ALWAYS visible so Leaflet can measure it */}
