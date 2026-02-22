@@ -340,10 +340,10 @@ async function scrapeYouTubeSearch(query: string, searchSuffix = '', count = 1):
     if (candidates.length === 0) return [];
 
     // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-    // videos under 100K views, and videos older than 7 years.
+    // videos under 100K views, and videos older than 4 years.
     const filtered = candidates.filter(c => {
       if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700)) return false;
-      if (c.ageYears !== null && c.ageYears >= 7) return false;
+      if (c.ageYears !== null && c.ageYears >= 4) return false;
       if (c.views < 100_000) return false;
       return true;
     });
