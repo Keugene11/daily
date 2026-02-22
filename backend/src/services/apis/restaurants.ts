@@ -224,7 +224,7 @@ async function searchGooglePlaces(
   const requestBody: any = {
     textQuery: query,
     languageCode: 'en',
-    maxResultCount: 8,
+    maxResultCount: 12,
   };
   if (priceLevels.length > 0) {
     requestBody.priceLevels = priceLevels;
@@ -240,6 +240,7 @@ async function searchGooglePlaces(
     'places.editorialSummary',
     'places.googleMapsUri',
     'places.reviews',
+    'places.businessStatus',
   ].join(',');
 
   const controller = new AbortController();
@@ -264,7 +265,16 @@ async function searchGooglePlaces(
     }
 
     const data: any = await response.json();
-    const places = data.places || [];
+    const places = (data.places || [])
+      .filter((p: any) => {
+        // Filter out permanently or temporarily closed businesses
+        const status = p.businessStatus;
+        if (status && status !== 'OPERATIONAL') {
+          console.log(`[Restaurants] Skipping "${p.displayName?.text}" — status: ${status}`);
+          return false;
+        }
+        return true;
+      });
     return places.map((p: any) => mapPlaceToRestaurant(p, city));
   } catch (error: any) {
     if (error?.name === 'AbortError') {
