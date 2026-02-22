@@ -323,7 +323,7 @@ function App() {
       {/* Hero / Input */}
       {isHome && !showResults && (
         <div className="flex flex-col items-center justify-center px-6 pt-32 pb-20">
-          <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
+          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
             {greeting}
           </h1>
           <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16">
