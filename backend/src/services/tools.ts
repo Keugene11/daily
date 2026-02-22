@@ -14,6 +14,7 @@ import { transitRouteService } from './apis/transit_routes';
 import { waitTimeService } from './apis/wait_times';
 import { dealsService } from './apis/deals';
 import { accommodationService } from './apis/accommodations';
+import { attractionService } from './apis/attractions';
 
 
 /**
@@ -320,6 +321,27 @@ export const tools: Tool[] = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_attractions',
+      description: 'Find top attractions, unique experiences, and things to do in a city. Returns verified, currently-open attractions from Google Places — observation decks, tours, boat cruises, gardens, historic sites, adventure activities, entertainment venues, and more. Use this alongside restaurants to build a rich itinerary.',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: {
+            type: 'string',
+            description: 'City name to search for attractions'
+          },
+          category: {
+            type: 'string',
+            description: 'Optional category filter (e.g., "observation decks", "tours", "outdoor activities", "entertainment")'
+          }
+        },
+        required: ['city']
+      }
+    }
+  },
 ];
 
 /**
@@ -376,6 +398,9 @@ export const executeToolCall = async (
 
       case 'get_accommodations':
         return await accommodationService.getAccommodations(args.city, args.budget, args.type);
+
+      case 'get_attractions':
+        return await attractionService.getAttractions(args.city, args.category);
 
       default:
         return {

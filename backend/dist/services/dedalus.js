@@ -151,7 +151,7 @@ function buildSystemPrompt(request) {
             `  - NEVER repeat the same restaurant, bar, or attraction across days\n` +
             `  - Spread neighborhoods logically — don't bounce across the city unnecessarily\n` +
             `  - Reference previous days for continuity ("After yesterday's street food marathon, today is all about fine dining...")\n` +
-            `  - Where to Stay appears ONCE at the end, not per-day`);
+            `  - Your Hotel appears ONCE at the end, not per-day`);
     }
     const extrasBlock = extras.length > 0 ? `\n\nSPECIAL INSTRUCTIONS:\n${extras.join('\n')}` : '';
     // Determine time sections based on current hour
@@ -229,23 +229,25 @@ Day of the week: ${dayOfWeek}
 This is important! Many events, free museum days, deals, and specials are day-specific. The tools will return ONLY what's available today — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!" or "Today's ${dayOfWeek} deal: $1 tacos at...").
 
 IMPORTANT RULES:
-1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations tool.
+1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_attractions, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations or attractions tools.
 2. Tools give you structured data, but YOU are the expert. If a tool returns generic/placeholder data, REPLACE it with real places you know. Never recommend a restaurant called "Local Favorite Grill" or an event called "Community Art Walk" — use actual real places, real restaurant names, real landmarks, and real neighborhoods that exist in that city.
-3. Every recommendation must be a REAL place that is CURRENTLY OPEN and operating. Your training data may be outdated — restaurants close, venues shut down, stores relocate. PRIORITIZE places returned by the tools (restaurants, events, deals, happy hours) because that data is fresher. When adding places from your own knowledge, only recommend well-established, long-running venues (major landmarks, famous restaurants open 10+ years, public parks, museums) — never trendy pop-ups, recently opened spots, or niche shops that may have closed. If you're unsure whether a place still exists, pick a safer alternative.
-4. Include the city's ICONIC experiences and signature attractions — the things the city is famous for that visitors should not miss. For NYC that's Summit One Vanderbilt, Top of the Rock, or the High Line; for Paris it's the Eiffel Tower or Musée d'Orsay; for Tokyo it's Shibuya Crossing or Tsukiji Outer Market. Mix these marquee attractions with hidden gems and local favorites for a balanced itinerary.
+3. For ALL restaurants, cafés, bars, and food spots: ONLY use places returned by the restaurant tool — these are verified as currently open via Google Places. Do NOT add ANY food/drink venues from your own knowledge, as your training data is outdated and places close frequently. You have ~10 options from the tool (restaurants, cafes, bars) — use ONLY those. For non-food activities: PREFER attractions returned by the attractions tool — these are verified as currently open (observation decks, tours, experiences, gardens, entertainment, etc.). You may also include well-known public parks and major landmarks. Do NOT recommend small shops, boutiques, or obscure businesses from your own knowledge — they may have closed.
+4. Include the destination's ICONIC experiences — the reason people actually go there. If the destination is known for a specific activity (skiing in Chamonix/Aspen, surfing in Pipeline/Bali, hiking in Patagonia/Zermatt, diving in Cozumel, wine tasting in Napa), that activity MUST be the centerpiece of the plan, not an afterthought. For cities, include signature attractions (NYC → High Line, Paris → Eiffel Tower, Tokyo → Shibuya Crossing). Mix marquee experiences with local gems.
 5. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
    a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
    b) The three neighborhoods must form a logical geographic arc — not bouncing north-south-north. Morning → Afternoon → Evening should flow in one direction across the city (e.g., south → central → north, or east → west).
-   c) Start Morning near the accommodation. End Evening near the accommodation. This creates a loop.
+   c) Start Morning BY NAME at the accommodation — e.g., "Starting from [Hotel Name](link), head to..." End Evening BY NAME back at it — e.g., "...a short walk back to [Hotel Name](link)." This creates a visible loop.
    d) For EACH activity, state which neighborhood it's in parenthetically so the user can verify proximity — e.g., "Head to [Café Name](link) **(SoHo)** for brunch".
    e) Between time periods, briefly note the transition: "**Walk 10 min north to Greenwich Village for the afternoon.**"
    f) NEVER recommend two consecutive places that are more than 20 min apart by walking/transit. If a must-see attraction is far away, rearrange the order or swap it into a different time period where it fits geographically.
+6. **EVERY section in the output format is MANDATORY** — you must include ALL of them: the time-of-day sections, Where to Stay, Estimated Total, AND Pro Tips. NEVER skip or truncate any section. The Estimated Total is especially important — the user needs to know how much the day will cost.
 
 Available tools (call all that are relevant):
 - get_weather: Always call this. Use the data for practical advice.
 - get_local_events: City events and activities — DAY-AWARE, only returns events for today's day of the week. Check the todayHighlights array for day-specific finds!
 - get_restaurant_recommendations: Real restaurant data (name, cuisine, price level, rating, review count, neighborhood, Google Maps link). May include a "reviewHighlights" array — these are real snippets from customer reviews mentioning specific dishes they ordered. USE these to recommend specific items (e.g., if a review says "The cacio e pepe was incredible", tell the user to order the cacio e pepe). If no reviewHighlights are present, describe what the restaurant is known for based on its cuisine type but do NOT invent specific named dishes. Approximate a per-person cost from the price level ($=~$10-15, $$=~$20-35, $$$=~$50+).
 
+- get_attractions: Top attractions, unique experiences, and things to do — observation decks, tours, museums, gardens, entertainment venues, adventure activities, etc. All verified as currently open via Google Places. ALWAYS call this to get interesting non-food activities.
 - get_trending_news: Current headlines for conversation starters.
 - get_free_stuff: Free activities available TODAY — DAY-AWARE, filters to today's day. Highlight the todayHighlights prominently (e.g., "Since it's ${dayOfWeek}, you can get into MoMA for FREE!").
 - get_deals_coupons: Deals and discounts — DAY-AWARE, shows only today's deals. Highlight todayDeals prominently (e.g., "It's Taco Tuesday — $1 tacos at...").
@@ -262,25 +264,22 @@ Structure the itinerary with these exact sections:
 
 ${timeSections}
 
-## Where to Stay
-[REQUIRED — you MUST include this section:
-- List 2-4 accommodation options — only include as many as there are genuinely good picks for the destination. Small towns may only have 2; big cities can have 4.
-- If the tool returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
-- EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
-- For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
-- For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z) with approximate coordinates
-- Do NOT skip or truncate this section — it must appear in full before the Pro Tips section]
-
 ## Estimated Total
-[REQUIRED — add up ALL the costs mentioned in the itinerary above (food, drinks, activities, transport, entry fees) and show a simple breakdown:
+[REQUIRED — add up ALL costs from the itinerary (food, drinks, activities, transport, entry fees):
 - Food & Drinks: ~$XX
 - Activities & Entry: ~$XX
 - Transport: ~$XX
 - **Total: ~$XX per person**
-Use the specific prices you cited throughout the plan. If something was free, don't include it. This should be a quick, honest summary — not a sales pitch.]
 
-## Pro Tips
-[REQUIRED — include 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. These should be city-level insider knowledge, NOT about specific venues in the itinerary above. Examples: "Tap water is safe to drink everywhere — skip the bottled water", "The metro is fastest between 10am-4pm — avoid rush hour sardine cans", "Tipping 18-20% is expected at sit-down restaurants", "Street parking is free on Sundays", "Download the city transit app — it works offline", "Most museums are closed on Mondays". Keep each tip to one line.]
+**Pro Tips:**
+- 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know (city-level insider knowledge, NOT about specific venues above). One line each.]
+
+## Your Hotel
+[REQUIRED — pick ONE accommodation that best fits the user's budget and location. Choose the option closest to the day's activities so the geographic routing makes sense.
+- If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE it with a real hotel you know in ${request.city}.
+- Name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood.
+- Write 2-3 sentences reviewing it — what makes it a good pick, the vibe, standout amenities, any insider tips (e.g., "ask for a room facing the courtyard — it's quieter").
+- For tool-provided accommodations, use the "link" field. For your own, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z).]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -401,7 +400,7 @@ async function* streamPlanGeneration(request) {
                 messages.push({ role: 'assistant', content: assistantMessage.content });
                 messages.push({
                     role: 'user',
-                    content: 'Please call the tools first — get_weather, get_local_events, get_restaurant_recommendations, get_accommodations, get_sunrise_sunset, get_free_stuff, get_deals_coupons, and any others that are relevant. Do not respond with text — only call tools.'
+                    content: 'Please call the tools first — get_weather, get_local_events, get_restaurant_recommendations, get_attractions, get_accommodations, get_sunrise_sunset, get_free_stuff, get_deals_coupons, and any others that are relevant. Do not respond with text — only call tools.'
                 });
             }
             assistantMessage = null;
@@ -481,6 +480,10 @@ async function* streamPlanGeneration(request) {
         if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
             forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
         }
+        // Attractions gives the model interesting non-food activities to recommend
+        if (!calledTools.has('get_attractions') && toolCity && !request.rightNow && timeRemaining() > 25_000) {
+            forceCalls.push({ name: 'get_attractions', args: { city: toolCity } });
+        }
         if (forceCalls.length > 0) {
             console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
             for (const fc of forceCalls) {
@@ -519,13 +522,32 @@ async function* streamPlanGeneration(request) {
             return;
         }
         yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
+        // Final instruction — this is the LAST thing the model sees before generating.
+        // Keep it short and forceful. Everything here overrides earlier instructions.
+        const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
+            ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
+            : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
+                ? 'This is a SURF destination — surfing MUST be the centerpiece of the plan. '
+                : request.city.match(/patagonia|annapurna|kilimanjaro|appalachian|camino|dolomites/i)
+                    ? 'This is a HIKING destination — hiking/trekking MUST be the centerpiece of the plan. '
+                    : '';
+        messages.push({
+            role: 'user',
+            content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
+1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
+2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
+3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
+You MUST write all 3. Do NOT stop early.
+
+CRITICAL: For restaurants, cafés, bars, and food — ONLY use the exact places returned by the restaurant tool above. Do NOT add ANY food/drink venues from your own knowledge. For non-food activities — USE the attractions returned by the attractions tool (observation decks, tours, experiences, museums, etc.) and supplement with well-known parks and major landmarks. Do NOT invent or guess venue names — if you're unsure a place exists, leave it out.`
+        });
         // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
         let contentReceived = false;
         // Scale token budget for multi-day trips, but reduce if we're short on time
-        let tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 8000;
+        let tokenBudget = isMultiDay ? Math.min(request.days * 4000, 16000) : 12000;
         if (timeRemaining() < 25_000) {
             // Under 25s left — cap output to finish in time
-            tokenBudget = Math.min(tokenBudget, 6000);
+            tokenBudget = Math.min(tokenBudget, 8000);
             console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
         }
         // Only retry if we have enough time
@@ -548,15 +570,21 @@ async function* streamPlanGeneration(request) {
                     temperature: 0.7,
                     max_tokens: tokenBudget
                 });
+                let outputTokens = 0;
                 for await (const chunk of stream) {
                     const delta = chunk.choices?.[0]?.delta;
                     const content = delta?.content;
                     if (content) {
                         contentReceived = true;
+                        outputTokens += Math.ceil(content.length / 4); // rough estimate
                         yield { type: 'content_chunk', content };
                     }
                     if (chunk.choices?.[0]?.finish_reason) {
-                        console.log('[Dedalus] Stream finished:', chunk.choices[0].finish_reason, '| content received:', contentReceived);
+                        const reason = chunk.choices[0].finish_reason;
+                        console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens used of ${tokenBudget} budget | content: ${contentReceived}`);
+                        if (reason === 'length') {
+                            console.warn(`[Dedalus] OUTPUT TRUNCATED — model hit max_tokens (${tokenBudget})`);
+                        }
                         break;
                     }
                 }

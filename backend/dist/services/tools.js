@@ -15,6 +15,7 @@ const transit_routes_1 = require("./apis/transit_routes");
 const wait_times_1 = require("./apis/wait_times");
 const deals_1 = require("./apis/deals");
 const accommodations_1 = require("./apis/accommodations");
+const attractions_1 = require("./apis/attractions");
 exports.tools = [
     {
         type: 'function',
@@ -302,6 +303,27 @@ exports.tools = [
             }
         }
     },
+    {
+        type: 'function',
+        function: {
+            name: 'get_attractions',
+            description: 'Find top attractions, unique experiences, and things to do in a city. Returns verified, currently-open attractions from Google Places — observation decks, tours, boat cruises, gardens, historic sites, adventure activities, entertainment venues, and more. Use this alongside restaurants to build a rich itinerary.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    city: {
+                        type: 'string',
+                        description: 'City name to search for attractions'
+                    },
+                    category: {
+                        type: 'string',
+                        description: 'Optional category filter (e.g., "observation decks", "tours", "outdoor activities", "entertainment")'
+                    }
+                },
+                required: ['city']
+            }
+        }
+    },
 ];
 /**
  * Execute a tool call and return the result
@@ -339,6 +361,8 @@ const executeToolCall = async (toolName, args, context) => {
                 return await deals_1.dealsService.getDeals(args.city, args.category, context?.rightNow, context?.currentHour);
             case 'get_accommodations':
                 return await accommodations_1.accommodationService.getAccommodations(args.city, args.budget, args.type);
+            case 'get_attractions':
+                return await attractions_1.attractionService.getAttractions(args.city, args.category);
             default:
                 return {
                     success: false,
