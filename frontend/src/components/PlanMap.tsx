@@ -11,7 +11,6 @@ import {
   detectDayCount,
   distanceKm,
   MAX_DISTANCE_KM,
-  MARKER_COLORS,
   removeOutliers,
 } from '../utils/mapUtils';
 
@@ -189,37 +188,39 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       routeLineRef.current = null;
     }
 
+    const isDark = document.documentElement.classList.contains('dark');
+    const accentColor = isDark ? '#818CF8' : '#3B82F6';
+
+    // Draw route line first (behind markers)
+    if (locs.length > 1) {
+      const coords = locs.map(l => [l.lat, l.lng] as [number, number]);
+      routeLineRef.current = L.polyline(coords, {
+        color: accentColor,
+        weight: 3,
+        opacity: 0.4,
+        dashArray: '6, 10',
+      }).addTo(map);
+    }
+
     // Add markers
     locs.forEach((loc, i) => {
       const icon = L.divIcon({
         className: 'custom-marker',
         html: `<div style="
-          width: 28px; height: 28px; border-radius: 50%;
-          background: ${MARKER_COLORS[i % MARKER_COLORS.length]};
+          width: 24px; height: 24px; border-radius: 50%;
+          background: ${accentColor};
           color: white; display: flex; align-items: center; justify-content: center;
-          font-size: 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          font-size: 11px; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
           border: 2px solid white;
         ">${i + 1}</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map)
-        .bindPopup(`<strong>${loc.name}</strong>`);
+        .bindTooltip(loc.name, { direction: 'top', offset: [0, -14], className: 'leaflet-tooltip-custom' });
       markersRef.current.push(marker);
     });
-
-    // Draw route line
-    if (locs.length > 1) {
-      const isDark = document.documentElement.classList.contains('dark');
-      const coords = locs.map(l => [l.lat, l.lng] as [number, number]);
-      routeLineRef.current = L.polyline(coords, {
-        color: isDark ? '#6366F1' : '#3B82F6',
-        weight: 2,
-        opacity: 0.5,
-        dashArray: '8, 8',
-      }).addTo(map);
-    }
   }, []);
 
   // Fit map bounds to show all current markers
@@ -476,16 +477,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
       {/* Location legend */}
       {locations.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
           {locations.map((loc, i) => (
-            <span key={i} className="flex items-center gap-1.5 text-[10px] text-on-surface/40">
-              <span
-                className="w-4 h-4 rounded-full text-white text-[8px] flex items-center justify-center font-bold"
-                style={{ background: MARKER_COLORS[i % 8] }}
-              >
-                {i + 1}
-              </span>
-              {loc.name}
+            <span key={i} className="text-[11px] text-on-surface/50">
+              <span className="text-on-surface/30">{i + 1}.</span> {loc.name}
             </span>
           ))}
         </div>
