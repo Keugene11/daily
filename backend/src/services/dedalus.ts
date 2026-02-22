@@ -293,10 +293,9 @@ ${timeSections}
 - Activities & Entry: ~$XX
 - Transport: ~$XX
 - **Total: ~$XX per person**
-Use the specific prices you cited. Keep it short.]
 
-## Pro Tips
-[REQUIRED — 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. City-level insider knowledge, NOT about specific venues above. Keep each tip to one line.]
+**Pro Tips:**
+- 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know (city-level insider knowledge, NOT about specific venues above). One line each.]
 
 ## Your Hotel
 [REQUIRED — pick ONE accommodation that best fits the user's budget and location. Choose the option closest to the day's activities so the geographic routing makes sense.
@@ -584,10 +583,9 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       role: 'user',
       content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
-2. ## Estimated Total — Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
-3. ## Pro Tips — 2-4 insider tips
-4. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
-You MUST write all 4. Do NOT stop early.`
+2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
+3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
+You MUST write all 3. Do NOT stop early.`
     });
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
