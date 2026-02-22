@@ -65,17 +65,7 @@ function App() {
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  // Load preferences from localStorage
-  useEffect(() => {
-    const prefs = localStorage.getItem('daily_prefs');
-    if (prefs) {
-      try {
-        const { city: savedCity, budget: savedBudget } = JSON.parse(prefs);
-        if (savedCity) setCity(savedCity);
-        if (savedBudget) setBudget(savedBudget);
-      } catch { /* ignore */ }
-    }
-  }, []);
+  // Preferences are saved for OAuth redirect flow only — don't restore on normal page load
 
   // Resume pending plan after OAuth redirect
   useEffect(() => {

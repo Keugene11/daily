@@ -18,6 +18,7 @@ export const CityInput: React.FC<Props> = ({ value, onChange, disabled }) => {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
+        autoComplete="off"
         placeholder="City, country, or state"
         className="w-full bg-transparent border-b border-on-surface/20 pb-3 text-lg text-on-surface placeholder-on-surface/20 focus:outline-none focus:border-on-surface/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       />
