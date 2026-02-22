@@ -287,25 +287,23 @@ Structure the itinerary with these exact sections:
 
 ${timeSections}
 
-## Where to Stay
-[REQUIRED — you MUST include this section:
-- List 2-4 accommodation options — only include as many as there are genuinely good picks for the destination. Small towns may only have 2; big cities can have 4.
-- If the tool returned generic placeholders (e.g., "City Center Hotel", "Backpacker's Hostel"), REPLACE them with real hotels/hostels you know that are actually located IN or very near ${request.city}.
-- EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution (not a city name), use the actual city where it's located (e.g., "Cornell" → Ithaca, "Stanford" → Palo Alto). NEVER suggest a hotel in a different city or region.
-- For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, and a one-line description
-- For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z) with approximate coordinates
-- Do NOT skip or truncate this section — it must appear in full before the Pro Tips section]
-
 ## Estimated Total
-[REQUIRED — add up ALL the costs mentioned in the itinerary above (food, drinks, activities, transport, entry fees) and show a simple breakdown:
+[REQUIRED — write this IMMEDIATELY after the last time-of-day section. Add up ALL costs from the itinerary (food, drinks, activities, transport, entry fees):
 - Food & Drinks: ~$XX
 - Activities & Entry: ~$XX
 - Transport: ~$XX
 - **Total: ~$XX per person**
-Use the specific prices you cited throughout the plan. If something was free, don't include it. This should be a quick, honest summary — not a sales pitch.]
+Use the specific prices you cited. If something was free, don't include it. Keep it short.]
+
+## Where to Stay
+[REQUIRED — list 2-4 accommodation options. Only include as many as there are genuinely good picks. Small towns may only have 2; big cities can have 4.
+- If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE them with real hotels you know in ${request.city}.
+- EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution, use the actual city (e.g., "Cornell" → Ithaca).
+- For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, one-line description.
+- For tool-provided accommodations, use the "link" field. For your own, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z).]
 
 ## Pro Tips
-[REQUIRED — include 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. These should be city-level insider knowledge, NOT about specific venues in the itinerary above. Examples: "Tap water is safe to drink everywhere — skip the bottled water", "The metro is fastest between 10am-4pm — avoid rush hour sardine cans", "Tipping 18-20% is expected at sit-down restaurants", "Street parking is free on Sundays", "Download the city transit app — it works offline", "Most museums are closed on Mondays". Keep each tip to one line.]
+[REQUIRED — 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. City-level insider knowledge, NOT about specific venues above. Keep each tip to one line.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -584,12 +582,12 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       : '';
     messages.push({
       role: 'user',
-      content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — you will be penalized for missing any:
+      content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
-2. ## Where to Stay — 2-4 real accommodations with prices
-3. ## Estimated Total — add up ALL costs: Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
+2. ## Estimated Total — add up ALL costs: Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
+3. ## Where to Stay — 2-4 real accommodations with prices
 4. ## Pro Tips — 2-4 insider tips
-You MUST write all 4. Do NOT stop after Where to Stay.`
+You MUST write all 4. Do NOT stop early.`
     });
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
