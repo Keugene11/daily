@@ -36,7 +36,6 @@ function App() {
   const [city, setCity] = useState('');
   const [budget, setBudget] = useState('any');
   const { state, startStream, reset } = usePlanStream();
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [shareMsg, setShareMsg] = useState('');
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -175,8 +174,6 @@ function App() {
   };
 
   const handleReset = () => {
-    speechSynthesis.cancel();
-    setIsSpeaking(false);
     reset();
     setCity('');
     setBudget('any');
@@ -187,8 +184,6 @@ function App() {
   };
 
   const handleReplan = () => {
-    speechSynthesis.cancel();
-    setIsSpeaking(false);
     if (subscription.isLimitReached('plan')) {
       setShowPricing(true);
       return;
@@ -196,31 +191,6 @@ function App() {
     if (city.trim()) {
       startStream(city, budget, buildExtras(), getAccessToken);
     }
-  };
-
-  const handleSpeak = () => {
-    if (isSpeaking) {
-      speechSynthesis.cancel();
-      setIsSpeaking(false);
-      return;
-    }
-    if (!state.content) return;
-
-    const text = state.content
-      .replace(/##\s+/g, '')
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/\n+/g, '. ');
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    setIsSpeaking(true);
-    speechSynthesis.speak(utterance);
   };
 
   const handleShare = async () => {
@@ -552,9 +522,7 @@ function App() {
               content={state.content}
               city={city}
               days={tripDays}
-              onSpeak={handleSpeak}
               onShare={handleShare}
-              isSpeaking={isSpeaking}
               mediaData={mediaData}
             />
           )}
