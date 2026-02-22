@@ -577,10 +577,10 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     let contentReceived = false;
 
     // Scale token budget for multi-day trips, but reduce if we're short on time
-    let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 8000;
+    let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 12000;
     if (timeRemaining() < 25_000) {
       // Under 25s left — cap output to finish in time
-      tokenBudget = Math.min(tokenBudget, 6000);
+      tokenBudget = Math.min(tokenBudget, 8000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 
