@@ -328,7 +328,7 @@ function parseItinerary(text: string): ParsedPlan {
     const daySlots: TimeSlot[] = [];
 
     for (const slot of allSlots) {
-      if (/^(where to stay|estimated total)$/i.test(slot.period)) {
+      if (/^(where to stay|your hotel|estimated total)$/i.test(slot.period)) {
         globalSections.push(slot);
       } else {
         daySlots.push(slot);
@@ -340,7 +340,7 @@ function parseItinerary(text: string): ParsedPlan {
     }
   }
 
-  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Estimated Total)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
+  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Your Hotel|Estimated Total)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
   if (afterLastDay) {
     for (const match of afterLastDay) {
       const m = match.match(/## ([^\n(]+?)(?:\s*\(([^)]*)\))?\s*\n([\s\S]*)/);

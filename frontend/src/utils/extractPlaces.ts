@@ -3,8 +3,8 @@
  * Parses Google Maps links, markdown links, and bold text to find venue names.
  */
 export function extractPlaces(content: string, city: string, maxResults = 10): string[] {
-  // Strip "Where to Stay" section — hotels don't need video thumbnails
-  const stayIdx = content.search(/##\s*Where to Stay/i);
+  // Strip accommodation section — hotels don't need video thumbnails
+  const stayIdx = content.search(/##\s*(?:Where to Stay|Your Hotel)/i);
   const itineraryContent = stayIdx > -1 ? content.slice(0, stayIdx) : content;
 
   const cityLower = city.toLowerCase();

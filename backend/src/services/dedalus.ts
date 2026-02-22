@@ -167,7 +167,7 @@ function buildSystemPrompt(request: PlanRequest): string {
       `  - NEVER repeat the same restaurant, bar, or attraction across days\n` +
       `  - Spread neighborhoods logically — don't bounce across the city unnecessarily\n` +
       `  - Reference previous days for continuity ("After yesterday's street food marathon, today is all about fine dining...")\n` +
-      `  - Where to Stay appears ONCE at the end, not per-day`
+      `  - Your Hotel appears ONCE at the end, not per-day`
     );
   }
 
@@ -298,11 +298,11 @@ Use the specific prices you cited. Keep it short.]
 ## Pro Tips
 [REQUIRED — 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. City-level insider knowledge, NOT about specific venues above. Keep each tip to one line.]
 
-## Where to Stay
-[REQUIRED — list 2-4 accommodation options. Only include as many as there are genuinely good picks. Small towns may only have 2; big cities can have 4.
-- If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE them with real hotels you know in ${request.city}.
-- EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution, use the actual city (e.g., "Cornell" → Ithaca).
-- For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, one-line description.
+## Your Hotel
+[REQUIRED — pick ONE accommodation that best fits the user's budget and location. Choose the option closest to the day's activities so the geographic routing makes sense.
+- If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE it with a real hotel you know in ${request.city}.
+- Name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood.
+- Write 2-3 sentences reviewing it — what makes it a good pick, the vibe, standout amenities, any insider tips (e.g., "ask for a room facing the courtyard — it's quieter").
 - For tool-provided accommodations, use the "link" field. For your own, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z).]
 
 Writing style:
@@ -586,7 +586,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
 3. ## Pro Tips — 2-4 insider tips
-4. ## Where to Stay — 2-4 real accommodations with prices
+4. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
 You MUST write all 4. Do NOT stop early.`
     });
 

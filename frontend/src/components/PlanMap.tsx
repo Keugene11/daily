@@ -83,7 +83,7 @@ function loadLeaflet(): Promise<void> {
 // Extract the first accommodation name + coordinates from the "Where to Stay" section.
 // Pulls coords directly from the Google Maps @lat,lng URL so we don't need Nominatim.
 function extractFirstAccommodation(text: string): { name: string; lat?: number; lng?: number } | null {
-  const stayMatch = text.match(/##\s*Where to Stay\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const stayMatch = text.match(/##\s*(?:Where to Stay|Your Hotel)\s*\n([\s\S]*?)(?=\n##\s|$)/i);
   if (!stayMatch) return null;
   const section = stayMatch[1];
 
