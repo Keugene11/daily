@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { CityInput } from './components/CityInput';
 import { ToolCallIndicator } from './components/ToolCallIndicator';
@@ -27,8 +27,34 @@ const BUDGET_OPTIONS = [
   { id: 'high', label: '$$$' },
 ];
 
+const GREETINGS: Record<string, string[]> = {
+  morning:   ['Good morning', 'Rise and shine', 'Morning'],
+  afternoon: ['Good afternoon', 'Hey there', 'Afternoon'],
+  evening:   ['Good evening', 'Evening', 'Hey there'],
+  night:     ['Still up', 'Night owl', 'Burning the midnight oil'],
+};
+
+function getTimeOfDay(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+
 function App() {
   const { session, user, loading: authLoading, signInWithGoogle, signOut, getAccessToken } = useAuth();
+
+  // Dynamic greeting — picks a random variant on mount, stable across re-renders
+  const [greetingIndex] = useState(() => Math.floor(Math.random() * 3));
+  const greeting = useMemo(() => {
+    const tod = getTimeOfDay();
+    const base = GREETINGS[tod][greetingIndex % GREETINGS[tod].length];
+    const firstName = user?.user_metadata?.full_name?.split(' ')[0]
+      || user?.user_metadata?.name?.split(' ')[0];
+    return firstName ? `${base}, ${firstName}.` : `${base}.`;
+  }, [user, greetingIndex]);
+
   const subscription = useSubscription(getAccessToken);
   const navigate = useNavigate();
   const location = useLocation();
@@ -298,10 +324,10 @@ function App() {
       {isHome && !showResults && (
         <div className="flex flex-col items-center justify-center px-6 pt-32 pb-20">
           <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
-            A new way to plan<br />your perfect day.
+            {greeting}
           </h1>
           <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16">
-            AI-powered daily planning. Real-time tool calling. Personalized itineraries.
+            A new way to plan your perfect day.
           </p>
 
           <div className="w-full max-w-lg space-y-6">
