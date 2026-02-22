@@ -264,6 +264,7 @@ IMPORTANT RULES:
    d) For EACH activity, state which neighborhood it's in parenthetically so the user can verify proximity — e.g., "Head to [Café Name](link) **(SoHo)** for brunch".
    e) Between time periods, briefly note the transition: "**Walk 10 min north to Greenwich Village for the afternoon.**"
    f) NEVER recommend two consecutive places that are more than 20 min apart by walking/transit. If a must-see attraction is far away, rearrange the order or swap it into a different time period where it fits geographically.
+6. **EVERY section in the output format is MANDATORY** — you must include ALL of them: the time-of-day sections, Where to Stay, Estimated Total, AND Pro Tips. NEVER skip or truncate any section. The Estimated Total is especially important — the user needs to know how much the day will cost.
 
 Available tools (call all that are relevant):
 - get_weather: Always call this. Use the data for practical advice.
