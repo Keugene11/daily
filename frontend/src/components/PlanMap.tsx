@@ -348,6 +348,13 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const dayCount = detectDayCount(content);
         const maxPlaces = Math.min(dayCount * 10, 25);
         const places = extractPlaces(content, city, maxPlaces);
+
+        // Add the first accommodation as a bookend (first + last stop on the route)
+        const hotelName = extractFirstAccommodation(content);
+        if (hotelName && !places.includes(hotelName)) {
+          places.unshift(hotelName);
+        }
+
         setTotalPlaces(places.length);
         if (places.length === 0) {
           setLoading(false);
@@ -413,6 +420,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         // so markers match the itinerary flow.
         if (allResults.length > 0) {
           const cleaned = removeOutliers(allResults);
+          // Add the hotel as the last stop to close the loop (hotel → stops → hotel)
+          if (hotelName && cleaned.length > 0 && cleaned[0].name === hotelName) {
+            cleaned.push({ ...cleaned[0], name: `${hotelName} (return)` });
+          }
           setLocations(cleaned);
           updateMarkers(cleaned);
           fitMapBounds(cleaned);

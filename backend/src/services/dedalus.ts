@@ -260,7 +260,7 @@ IMPORTANT RULES:
 5. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
    a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
    b) The three neighborhoods must form a logical geographic arc — not bouncing north-south-north. Morning → Afternoon → Evening should flow in one direction across the city (e.g., south → central → north, or east → west).
-   c) Start Morning near the accommodation. End Evening near the accommodation. This creates a loop.
+   c) Start Morning BY NAME at the accommodation — e.g., "Starting from [Hotel Name](link), head to..." End Evening BY NAME back at it — e.g., "...a short walk back to [Hotel Name](link)." This creates a visible loop.
    d) For EACH activity, state which neighborhood it's in parenthetically so the user can verify proximity — e.g., "Head to [Café Name](link) **(SoHo)** for brunch".
    e) Between time periods, briefly note the transition: "**Walk 10 min north to Greenwich Village for the afternoon.**"
    f) NEVER recommend two consecutive places that are more than 20 min apart by walking/transit. If a must-see attraction is far away, rearrange the order or swap it into a different time period where it fits geographically.
