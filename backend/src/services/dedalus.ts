@@ -573,6 +573,12 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
 
+    // Remind model to complete ALL sections — placed last so it's freshest in context
+    messages.push({
+      role: 'user',
+      content: 'Now write the full itinerary using the tool data above. You MUST include EVERY section: the time-of-day sections, then ## Where to Stay, then ## Estimated Total (with cost breakdown), then ## Pro Tips. Do NOT stop after Where to Stay — the Estimated Total and Pro Tips are required.'
+    });
+
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
     let contentReceived = false;
 
