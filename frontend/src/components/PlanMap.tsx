@@ -103,6 +103,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const routeLineRef = useRef<any>(null);
   const mapTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -190,9 +191,13 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     const map = mapInstanceRef.current;
     if (!L || !map || locs.length === 0) return;
 
-    // Clear old markers
+    // Clear old markers and route line
     markersRef.current.forEach(m => map.removeLayer(m));
     markersRef.current = [];
+    if (routeLineRef.current) {
+      map.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
 
     const isDark = document.documentElement.classList.contains('dark');
     const accentColor = isDark ? '#818CF8' : '#3B82F6';
@@ -223,6 +228,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map);
       markersRef.current.push(marker);
     });
+
+    // Draw route line connecting markers in order
+    if (locs.length >= 2) {
+      routeLineRef.current = L.polyline(
+        locs.map(l => [l.lat, l.lng]),
+        { color: accentColor, weight: 3, opacity: 0.5, dashArray: '8, 8' }
+      ).addTo(map);
+    }
   }, []);
 
   // Fit map bounds to show all current markers
