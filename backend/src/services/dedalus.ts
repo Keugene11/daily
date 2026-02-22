@@ -1,5 +1,5 @@
 import Dedalus from 'dedalus-labs';
-import { tools, executeToolCall } from './tools';
+import { executeToolCall } from './tools';
 import { PlanRequest, StreamEvent } from '../types';
 
 // ── City name resolution via Nominatim ────────────────────────────────
@@ -25,7 +25,7 @@ async function resolveCity(city: string): Promise<string> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
-      { signal: AbortSignal.timeout(3000) }
+      { signal: AbortSignal.timeout(1500) }
     );
     if (!res.ok) return city;
     const data = await res.json() as any[];
@@ -44,11 +44,11 @@ async function resolveCity(city: string): Promise<string> {
 
     // If importance is low and resolved matches input (no disambiguation),
     // try "{input} university" — handles Cornell, Stanford, MIT, etc.
-    if (importance < 0.5 && (!resolved || resolved.toLowerCase() === city.toLowerCase())) {
-      await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
+    if (importance < 0.3 && (!resolved || resolved.toLowerCase() === city.toLowerCase())) {
+      await new Promise(r => setTimeout(r, 500)); // Nominatim rate limit
       const res2 = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`,
-        { signal: AbortSignal.timeout(3000) }
+        { signal: AbortSignal.timeout(1500) }
       );
       if (res2.ok) {
         const data2 = await res2.json() as any[];
@@ -253,36 +253,22 @@ Day of the week: ${dayOfWeek}
 This is important! Many events, free museum days, deals, and specials are day-specific. The tools will return ONLY what's available today — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!" or "Today's ${dayOfWeek} deal: $1 tacos at...").
 
 IMPORTANT RULES:
-1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_attractions, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations or attractions tools.
-2. Tools give you structured data, but YOU are the expert. If a tool returns generic/placeholder data (e.g., "Local Favorite Grill", "Community Art Walk"), SKIP that entry — do not use it. Use your knowledge only for neighborhood descriptions, transition directions, and general city context — NEVER for venue names.
-3. **ALL venue names must come from VERIFIED tool results.** Three tools are verified via Google Places (confirmed currently open): get_restaurant_recommendations, get_attractions, and get_accommodations. Use ONLY those for specific venue names. Other tools (get_happy_hours, get_local_events) contain hardcoded data that MAY BE OUTDATED — use them for general context (neighborhoods, timing, deal types) but do NOT trust their specific venue/bar names. The ONLY non-tool venues you may mention are public parks and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. If tools return few results, plan fewer stops — do NOT fill gaps from your own knowledge.
-4. Build the itinerary around the attractions and restaurants returned by tools. If the destination is known for a specific ACTIVITY (skiing, surfing, hiking, diving, wine tasting), that activity MUST be the centerpiece — but for specific venues, still only use what the tools returned. Do NOT add attractions, museums, or landmarks from your own knowledge — use the get_attractions results.
-5. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
+1. The user message below includes real-time data from multiple sources. If a source returns generic/placeholder data (e.g., "Local Favorite Grill", "Community Art Walk"), SKIP that entry — do not use it. Use your knowledge only for neighborhood descriptions, transition directions, and general city context — NEVER for venue names.
+2. **ALL venue names must come from the VERIFIED data provided.** Restaurants, attractions, and accommodations are verified via Google Places (confirmed currently open). Use ONLY those for specific venue names. Happy hours and events data may be outdated — use them for general context (neighborhoods, timing, deal types) but do NOT trust their specific venue/bar names. The ONLY non-data venues you may mention are public parks and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. If data has few results, plan fewer stops — do NOT fill gaps from your own knowledge.
+3. Build the itinerary around the attractions and restaurants provided. If the destination is known for a specific ACTIVITY (skiing, surfing, hiking, diving, wine tasting), that activity MUST be the centerpiece — but for specific venues, still only use what was provided. Do NOT add attractions, museums, or landmarks from your own knowledge.
+4. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
    a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
    b) The three neighborhoods must form a logical geographic arc — not bouncing north-south-north. Morning → Afternoon → Evening should flow in one direction across the city (e.g., south → central → north, or east → west).
    c) Start Morning BY NAME at the accommodation — e.g., "Starting from [Hotel Name](link), head to..." End Evening BY NAME back at it — e.g., "...a short walk back to [Hotel Name](link)." This creates a visible loop.
    d) For EACH activity, state which neighborhood it's in parenthetically so the user can verify proximity — e.g., "Head to [Café Name](link) **(SoHo)** for brunch".
    e) Between time periods, briefly note the transition: "**Walk 10 min north to Greenwich Village for the afternoon.**"
    f) NEVER recommend two consecutive places that are more than 20 min apart by walking/transit. If a must-see attraction is far away, rearrange the order or swap it into a different time period where it fits geographically.
-6. **EVERY section in the output format is MANDATORY** — you must include ALL of them: the time-of-day sections, Where to Stay, Estimated Total, AND Pro Tips. NEVER skip or truncate any section. The Estimated Total is especially important — the user needs to know how much the day will cost.
+5. **EVERY section in the output format is MANDATORY** — you must include ALL of them: the time-of-day sections, Where to Stay, Estimated Total, AND Pro Tips. NEVER skip or truncate any section. The Estimated Total is especially important — the user needs to know how much the day will cost.
 
-Available tools (call all that are relevant):
-- get_weather: Always call this. Use the data for practical advice.
-- get_local_events: City events and activities — DAY-AWARE, only returns events for today's day of the week. Check the todayHighlights array for day-specific finds!
-- get_restaurant_recommendations: Real restaurant data (name, cuisine, price level, rating, review count, neighborhood, Google Maps link). May include a "reviewHighlights" array — these are real snippets from customer reviews mentioning specific dishes they ordered. USE these to recommend specific items (e.g., if a review says "The cacio e pepe was incredible", tell the user to order the cacio e pepe). If no reviewHighlights are present, describe what the restaurant is known for based on its cuisine type but do NOT invent specific named dishes. Approximate a per-person cost from the price level ($=~$10-15, $$=~$20-35, $$$=~$50+).
-
-- get_attractions: Top attractions, unique experiences, and things to do — observation decks, tours, museums, gardens, entertainment venues, adventure activities, etc. All verified as currently open via Google Places. ALWAYS call this to get interesting non-food activities.
-- get_trending_news: Current headlines for conversation starters.
-- get_free_stuff: Free activities available TODAY — DAY-AWARE, filters to today's day. Highlight the todayHighlights prominently (e.g., "Since it's ${dayOfWeek}, you can get into MoMA for FREE!").
-- get_deals_coupons: Deals and discounts — DAY-AWARE, shows only today's deals. Highlight todayDeals prominently (e.g., "It's Taco Tuesday — $1 tacos at...").
-- get_sunrise_sunset: Golden hour timing for photo spots and sunset activities.
-- get_happy_hours: Bar specials for evening planning. ⚠️ UNVERIFIED hardcoded data — use for deal types/timing context only, do NOT trust the specific bar names (they may have closed).
-- get_wait_times: Queue estimates for popular attractions.
-- get_parking: Parking info if driving activities are involved.
-- get_gas_prices: Fuel costs for road trip/driving plans.
-- get_public_transit_routes: Step-by-step transit directions.
-- get_transit_estimates: Travel time estimates between locations.
-- get_accommodations: Where to stay — always call this. Returns verified, currently-open hotels from Google Places with name, type, rating, neighborhood, and Google Maps link.
+DATA NOTES:
+- Restaurants may include "reviewHighlights" — real snippets from customer reviews mentioning specific dishes. USE these to recommend specific items. If no reviewHighlights, describe by cuisine type but do NOT invent specific named dishes. Approximate per-person cost from price level ($=~$10-15, $$=~$20-35, $$$=~$50+).
+- Events and free stuff are DAY-AWARE — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!").
+- Happy hours data may be outdated — use for timing/deal context only, do NOT trust specific bar names.
 
 Structure the itinerary with these exact sections:
 
@@ -327,19 +313,50 @@ Writing style:
 }
 
 /**
- * Stream plan generation with tool calling
- *
- * This implements the full OpenAI tool-calling loop:
- * 1. Send user message + tools → model responds with tool_calls (retry if it returns text instead)
- * 2. Execute each tool
- * 3. Send tool results back to the model → model generates final content (with fallback)
+ * Deterministically build the list of tools to call based on request type.
+ * No LLM needed — we always know which tools are relevant.
+ */
+function getCoreToolCalls(request: PlanRequest, city: string): { name: string; args: Record<string, any> }[] {
+  const budget = request.budget && request.budget !== 'any' ? request.budget : undefined;
+
+  if (request.rightNow) {
+    // Right Now mode: only time-sensitive tools
+    return [
+      { name: 'get_weather', args: { city } },
+      { name: 'get_local_events', args: { city } },
+      { name: 'get_free_stuff', args: { city } },
+      { name: 'get_happy_hours', args: { city } },
+      { name: 'get_deals_coupons', args: { city } },
+      { name: 'get_restaurant_recommendations', args: { city, budget } },
+    ];
+  }
+
+  // Regular single-day or multi-day: all 9 core tools
+  return [
+    { name: 'get_weather', args: { city } },
+    { name: 'get_local_events', args: { city } },
+    { name: 'get_restaurant_recommendations', args: { city, budget } },
+    { name: 'get_attractions', args: { city } },
+    { name: 'get_free_stuff', args: { city } },
+    { name: 'get_deals_coupons', args: { city } },
+    { name: 'get_happy_hours', args: { city } },
+    { name: 'get_accommodations', args: { city, budget } },
+    { name: 'get_sunrise_sunset', args: { city } },
+  ];
+}
+
+/**
+ * Stream plan generation — optimized pipeline:
+ * 1. Resolve city name (Nominatim)
+ * 2. Execute ALL tools directly in parallel (no LLM needed to decide)
+ * 3. Stream itinerary with tool data embedded in user message (single LLM call)
  */
 export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerator<StreamEvent> {
   console.log('[Dedalus] Starting stream for:', request);
 
   // Track elapsed time to gracefully stop before Vercel's 60s hard limit
   const startTime = Date.now();
-  const DEADLINE_MS = 55_000; // stop initiating new phases after 55s
+  const DEADLINE_MS = 55_000;
   const elapsed = () => Date.now() - startTime;
   const timeRemaining = () => DEADLINE_MS - elapsed();
 
@@ -348,22 +365,72 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     return;
   }
 
-  // Resolve the city name — "Cornell" → "Ithaca", "Stanford" → "Palo Alto", etc.
-  // Runs before the LLM call so all tool calls use the correct city.
+  // ── Phase 1: Resolve city name ──
   const resolvedCity = await resolveCity(request.city);
   if (resolvedCity !== request.city) {
     console.log(`[Dedalus] Resolved city: "${request.city}" → "${resolvedCity}"`);
   }
-  // Use resolvedCity for tool calls, but keep the original for the user message
-  // so the LLM knows what the user actually typed.
   const toolCity = resolvedCity;
-
-  // Tell the frontend the resolved city so it can geocode the map correctly
-  // (the user may have typed a misspelling or a landmark name)
   yield { type: 'city_resolved', content: resolvedCity };
 
-  // Build user message with context
   const isMultiDay = request.days && request.days > 1;
+  yield { type: 'thinking_chunk', thinking: isMultiDay ? `Planning your ${request.days}-day adventure in ${request.city}...` : `Planning your perfect day in ${request.city}...` };
+
+  // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
+  const coreTools = getCoreToolCalls(request, toolCity);
+  console.log(`[Dedalus] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
+
+  for (const tc of coreTools) {
+    yield { type: 'tool_call_start', tool: tc.name, args: tc.args };
+  }
+
+  const toolDeadline = Math.max(timeRemaining() - 30_000, 5_000); // reserve 30s for LLM
+  console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
+
+  const toolTimeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('tool_timeout')), toolDeadline)
+  );
+
+  const toolSettled = await Promise.allSettled(
+    coreTools.map(async (tc) => {
+      console.log(`[Dedalus] Executing tool: ${tc.name}`, tc.args);
+      const result = await Promise.race([
+        executeToolCall(tc.name, tc.args, { rightNow: request.rightNow, currentHour: request.currentHour }),
+        toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
+      ]);
+      return { name: tc.name, result };
+    })
+  );
+
+  // Collect results and emit events
+  const toolResults: { name: string; result: any }[] = [];
+  for (let idx = 0; idx < toolSettled.length; idx++) {
+    const settled = toolSettled[idx];
+    if (settled.status === 'fulfilled') {
+      toolResults.push(settled.value);
+      yield { type: 'tool_call_result', tool: settled.value.name, result: settled.value.result };
+    } else {
+      const failResult = { name: coreTools[idx].name, result: { success: false, error: 'Tool execution failed' } };
+      toolResults.push(failResult);
+      console.error(`[Dedalus] Tool ${coreTools[idx].name} failed:`, settled.reason);
+      yield { type: 'tool_call_result', tool: failResult.name, result: failResult.result };
+    }
+  }
+
+  yield { type: 'thinking_chunk', thinking: `Gathered data from ${toolResults.filter(t => t.result?.success).length} sources...` };
+
+  console.log(`[Dedalus] Tools done. Elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
+
+  if (timeRemaining() < 8_000) {
+    console.log('[Dedalus] Not enough time for LLM — aborting');
+    yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
+    return;
+  }
+
+  // ── Phase 3: Build message with embedded tool data and stream itinerary ──
+  yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
+
+  // Build the user message with all tool data embedded
   const userParts: string[] = [
     isMultiDay
       ? `I'm planning a ${request.days}-day vacation in ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}.`
@@ -376,250 +443,79 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   if (request.accessible) userParts.push(`I need wheelchair accessible venues`);
   if (request.dateNight) userParts.push(`This is a date night — make it romantic`);
   if (request.recurring) userParts.push(`Plan my next 4 Saturdays with variety`);
-  if (request.rightNow) {
-    userParts.push(`What can I do RIGHT NOW? I have about 2 hours. Call the most relevant tools — weather, events, free stuff, happy hours, deals — and tell me what's happening right now or starting very soon. Keep it short and actionable.`);
-  } else if (isMultiDay) {
-    userParts.push(`Plan all ${request.days} days cohesively. Call ALL relevant tools first — weather, events, restaurants, accommodations, sunrise/sunset, free stuff, deals, and any others. Then create ${request.days} days of amazing, specific itineraries with real places. Don't repeat places across days.`);
-  } else {
-    userParts.push(`What should I do today? Call ALL relevant tools first — weather, events, restaurants, accommodations, sunrise/sunset, free stuff, deals, and any others that fit. Then create an amazing, specific itinerary with real places.`);
+
+  // Embed tool results as structured data sections
+  const TOOL_LABELS: Record<string, string> = {
+    'get_weather': 'Weather',
+    'get_local_events': 'Local Events (day-specific)',
+    'get_restaurant_recommendations': 'Restaurants (verified, currently open via Google Places)',
+    'get_attractions': 'Attractions & Activities (verified, currently open via Google Places)',
+    'get_free_stuff': 'Free Activities Today',
+    'get_deals_coupons': 'Deals & Discounts Today',
+    'get_happy_hours': 'Happy Hours (⚠️ unverified — use timing/deal context only, not bar names)',
+    'get_accommodations': 'Accommodations (verified, currently open via Google Places)',
+    'get_sunrise_sunset': 'Sunrise/Sunset & Golden Hour',
+  };
+
+  const dataSections: string[] = [];
+  for (const tr of toolResults) {
+    if (!tr.result?.success) continue;
+    const label = TOOL_LABELS[tr.name] || tr.name;
+    dataSections.push(`### ${label}\n${JSON.stringify(tr.result.data || tr.result, null, 0)}`);
   }
 
-  const messages: any[] = [
-    { role: 'system', content: buildSystemPrompt(request) },
-    { role: 'user', content: userParts.join('. ') }
-  ];
+  const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
+    ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
+    : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
+    ? 'This is a SURF destination — surfing MUST be the centerpiece of the plan. '
+    : request.city.match(/patagonia|annapurna|kilimanjaro|appalachian|camino|dolomites/i)
+    ? 'This is a HIKING destination — hiking/trekking MUST be the centerpiece of the plan. '
+    : '';
 
-  const dedalus = getClient();
+  const fullUserMessage = `${userParts.join('. ')}
 
-  try {
-    // ── Step 1: First API call – model decides which tools to call ──
-    // Retry up to 3 times if the model returns content instead of tool calls
-    yield { type: 'thinking_chunk', thinking: isMultiDay ? `Planning your ${request.days}-day adventure in ${request.city}...` : `Planning your perfect day in ${request.city}...` };
+Here is today's real-time data for your itinerary:
 
-    let assistantMessage: any = null;
+${dataSections.join('\n\n')}
 
-    for (let step1Attempt = 0; step1Attempt < 2; step1Attempt++) {
-      console.log(`[Dedalus] Step 1 (attempt ${step1Attempt + 1}): Requesting tool calls...`);
+---
 
-      const firstResponse = await dedalus.chat.completions.create({
-        model: 'anthropic/claude-sonnet-4-5',
-        messages,
-        tools,
-        tool_choice: { type: 'auto' } as any,
-        temperature: 0.7,
-        max_tokens: 2000
-      });
-
-      assistantMessage = firstResponse.choices?.[0]?.message;
-      if (!assistantMessage) {
-        yield { type: 'error', error: 'No response from model' };
-        return;
-      }
-
-      console.log('[Dedalus] finish_reason:', firstResponse.choices?.[0]?.finish_reason);
-      console.log('[Dedalus] Tool calls:', assistantMessage.tool_calls?.length || 0);
-      console.log('[Dedalus] Content:', assistantMessage.content ? assistantMessage.content.substring(0, 100) + '...' : 'none');
-
-      // If we got tool calls, break out and proceed
-      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        break;
-      }
-
-      // Model returned content instead of tool calls — retry with a nudge
-      console.log(`[Dedalus] Step 1: Model returned content instead of tool calls, retrying...`);
-
-      if (assistantMessage.content) {
-        messages.push({ role: 'assistant', content: assistantMessage.content });
-        messages.push({
-          role: 'user',
-          content: 'Please call the tools first — get_weather, get_local_events, get_restaurant_recommendations, get_attractions, get_accommodations, get_sunrise_sunset, get_free_stuff, get_deals_coupons, and any others that are relevant. Do not respond with text — only call tools.'
-        });
-      }
-
-      assistantMessage = null;
-    }
-
-    if (!assistantMessage || !assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-      yield { type: 'error', error: 'Failed to invoke tools. Please try again.' };
-      return;
-    }
-
-    yield { type: 'thinking_chunk', thinking: `Found ${assistantMessage.tool_calls.length} data sources to check...` };
-
-    // ── Step 2: Execute each tool call ──
-    messages.push({
-      role: 'assistant',
-      tool_calls: assistantMessage.tool_calls
-    });
-
-    // Parse all tool calls and emit start events immediately
-    const toolCallInfos: { toolCall: any; toolName: string; args: Record<string, any> }[] = [];
-    for (const toolCall of assistantMessage.tool_calls) {
-      if (toolCall.type !== 'function') continue;
-      const fn = (toolCall as any).function;
-      const toolName = fn?.name;
-      let args: Record<string, any> = {};
-      try { args = JSON.parse(fn?.arguments || '{}'); } catch { args = {}; }
-      if (!args.city && toolCity) args.city = toolCity;
-      toolCallInfos.push({ toolCall, toolName, args });
-      yield { type: 'tool_call_start', tool: toolName, args };
-    }
-
-    // Execute ALL tools in parallel, but cap at remaining time minus buffer for LLM streaming
-    const toolDeadline = Math.max(timeRemaining() - 20_000, 5_000); // reserve 20s for LLM
-    console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
-
-    const toolTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('tool_timeout')), toolDeadline)
-    );
-
-    const toolSettled = await Promise.allSettled(
-      toolCallInfos.map(async ({ toolCall, toolName, args }) => {
-        console.log(`[Dedalus] Executing tool: ${toolName}`, args);
-        const result = await Promise.race([
-          executeToolCall(toolName!, args, { rightNow: request.rightNow, currentHour: request.currentHour }),
-          toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
-        ]);
-        return { toolCall, toolName, result };
-      })
-    );
-
-    for (let idx = 0; idx < toolSettled.length; idx++) {
-      const settled = toolSettled[idx];
-      if (settled.status === 'fulfilled') {
-        const { toolCall, toolName, result } = settled.value;
-        yield { type: 'tool_call_result', tool: toolName, result };
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(result)
-        });
-      } else {
-        // Tool failed — send empty result so the model can still generate
-        const { toolCall, toolName } = toolCallInfos[idx];
-        console.error(`[Dedalus] Tool ${toolName} failed:`, settled.reason);
-        yield { type: 'tool_call_result', tool: toolName, result: { success: false, error: 'Tool execution failed' } };
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify({ success: false, error: 'Tool execution failed' })
-        });
-      }
-    }
-
-    // ── Step 2b: Force-call any missing critical tools in parallel ──
-    // Skip if we're running low on time — better to generate with fewer tools than timeout
-    const calledTools = new Set(
-      assistantMessage.tool_calls
-        .filter((tc: any) => tc.type === 'function')
-        .map((tc: any) => tc.function?.name)
-    );
-
-    const forceCalls: { name: string; args: Record<string, any> }[] = [];
-    // Accommodations uses hardcoded data (instant, no external API),
-    // so always force-call it regardless of time pressure
-    if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
-      forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
-    }
-    // Attractions gives the model interesting non-food activities to recommend
-    if (!calledTools.has('get_attractions') && toolCity && !request.rightNow && timeRemaining() > 25_000) {
-      forceCalls.push({ name: 'get_attractions', args: { city: toolCity } });
-    }
-
-    if (forceCalls.length > 0) {
-      console.log(`[Dedalus] Force-calling ${forceCalls.length} skipped tools in parallel:`, forceCalls.map(f => f.name));
-      for (const fc of forceCalls) {
-        yield { type: 'tool_call_start', tool: fc.name, args: fc.args };
-      }
-
-      const forceSettled = await Promise.allSettled(
-        forceCalls.map(async (fc) => {
-          const result = await executeToolCall(fc.name, fc.args, { rightNow: request.rightNow, currentHour: request.currentHour });
-          return { ...fc, result };
-        })
-      );
-
-      const assistantMsgIdx = messages.findIndex(
-        (m: any) => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
-      );
-
-      for (let idx = 0; idx < forceSettled.length; idx++) {
-        const settled = forceSettled[idx];
-        const { name, args, result } = settled.status === 'fulfilled'
-          ? settled.value
-          : { ...forceCalls[idx], result: { success: false, error: 'Tool execution failed' } };
-        yield { type: 'tool_call_result', tool: name, result };
-        const syntheticId = `forced_${name}_${Date.now()}`;
-        if (assistantMsgIdx !== -1) {
-          messages[assistantMsgIdx].tool_calls.push({
-            id: syntheticId,
-            type: 'function',
-            function: { name, arguments: JSON.stringify(args) }
-          });
-        }
-        messages.push({
-          role: 'tool',
-          tool_call_id: syntheticId,
-          content: JSON.stringify(result)
-        });
-      }
-    }
-
-    console.log(`[Dedalus] Pre-Step 3 elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
-
-    if (timeRemaining() < 8_000) {
-      console.log('[Dedalus] Not enough time for Step 3 — aborting');
-      yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
-      return;
-    }
-
-    yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
-
-    // Final instruction — this is the LAST thing the model sees before generating.
-    // Keep it short and forceful. Everything here overrides earlier instructions.
-    const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
-      ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
-      : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
-      ? 'This is a SURF destination — surfing MUST be the centerpiece of the plan. '
-      : request.city.match(/patagonia|annapurna|kilimanjaro|appalachian|camino|dolomites/i)
-      ? 'This is a HIKING destination — hiking/trekking MUST be the centerpiece of the plan. '
-      : '';
-    messages.push({
-      role: 'user',
-      content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
+Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
 3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
 You MUST write all 3. Do NOT stop early.
 
-CRITICAL: For ALL specific venue names — ONLY use data from get_restaurant_recommendations (food/drink) and get_attractions (activities/sightseeing). These are verified open via Google Places. Do NOT use specific bar/venue names from get_happy_hours or get_local_events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`
-    });
+CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
 
-    // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
+  const messages: any[] = [
+    { role: 'system', content: buildSystemPrompt(request) },
+    { role: 'user', content: fullUserMessage }
+  ];
+
+  const dedalus = getClient();
+
+  try {
+    // Single LLM call — stream the itinerary directly
     let contentReceived = false;
-
-    // Scale token budget for multi-day trips, but reduce if we're short on time
     let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 12000;
     if (timeRemaining() < 25_000) {
-      // Under 25s left — cap output to finish in time
       tokenBudget = Math.min(tokenBudget, 8000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 
-    // Only retry if we have enough time
     const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isRetry = attempt > 0;
       if (isRetry) {
-        console.log('[Dedalus] Step 3 retry: Non-streaming fallback...');
+        console.log('[Dedalus] Retry: Non-streaming fallback...');
         yield { type: 'thinking_chunk', thinking: 'Generating itinerary (retry)...' };
       } else {
-        console.log('[Dedalus] Step 3: Streaming itinerary from tool results...');
+        console.log('[Dedalus] Streaming itinerary (single LLM call)...');
       }
 
       if (!isRetry) {
-        // Streaming attempt
         const stream = await dedalus.chat.completions.create({
           model: 'anthropic/claude-sonnet-4-5',
           messages,
@@ -635,21 +531,20 @@ CRITICAL: For ALL specific venue names — ONLY use data from get_restaurant_rec
 
           if (content) {
             contentReceived = true;
-            outputTokens += Math.ceil(content.length / 4); // rough estimate
+            outputTokens += Math.ceil(content.length / 4);
             yield { type: 'content_chunk', content };
           }
 
           if (chunk.choices?.[0]?.finish_reason) {
             const reason = chunk.choices[0].finish_reason;
-            console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens used of ${tokenBudget} budget | content: ${contentReceived}`);
+            console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens | ${elapsed()}ms total`);
             if (reason === 'length') {
-              console.warn(`[Dedalus] OUTPUT TRUNCATED — model hit max_tokens (${tokenBudget})`);
+              console.warn(`[Dedalus] OUTPUT TRUNCATED — hit max_tokens (${tokenBudget})`);
             }
             break;
           }
         }
       } else {
-        // Non-streaming fallback
         const fallbackResponse = await dedalus.chat.completions.create({
           model: 'anthropic/claude-sonnet-4-5',
           messages,
@@ -665,8 +560,6 @@ CRITICAL: For ALL specific venue names — ONLY use data from get_restaurant_rec
             yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
           }
           console.log('[Dedalus] Fallback response received, length:', fallbackContent.length);
-        } else {
-          console.log('[Dedalus] Fallback also returned no content');
         }
       }
 
@@ -678,6 +571,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from get_restaurant_rec
       return;
     }
 
+    console.log(`[Dedalus] Total time: ${elapsed()}ms`);
     yield { type: 'done' };
   } catch (error) {
     console.error('[Dedalus] Stream error:', error);
