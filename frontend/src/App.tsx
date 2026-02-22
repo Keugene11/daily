@@ -510,8 +510,8 @@ function App() {
             <OutfitSuggestion weatherData={weatherData} city={city} />
           )}
 
-          {/* Error */}
-          {state.error && state.error !== 'limit_reached' && (
+          {/* Error — non-blocking if partial content exists, full-page if no content */}
+          {state.error && state.error !== 'limit_reached' && !state.content && (
             <div className="border border-red-500/30 rounded-lg p-6 mb-10 animate-fadeIn">
               <p className="text-red-500 text-sm font-medium mb-1">Something went wrong</p>
               <p className="text-on-surface/60 text-sm">{state.error}</p>
@@ -546,8 +546,8 @@ function App() {
             </div>
           )}
 
-          {/* Itinerary */}
-          {state.content && !state.error && (
+          {/* Itinerary — always show if content exists, even on error (partial plan) */}
+          {state.content && (
             <ItineraryDisplay
               content={state.content}
               city={city}
@@ -560,7 +560,7 @@ function App() {
           )}
 
           {/* Map — interactive map with all plan locations */}
-          {state.content && !state.isStreaming && !state.error && city && (
+          {state.content && !state.isStreaming && city && (
             <PlanMap content={state.content} city={mapCity} />
           )}
 
