@@ -231,8 +231,8 @@ This is important! Many events, free museum days, deals, and specials are day-sp
 IMPORTANT RULES:
 1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_attractions, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations or attractions tools.
 2. Tools give you structured data, but YOU are the expert. If a tool returns generic/placeholder data (e.g., "Local Favorite Grill", "Community Art Walk"), SKIP that entry — do not use it. Use your knowledge only for neighborhood descriptions, transition directions, and general city context — NEVER for venue names.
-3. **ALL venues must come from tool results.** Your training data is outdated — places close constantly. This applies to EVERYTHING: restaurants, cafés, bars, attractions, museums, tours, entertainment venues. Use ONLY places returned by get_restaurant_recommendations (for food/drink) and get_attractions (for activities/sightseeing). The ONLY exceptions are public parks (e.g., Central Park, Hyde Park) and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. If a tool returns few results, plan around fewer stops — do NOT fill gaps with places from your own knowledge.
-4. Include the destination's ICONIC experiences — the reason people actually go there. If the destination is known for a specific activity (skiing in Chamonix/Aspen, surfing in Pipeline/Bali, hiking in Patagonia/Zermatt, diving in Cozumel, wine tasting in Napa), that activity MUST be the centerpiece of the plan, not an afterthought. For cities, include signature attractions (NYC → High Line, Paris → Eiffel Tower, Tokyo → Shibuya Crossing). Mix marquee experiences with local gems.
+3. **ALL venue names must come from VERIFIED tool results.** Only two tools are verified via Google Places (confirmed currently open): get_restaurant_recommendations and get_attractions. Use ONLY those for specific venue names (restaurants, cafés, bars, attractions, museums, tours, entertainment). Other tools (get_happy_hours, get_local_events, get_accommodations) contain hardcoded data that MAY BE OUTDATED — use them for general context (neighborhoods, timing, deal types) but do NOT trust their specific venue/bar/hotel names. For Your Hotel, use the accommodation tool's data as a starting point but verify it seems like a real, current hotel. The ONLY non-tool venues you may mention are public parks and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. If tools return few results, plan fewer stops — do NOT fill gaps from your own knowledge.
+4. Build the itinerary around the attractions and restaurants returned by tools. If the destination is known for a specific ACTIVITY (skiing, surfing, hiking, diving, wine tasting), that activity MUST be the centerpiece — but for specific venues, still only use what the tools returned. Do NOT add attractions, museums, or landmarks from your own knowledge — use the get_attractions results.
 5. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
    a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
    b) The three neighborhoods must form a logical geographic arc — not bouncing north-south-north. Morning → Afternoon → Evening should flow in one direction across the city (e.g., south → central → north, or east → west).
@@ -252,13 +252,13 @@ Available tools (call all that are relevant):
 - get_free_stuff: Free activities available TODAY — DAY-AWARE, filters to today's day. Highlight the todayHighlights prominently (e.g., "Since it's ${dayOfWeek}, you can get into MoMA for FREE!").
 - get_deals_coupons: Deals and discounts — DAY-AWARE, shows only today's deals. Highlight todayDeals prominently (e.g., "It's Taco Tuesday — $1 tacos at...").
 - get_sunrise_sunset: Golden hour timing for photo spots and sunset activities.
-- get_happy_hours: Bar specials for evening planning.
+- get_happy_hours: Bar specials for evening planning. ⚠️ UNVERIFIED hardcoded data — use for deal types/timing context only, do NOT trust the specific bar names (they may have closed).
 - get_wait_times: Queue estimates for popular attractions.
 - get_parking: Parking info if driving activities are involved.
 - get_gas_prices: Fuel costs for road trip/driving plans.
 - get_public_transit_routes: Step-by-step transit directions.
 - get_transit_estimates: Travel time estimates between locations.
-- get_accommodations: Where to stay — always call this. Returns curated hotels, hostels, boutiques, and apartments with prices and neighborhoods.
+- get_accommodations: Where to stay — always call this. ⚠️ UNVERIFIED hardcoded data — hotel names may be outdated/renamed/closed. Use for price range and neighborhood guidance, but verify the hotel name seems current before recommending.
 
 Structure the itinerary with these exact sections:
 
@@ -539,7 +539,7 @@ async function* streamPlanGeneration(request) {
 3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
 You MUST write all 3. Do NOT stop early.
 
-CRITICAL: ALL venues must come from tool results above. For food/drink — ONLY from get_restaurant_recommendations. For activities/sightseeing — ONLY from get_attractions. The ONLY things you may add from your own knowledge are public parks and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. Do NOT add ANY other venues from your own knowledge — your training data is outdated and places close constantly.`
+CRITICAL: For ALL specific venue names — ONLY use data from get_restaurant_recommendations (food/drink) and get_attractions (activities/sightseeing). These are verified open via Google Places. Do NOT use specific bar/venue names from get_happy_hours or get_local_events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`
         });
         // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
         let contentReceived = false;
