@@ -80,16 +80,35 @@ function loadLeaflet(): Promise<void> {
   return _leafletPromise;
 }
 
-// Extract the first accommodation name from the "Where to Stay" section
-function extractFirstAccommodation(text: string): string | null {
+// Extract the first accommodation name + coordinates from the "Where to Stay" section.
+// Pulls coords directly from the Google Maps @lat,lng URL so we don't need Nominatim.
+function extractFirstAccommodation(text: string): { name: string; lat?: number; lng?: number } | null {
   const stayMatch = text.match(/##\s*Where to Stay\s*\n([\s\S]*?)(?=\n##\s|$)/i);
   if (!stayMatch) return null;
-  // Look for the first markdown link in the section — that's the hotel name
-  const linkMatch = stayMatch[1].match(/\[([^\]]+)\]\(/);
-  if (linkMatch) return linkMatch[1].replace(/\+/g, ' ').trim();
+  const section = stayMatch[1];
+
+  // Try to find a Google Maps link with embedded @lat,lng coordinates
+  const mapsLinkRegex = /\[([^\]]+)\]\((https?:\/\/(?:(?:www\.)?google\.com\/maps|maps\.google\.com)[^)]*@(-?\d+\.?\d*),(-?\d+\.?\d*)[^)]*)\)/;
+  const mapsMatch = section.match(mapsLinkRegex);
+  if (mapsMatch) {
+    const name = mapsMatch[1].replace(/\+/g, ' ').trim();
+    const lat = parseFloat(mapsMatch[3]);
+    const lng = parseFloat(mapsMatch[4]);
+    if (name.length > 2 && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { name, lat, lng };
+    }
+    return name.length > 2 ? { name } : null;
+  }
+
+  // Fallback: first markdown link (no coords available)
+  const linkMatch = section.match(/\[([^\]]+)\]\(/);
+  if (linkMatch) {
+    const name = linkMatch[1].replace(/\+/g, ' ').trim();
+    return name.length > 2 ? { name } : null;
+  }
   // Fallback: first bold text
-  const boldMatch = stayMatch[1].match(/\*\*([^*]+)\*\*/);
-  return boldMatch ? boldMatch[1].trim() : null;
+  const boldMatch = section.match(/\*\*([^*]+)\*\*/);
+  return boldMatch && boldMatch[1].trim().length > 2 ? { name: boldMatch[1].trim() } : null;
 }
 
 // Auto-loading map with all plan locations — renders progressively as markers resolve
@@ -349,14 +368,18 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const maxPlaces = Math.min(dayCount * 10, 25);
         const places = extractPlaces(content, city, maxPlaces);
 
-        // Add the first accommodation as a bookend (first + last stop on the route)
-        const hotelName = extractFirstAccommodation(content);
-        if (hotelName && !places.includes(hotelName)) {
+        // Extract hotel with embedded coords from Google Maps URL
+        const hotel = extractFirstAccommodation(content);
+        const hotelName = hotel?.name ?? null;
+        // If hotel has coords from the URL, we'll inject it directly (no Nominatim needed)
+        const hotelHasCoords = hotel && hotel.lat != null && hotel.lng != null;
+        // Only add hotel to places array if it DOESN'T have coords (needs geocoding)
+        if (hotelName && !hotelHasCoords && !places.includes(hotelName)) {
           places.unshift(hotelName);
         }
 
-        setTotalPlaces(places.length);
-        if (places.length === 0) {
+        setTotalPlaces(places.length + (hotelHasCoords ? 1 : 0));
+        if (places.length === 0 && !hotelHasCoords) {
           setLoading(false);
           return;
         }
@@ -367,12 +390,17 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= effectiveRadius;
 
         // Separate places into: cached (instant) vs uncached (needs Nominatim API)
-        // NOTE: We intentionally do NOT use embedded @lat,lng from LLM-generated URLs here.
-        // LLMs hallucinate coordinates, placing pins in wrong locations. The /maps/search/
-        // URLs work great for Google Maps links (Google searches by name near the coords),
-        // but Nominatim gives accurate pin locations for our Leaflet map.
+        // NOTE: We intentionally do NOT use embedded @lat,lng from LLM-generated URLs
+        // for itinerary places. LLMs hallucinate coordinates. Nominatim is more accurate.
+        // Exception: hotel coords from URLs are used because Nominatim can't find hotels.
         const cached: MapLocation[] = [];
         const uncachedPlaces: string[] = [];
+
+        // If hotel has embedded coords, add it as the first marker (no geocoding needed)
+        if (hotelHasCoords && hotel) {
+          cached.push({ name: hotel.name, lat: hotel.lat!, lng: hotel.lng! });
+        }
+
         for (const place of places) {
           const coords = getCachedGeocode(place, geocodeCity_);
           if (coords) {
@@ -419,10 +447,15 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         // Keep content order (Morning → Afternoon → Evening → Where to Stay)
         // so markers match the itinerary flow.
         if (allResults.length > 0) {
-          const cleaned = removeOutliers(allResults);
-          // Add the hotel as the last stop to close the loop (hotel → stops → hotel)
-          if (hotelName && cleaned.length > 0 && cleaned[0].name === hotelName) {
-            cleaned.push({ ...cleaned[0], name: `${hotelName} (return)` });
+          // Pull hotel out before outlier removal so it can't be stripped
+          const hotelLoc = hotelName ? allResults.find(l => l.name === hotelName) : null;
+          const toClean = hotelLoc ? allResults.filter(l => l.name !== hotelName) : allResults;
+          const cleaned = removeOutliers(toClean);
+
+          // Re-insert hotel as first stop and add return marker at the end
+          if (hotelLoc) {
+            cleaned.unshift(hotelLoc);
+            cleaned.push({ ...hotelLoc, name: `${hotelName} (return)` });
           }
           setLocations(cleaned);
           updateMarkers(cleaned);
@@ -461,8 +494,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           )}
         </div>
         {locations.length >= 2 && (() => {
-          const hotel = extractFirstAccommodation(content);
-          const hotelEncoded = hotel ? encodeURIComponent(`${hotel}, ${city}`) : null;
+          const hotelInfo = extractFirstAccommodation(content);
+          const hotelEncoded = hotelInfo ? encodeURIComponent(`${hotelInfo.name}, ${city}`) : null;
           const stops = locations.map(l => encodeURIComponent(`${l.name}, ${city}`));
           const path = hotelEncoded ? [hotelEncoded, ...stops, hotelEncoded].join('/') : stops.join('/');
           return <a
