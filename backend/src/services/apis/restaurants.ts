@@ -241,6 +241,7 @@ async function searchGooglePlaces(
     'places.googleMapsUri',
     'places.reviews',
     'places.businessStatus',
+    'places.currentOpeningHours',
   ].join(',');
 
   const controller = new AbortController();
@@ -267,10 +268,16 @@ async function searchGooglePlaces(
     const data: any = await response.json();
     const places = (data.places || [])
       .filter((p: any) => {
-        // Filter out permanently or temporarily closed businesses
+        const name = p.displayName?.text || 'Unknown';
         const status = p.businessStatus;
+        // Explicitly closed — skip
         if (status && status !== 'OPERATIONAL') {
-          console.log(`[Restaurants] Skipping "${p.displayName?.text}" — status: ${status}`);
+          console.log(`[Restaurants] Skipping "${name}" — status: ${status}`);
+          return false;
+        }
+        // No businessStatus AND no opening hours — likely closed, skip
+        if (!status && !p.currentOpeningHours) {
+          console.log(`[Restaurants] Skipping "${name}" — no status and no opening hours`);
           return false;
         }
         return true;
@@ -487,35 +494,8 @@ export const restaurantService = {
       return { success: true, data: merged.slice(0, 10) };
     }
 
-    // Fallback: hardcoded data
-    console.log(`[Restaurants] Falling back to hardcoded data for ${city}`);
-    let restaurants = [...matchCityFallback(city)];
-
-    if (budget) {
-      const budgetMap: Record<string, string[]> = {
-        'free': ['$'],
-        'low': ['$'],
-        'medium': ['$', '$$'],
-        'high': ['$', '$$', '$$$', '$$$$'],
-      };
-      const allowed = budgetMap[budget] || ['$', '$$', '$$$', '$$$$'];
-      const filtered = restaurants.filter(r => allowed.includes(r.priceRange));
-      if (filtered.length > 0) restaurants = filtered;
-    }
-
-    if (cuisine) {
-      const match = restaurants.filter(r =>
-        r.cuisine.toLowerCase().includes(cuisine.toLowerCase()) ||
-        r.description.toLowerCase().includes(cuisine.toLowerCase())
-      );
-      if (match.length > 0) restaurants = match;
-    }
-
-    const withUrls = restaurants.map(r => {
-      const url = `https://maps.google.com/?q=${encodeURIComponent(r.name + ', ' + city)}`;
-      return { ...r, url, link: `[${r.name}](${url})` };
-    });
-
-    return { success: true, data: withUrls.slice(0, 8) };
+    // No Google Places results — return empty instead of stale hardcoded data
+    console.log(`[Restaurants] No Google Places results for ${city} — returning empty`);
+    return { success: true, data: [], note: 'No verified restaurant data available. Use your knowledge of well-known, long-established restaurants in this city.' };
   }
 };

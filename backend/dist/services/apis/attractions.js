@@ -121,6 +121,7 @@ async function searchGooglePlaces(city, query) {
         'places.googleMapsUri',
         'places.reviews',
         'places.businessStatus',
+        'places.currentOpeningHours',
     ].join(',');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -143,9 +144,14 @@ async function searchGooglePlaces(city, query) {
         const data = await response.json();
         const places = (data.places || [])
             .filter((p) => {
+            const name = p.displayName?.text || 'Unknown';
             const status = p.businessStatus;
             if (status && status !== 'OPERATIONAL') {
-                console.log(`[Attractions] Skipping "${p.displayName?.text}" — status: ${status}`);
+                console.log(`[Attractions] Skipping "${name}" — status: ${status}`);
+                return false;
+            }
+            if (!status && !p.currentOpeningHours) {
+                console.log(`[Attractions] Skipping "${name}" — no status and no opening hours`);
                 return false;
             }
             return true;

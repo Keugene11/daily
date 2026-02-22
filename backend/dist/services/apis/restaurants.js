@@ -182,7 +182,7 @@ async function searchGooglePlaces(city, cuisine, budget) {
     const requestBody = {
         textQuery: query,
         languageCode: 'en',
-        maxResultCount: 8,
+        maxResultCount: 12,
     };
     if (priceLevels.length > 0) {
         requestBody.priceLevels = priceLevels;
@@ -197,6 +197,8 @@ async function searchGooglePlaces(city, cuisine, budget) {
         'places.editorialSummary',
         'places.googleMapsUri',
         'places.reviews',
+        'places.businessStatus',
+        'places.currentOpeningHours',
     ].join(',');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -217,7 +219,22 @@ async function searchGooglePlaces(city, cuisine, budget) {
             return [];
         }
         const data = await response.json();
-        const places = data.places || [];
+        const places = (data.places || [])
+            .filter((p) => {
+            const name = p.displayName?.text || 'Unknown';
+            const status = p.businessStatus;
+            // Explicitly closed — skip
+            if (status && status !== 'OPERATIONAL') {
+                console.log(`[Restaurants] Skipping "${name}" — status: ${status}`);
+                return false;
+            }
+            // No businessStatus AND no opening hours — likely closed, skip
+            if (!status && !p.currentOpeningHours) {
+                console.log(`[Restaurants] Skipping "${name}" — no status and no opening hours`);
+                return false;
+            }
+            return true;
+        });
         return places.map((p) => mapPlaceToRestaurant(p, city));
     }
     catch (error) {
@@ -395,40 +412,30 @@ exports.restaurantService = {
         const cached = getFromCache(cacheKey);
         if (cached) {
             console.log(`[Restaurants] Cache hit for "${cacheKey}"`);
-            return { success: true, data: cached.slice(0, 4) };
+            return { success: true, data: cached.slice(0, 10) };
         }
-        // Try Google Places API
-        const googleResults = await searchGooglePlaces(city, cuisine, budget);
-        if (googleResults.length > 0) {
-            console.log(`[Restaurants] Google Places returned ${googleResults.length} results for ${city}`);
-            setCache(cacheKey, googleResults);
-            return { success: true, data: googleResults.slice(0, 4) };
+        // Search restaurants AND cafes/bars in parallel for broader coverage
+        const [googleResults, cafeBarResults] = await Promise.all([
+            searchGooglePlaces(city, cuisine, budget),
+            cuisine ? Promise.resolve([]) : searchGooglePlaces(city, 'cafes coffee bars', budget),
+        ]);
+        // Merge and deduplicate by name
+        const seen = new Set();
+        const merged = [];
+        for (const r of [...googleResults, ...cafeBarResults]) {
+            const key = r.name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(r);
+            }
         }
-        // Fallback: hardcoded data
-        console.log(`[Restaurants] Falling back to hardcoded data for ${city}`);
-        let restaurants = [...matchCityFallback(city)];
-        if (budget) {
-            const budgetMap = {
-                'free': ['$'],
-                'low': ['$'],
-                'medium': ['$', '$$'],
-                'high': ['$', '$$', '$$$', '$$$$'],
-            };
-            const allowed = budgetMap[budget] || ['$', '$$', '$$$', '$$$$'];
-            const filtered = restaurants.filter(r => allowed.includes(r.priceRange));
-            if (filtered.length > 0)
-                restaurants = filtered;
+        if (merged.length > 0) {
+            console.log(`[Restaurants] Google Places returned ${googleResults.length} restaurants + ${cafeBarResults.length} cafes/bars for ${city}`);
+            setCache(cacheKey, merged);
+            return { success: true, data: merged.slice(0, 10) };
         }
-        if (cuisine) {
-            const match = restaurants.filter(r => r.cuisine.toLowerCase().includes(cuisine.toLowerCase()) ||
-                r.description.toLowerCase().includes(cuisine.toLowerCase()));
-            if (match.length > 0)
-                restaurants = match;
-        }
-        const withUrls = restaurants.map(r => {
-            const url = `https://maps.google.com/?q=${encodeURIComponent(r.name + ', ' + city)}`;
-            return { ...r, url, link: `[${r.name}](${url})` };
-        });
-        return { success: true, data: withUrls.slice(0, 4) };
+        // No Google Places results — return empty instead of stale hardcoded data
+        console.log(`[Restaurants] No Google Places results for ${city} — returning empty`);
+        return { success: true, data: [], note: 'No verified restaurant data available. Use your knowledge of well-known, long-established restaurants in this city.' };
     }
 };
