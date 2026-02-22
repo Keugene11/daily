@@ -288,12 +288,15 @@ Structure the itinerary with these exact sections:
 ${timeSections}
 
 ## Estimated Total
-[REQUIRED — write this IMMEDIATELY after the last time-of-day section. Add up ALL costs from the itinerary (food, drinks, activities, transport, entry fees):
+[REQUIRED — add up ALL costs from the itinerary (food, drinks, activities, transport, entry fees):
 - Food & Drinks: ~$XX
 - Activities & Entry: ~$XX
 - Transport: ~$XX
 - **Total: ~$XX per person**
-Use the specific prices you cited. If something was free, don't include it. Keep it short.]
+Use the specific prices you cited. Keep it short.]
+
+## Pro Tips
+[REQUIRED — 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. City-level insider knowledge, NOT about specific venues above. Keep each tip to one line.]
 
 ## Where to Stay
 [REQUIRED — list 2-4 accommodation options. Only include as many as there are genuinely good picks. Small towns may only have 2; big cities can have 4.
@@ -301,9 +304,6 @@ Use the specific prices you cited. If something was free, don't include it. Keep
 - EVERY accommodation MUST physically be in or immediately adjacent to the destination. If "${request.city}" is a university/landmark/institution, use the actual city (e.g., "Cornell" → Ithaca).
 - For each: name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood, one-line description.
 - For tool-provided accommodations, use the "link" field. For your own, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z).]
-
-## Pro Tips
-[REQUIRED — 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. City-level insider knowledge, NOT about specific venues above. Keep each tip to one line.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -584,9 +584,9 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       role: 'user',
       content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
-2. ## Estimated Total — add up ALL costs: Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
-3. ## Where to Stay — 2-4 real accommodations with prices
-4. ## Pro Tips — 2-4 insider tips
+2. ## Estimated Total — Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
+3. ## Pro Tips — 2-4 insider tips
+4. ## Where to Stay — 2-4 real accommodations with prices
 You MUST write all 4. Do NOT stop early.`
     });
 
