@@ -104,7 +104,7 @@ export const weatherService = {
       if (error instanceof Error && error.name === 'AbortError') {
         return {
           success: false,
-          error: 'Weather request timed out (15s limit)'
+          error: 'Weather request timed out'
         };
       }
       return {

@@ -82,8 +82,8 @@ export const ToolCallIndicator: React.FC<Props> = React.memo(({ activeToolCalls,
                       <div className="h-full bg-on-surface/30 rounded-full animate-pulse-subtle" style={{ width: '60%' }} />
                     </div>
                   )}
-                  {failed && result.error && (
-                    <p className="text-[10px] text-red-400/50 mt-1 truncate">{result.error}</p>
+                  {failed && (
+                    <p className="text-[10px] text-red-400/50 mt-1 truncate">Unavailable</p>
                   )}
                 </div>
               );
