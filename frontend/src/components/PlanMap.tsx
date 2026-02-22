@@ -91,7 +91,6 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const routeLineRef = useRef<any>(null);
   const mapTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -116,7 +115,6 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
       delete (mapContainerRef.current as any)._leaflet_id;
     }
     markersRef.current = [];
-    routeLineRef.current = null;
   }, []);
 
   // Create the map on the always-present container div
@@ -180,45 +178,37 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     const map = mapInstanceRef.current;
     if (!L || !map || locs.length === 0) return;
 
-    // Clear old markers and route line
+    // Clear old markers
     markersRef.current.forEach(m => map.removeLayer(m));
     markersRef.current = [];
-    if (routeLineRef.current) {
-      map.removeLayer(routeLineRef.current);
-      routeLineRef.current = null;
-    }
 
     const isDark = document.documentElement.classList.contains('dark');
     const accentColor = isDark ? '#818CF8' : '#3B82F6';
 
-    // Draw route line first (behind markers)
-    if (locs.length > 1) {
-      const coords = locs.map(l => [l.lat, l.lng] as [number, number]);
-      routeLineRef.current = L.polyline(coords, {
-        color: accentColor,
-        weight: 3,
-        opacity: 0.4,
-        dashArray: '6, 10',
-      }).addTo(map);
-    }
-
-    // Add markers
+    // Add markers with permanent labels
     locs.forEach((loc, i) => {
       const icon = L.divIcon({
         className: 'custom-marker',
-        html: `<div style="
-          width: 24px; height: 24px; border-radius: 50%;
-          background: ${accentColor};
-          color: white; display: flex; align-items: center; justify-content: center;
-          font-size: 11px; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-          border: 2px solid white;
-        ">${i + 1}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        html: `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+          <div style="
+            width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+            background: ${accentColor};
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            border: 2px solid white;
+          ">${i + 1}</div>
+          <span style="
+            font-size: 11px; font-weight: 600; color: ${isDark ? '#e2e8f0' : '#1e293b'};
+            background: ${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};
+            padding: 2px 8px; border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          ">${loc.name}</span>
+        </div>`,
+        iconSize: [0, 0],
+        iconAnchor: [13, 13],
       });
 
-      const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map)
-        .bindTooltip(loc.name, { direction: 'top', offset: [0, -14], className: 'leaflet-tooltip-custom' });
+      const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map);
       markersRef.current.push(marker);
     });
   }, []);
