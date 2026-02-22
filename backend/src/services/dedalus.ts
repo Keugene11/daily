@@ -288,6 +288,14 @@ ${timeSections}
 - For tool-provided accommodations, use the "link" field. For your own recommendations, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z) with approximate coordinates
 - Do NOT skip or truncate this section — it must appear in full before the Pro Tips section]
 
+## Estimated Total
+[REQUIRED — add up ALL the costs mentioned in the itinerary above (food, drinks, activities, transport, entry fees) and show a simple breakdown:
+- Food & Drinks: ~$XX
+- Activities & Entry: ~$XX
+- Transport: ~$XX
+- **Total: ~$XX per person**
+Use the specific prices you cited throughout the plan. If something was free, don't include it. This should be a quick, honest summary — not a sales pitch.]
+
 ## Pro Tips
 [REQUIRED — include 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. These should be city-level insider knowledge, NOT about specific venues in the itinerary above. Examples: "Tap water is safe to drink everywhere — skip the bottled water", "The metro is fastest between 10am-4pm — avoid rush hour sardine cans", "Tipping 18-20% is expected at sit-down restaurants", "Street parking is free on Sundays", "Download the city transit app — it works offline", "Most museums are closed on Mondays". Keep each tip to one line.]
 
