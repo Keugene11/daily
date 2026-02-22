@@ -46,3 +46,4 @@ NUL
 
 # Claude Code local settings
 .claude/
+.env*.local

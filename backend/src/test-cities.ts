@@ -5,7 +5,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { spotifyService } from './services/apis/spotify';
 import { restaurantService } from './services/apis/restaurants';
 import { eventsService } from './services/apis/events';
 import { freeStuffService } from './services/apis/free_stuff';
@@ -39,33 +38,6 @@ function check(city: string, service: string, ok: boolean, issue?: string) {
 
 async function testCity(city: string) {
   console.log(`\n--- ${city} ---`);
-
-  // Spotify
-  try {
-    const playlist = await spotifyService.getPlaylist(city);
-    const tracks = playlist.data?.tracks || [];
-    check(city, 'spotify', playlist.success, !playlist.success ? 'failed' : undefined);
-    check(city, 'spotify:trackCount', tracks.length >= 3, `only ${tracks.length} tracks`);
-    for (const t of tracks) {
-      if (!t.spotifyUrl || !t.spotifyUrl.startsWith('https://open.spotify.com/')) {
-        check(city, 'spotify:url', false, `bad URL for "${t.title}": ${t.spotifyUrl}`);
-      }
-      if ((t as any).youtubeUrl) {
-        check(city, 'spotify:noYoutube', false, `youtubeUrl still present on "${t.title}"`);
-      }
-      if (!t.title || !t.artist) {
-        check(city, 'spotify:fields', false, `missing title/artist`);
-      }
-    }
-    if (tracks.length >= 3) check(city, 'spotify:url', true);
-    if (!playlist.data?.playlistUrl) {
-      check(city, 'spotify:playlistUrl', false, 'missing playlistUrl');
-    } else {
-      check(city, 'spotify:playlistUrl', true);
-    }
-  } catch (e: any) {
-    check(city, 'spotify', false, e.message);
-  }
 
   // Restaurants
   try {
@@ -130,7 +102,7 @@ async function testCity(city: string) {
 }
 
 async function main() {
-  console.log(`Testing ${CITIES.length} cities across 7 services...\n`);
+  console.log(`Testing ${CITIES.length} cities across 6 services...\n`);
 
   for (const city of CITIES) {
     await testCity(city);

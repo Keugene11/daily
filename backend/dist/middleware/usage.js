@@ -95,7 +95,9 @@ function checkUsage(counter) {
         }
         catch (err) {
             console.error('[Usage] Error checking usage:', err);
-            next();
+            return res.status(503).json({
+                error: 'Usage check temporarily unavailable. Please try again.',
+            });
         }
     };
 }

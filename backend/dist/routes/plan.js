@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const dedalus_1 = require("../services/dedalus");
 const youtube_1 = require("../services/apis/youtube");
+const usage_1 = require("../middleware/usage");
 const router = (0, express_1.Router)();
 // Feature → required tier mapping for error messages
 const FEATURE_TIER = {
@@ -19,7 +20,7 @@ const FEATURE_TIER = {
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
-router.post('/plan', async (req, res) => {
+router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
     // Validate input
     if (!city) {
@@ -114,10 +115,7 @@ router.get('/youtube-search', async (req, res) => {
         return res.status(400).json({ error: 'Query parameter "q" is required' });
     }
     try {
-        const type = req.query.type;
-        const result = type === 'music'
-            ? await (0, youtube_1.searchYouTubeMusic)(q)
-            : await (0, youtube_1.searchYouTubeVideo)(q);
+        const result = await (0, youtube_1.searchYouTubeVideo)(q);
         res.json(result || { videoId: null, title: null });
     }
     catch (error) {

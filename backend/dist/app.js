@@ -100,8 +100,8 @@ app.get('/api/privacy', (_req, res) => {
 });
 // Stripe routes (checkout, portal, subscription status)
 app.use('/api', auth_1.requireAuth, subscription_1.checkSubscription, stripe_1.default);
-// API routes (usage checks disabled for testing)
-app.use('/api', auth_1.requireAuth, plan_1.default);
+// API routes — usage limit is on the POST /plan route only (not youtube-search)
+app.use('/api', auth_1.requireAuth, subscription_1.checkSubscription, plan_1.default);
 // 404 handler
 app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

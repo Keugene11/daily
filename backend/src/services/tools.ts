@@ -3,7 +3,7 @@ import { weatherService } from './apis/weather';
 import { eventsService } from './apis/events';
 import { newsService } from './apis/news';
 import { restaurantService } from './apis/restaurants';
-import { spotifyService } from './apis/spotify';
+
 import { transitService } from './apis/transit';
 import { gasPriceService } from './apis/gas_prices';
 import { happyHourService } from './apis/happy_hours';
@@ -105,27 +105,6 @@ export const tools: Tool[] = [
             type: 'string',
             description: 'Budget level: "low", "medium", "high"',
             enum: ['low', 'medium', 'high']
-          }
-        },
-        required: ['city']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_playlist_suggestion',
-      description: 'Generate a Spotify playlist suggestion based on the city and mood. Returns a themed playlist with tracks that match the location\'s musical culture and vibe. Always pass the city so the playlist fits the destination.',
-      parameters: {
-        type: 'object',
-        properties: {
-          city: {
-            type: 'string',
-            description: 'City name — used to pick location-appropriate music (e.g., jazz for New Orleans, bossa nova for Rio)'
-          },
-          mood: {
-            type: 'string',
-            description: 'Desired mood for the playlist (optional)'
           }
         },
         required: ['city']
@@ -367,9 +346,6 @@ export const executeToolCall = async (
 
       case 'get_restaurant_recommendations':
         return await restaurantService.getRestaurants(args.city, args.cuisine, args.budget);
-
-      case 'get_playlist_suggestion':
-        return await spotifyService.getPlaylist(args.city || '', args.mood);
 
       case 'get_transit_estimates':
         return await transitService.getTransitEstimates(args.city, args.from, args.to);

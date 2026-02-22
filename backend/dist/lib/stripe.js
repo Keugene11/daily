@@ -9,8 +9,8 @@ const stripe_1 = __importDefault(require("stripe"));
 exports.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '');
 exports.TIERS = {
     free: {
-        planLimit: 1,
-        period: 'week',
+        planLimit: 3,
+        period: 'month',
         features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
     },
     pro: {
@@ -27,10 +27,10 @@ function getTierForPrice(priceId) {
         return 'pro';
     if (yearlyId && priceId === yearlyId)
         return 'pro';
-    // Fallback: any non-empty price ID is a paid plan (all paid = pro)
-    if (priceId && priceId.startsWith('price_')) {
-        console.warn(`[Stripe] Unknown price ID "${priceId}" — defaulting to pro. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
-        return 'pro';
+    // Unknown price ID — log a warning but do NOT default to pro.
+    // Only explicitly configured price IDs should grant pro access.
+    if (priceId) {
+        console.warn(`[Stripe] Unknown price ID "${priceId}" — returning free. Check STRIPE_MONTHLY_PRICE_ID / STRIPE_YEARLY_PRICE_ID env vars.`);
     }
     return 'free';
 }

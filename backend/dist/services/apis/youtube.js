@@ -7,7 +7,6 @@
  * production travel content from established creators.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchYouTubeMusic = searchYouTubeMusic;
 exports.searchYouTubeVideo = searchYouTubeVideo;
 exports.searchYouTubeVideos = searchYouTubeVideos;
 async function fetchWithTimeout(url, headers, timeoutMs = 5000) {
@@ -81,7 +80,7 @@ const FILLER_WORDS = new Set([
 // Strong signals of high-production travel/visual content
 const QUALITY_KEYWORDS = /\b(4k|8k|uhd|hdr|cinematic|walking tour|walk(?:ing)?\s*through|drone|aerial|timelapse|time.lapse|travel guide|city guide|food tour|food guide|travel vlog|guide to|visit|places to|things to do|things to see|what to do|must.see|must.visit|hidden gem|complete guide|virtual tour|night walk|night life|sunset|sunrise|street food|best restaurants|where to eat|top \d+|best of|review|first time|solo travel|budget travel|luxury|michelin|local guide)\b/i;
 // Irrelevant or low-quality content — hard reject
-const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:ing)?|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list|live stream|livestream|shorts|tiktok|compilation|meme|funny|cringe|exposed|canceled|cancelled|apology|rant|vent|asmr|gameplay|playthrough|let'?s play|blippi|cocomelon|peppa|paw patrol|sesame street|kids|for children|educational.*kids|nursery rhyme|cartoon|countdown|ball drop|new year'?s eve)\b/i;
+const PENALTY_KEYWORDS = /\b(reaction|reacts?|prank|challenge|mukbang|unbox(?:ing)?|haul|drama|worst|fail|gone wrong|not clickbait|storytime|podcast|interview|debate|ranking every|tier list|live stream|livestream|shorts|tiktok|compilation|meme|funny|cringe|exposed|canceled|cancelled|apology|rant|vent|asmr|gameplay|playthrough|let'?s play|blippi|cocomelon|peppa|paw patrol|sesame street|kids|for children|educational.*kids|nursery rhyme|cartoon|countdown|ball drop|new year'?s eve|abandon(?:ed)?|dead mall|dead store|closed down|torn down|demolish(?:ed|ing)?|derelict|decay(?:ing|ed)?|urban exploration|urbex|ghost town|empty mall|dying mall|forgotten|left behind|what went wrong|rise and fall)\b/i;
 // Entertainment/celebrity content — not place-discovery content
 const ENTERTAINMENT_KEYWORDS = /\b(conan|colbert|fallon|kimmel|oliver|seth meyers|late night|late show|talk show|tonight show|snl|saturday night|comedy|stand.?up|comedian|movie|trailer|film|tv show|series|episode|season \d|music video|official video|lyric video|full album|concert|performance|awards?|oscars?|grammy|emmy|netflix|hulu|disney|hbo|amazon prime|broadway cast|original cast|musical|soundtrack|karaoke|sing along|lyrics?|remix|cover song|acoustic version)\b/i;
 // News/current-affairs/disaster content — not what we want for place discovery
@@ -111,7 +110,7 @@ const QUALITY_CHANNELS = new Set([
     'bucket list traveller', 'turn right',
     // General quality lifestyle / review
     'wendover productions', 'half as interesting', 'geography now',
-    'bright sun films', 'tom scott', 'johnny harris',
+    'tom scott', 'johnny harris',
     'not just bikes', 'city beautiful', 'b1m',
 ]);
 // Known news/media channels — penalty
@@ -164,10 +163,7 @@ function scoreCandidate(c, position, poolSize, query) {
         score += 8; // 500K+ — solid
     }
     else if (c.views >= 100_000) {
-        score += 4; // 100K+ — decent niche content
-    }
-    else if (c.views >= 50_000) {
-        score += 1; // 50K+ — minimum quality bar
+        score += 2; // 100K+ — minimum quality bar
     }
     // ── Channel quality signals ───────────────────────────────────
     const channelLower = c.channel.toLowerCase();
@@ -225,20 +221,22 @@ function scoreCandidate(c, position, poolSize, query) {
             score -= 5;
     }
     // ── Recency (upload age) ────────────────────────────────────
-    // Strongly prefer recent uploads — a 13-year-old tour is stale
+    // Smooth decay: 6 months is freshest, then gradual drop-off
     if (c.ageYears !== null) {
-        if (c.ageYears < 1)
-            score += 6; // under 1 year — fresh
+        if (c.ageYears < 0.5)
+            score += 10; // under 6 months — freshest
+        else if (c.ageYears < 1)
+            score += 8; // 6-12 months
         else if (c.ageYears < 2)
-            score += 4; // 1-2 years
+            score += 5; // 1-2 years
         else if (c.ageYears < 3)
-            score += 2; // 2-3 years
+            score += 3; // 2-3 years
+        else if (c.ageYears < 4)
+            score += 1; // 3-4 years
         else if (c.ageYears < 5)
-            score += 0; // 3-5 years — neutral
-        else if (c.ageYears < 8)
-            score -= 5; // 5-8 years — stale
+            score -= 2; // 4-5 years
         else
-            score -= 15; // 8+ years — heavily penalized
+            score -= 5; // 5+ years — stale
     }
     // Fallback: check year in title if upload age not available
     else {
@@ -247,13 +245,17 @@ function scoreCandidate(c, position, poolSize, query) {
         if (yearMatch) {
             const age = currentYear - parseInt(yearMatch[1]);
             if (age === 0)
-                score += 5;
+                score += 8;
             else if (age === 1)
+                score += 5;
+            else if (age <= 2)
                 score += 3;
             else if (age <= 3)
                 score += 1;
-            else if (age >= 6)
-                score -= 3;
+            else if (age <= 4)
+                score -= 1;
+            else
+                score -= 4;
         }
         else {
             score -= 3; // unknown age, no year in title — mild penalty
@@ -318,13 +320,13 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
         if (candidates.length === 0)
             return [];
         // Filter: skip Shorts (<45s), full-length movies/docs (>45min),
-        // videos under 10K views, and videos older than 8 years.
+        // videos under 100K views, and videos older than 4 years.
         const filtered = candidates.filter(c => {
             if (c.durationSec > 0 && (c.durationSec < 45 || c.durationSec > 2700))
                 return false;
-            if (c.ageYears !== null && c.ageYears >= 8)
+            if (c.ageYears !== null && c.ageYears >= 4)
                 return false;
-            if (c.views < 10_000)
+            if (c.views < 100_000)
                 return false;
             return true;
         });
@@ -362,59 +364,6 @@ async function scrapeYouTubeSearch(query, searchSuffix = '', count = 1) {
     }
     return [];
 }
-/** Music-specific search — finds the actual song, not travel content or tutorials */
-async function searchYouTubeMusic(query) {
-    try {
-        // Search without any suffix — the query is already "Artist - Song audio"
-        const searchQuery = query;
-        const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
-        const res = await fetchWithTimeout(url, {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-        });
-        if (!res.ok)
-            return null;
-        const html = await res.text();
-        const match = html.match(/var ytInitialData = (.+?);<\/script>/);
-        if (!match)
-            return null;
-        const data = JSON.parse(match[1]);
-        const contents = data?.contents?.twoColumnSearchResultsRenderer
-            ?.primaryContents?.sectionListRenderer?.contents;
-        if (!contents)
-            return null;
-        const items = contents[0]?.itemSectionRenderer?.contents || [];
-        // Reject covers, tutorials, karaoke, reaction videos
-        const MUSIC_REJECT = /\b(tutorial|lesson|how to play|piano cover|cover|karaoke|instrumental|minus one|backing track|drum cover|guitar cover|bass cover|reaction|react|reacts|live at|concert|remix|slowed|reverb|sped up|nightcore|8d audio|lofi|lo-fi|mashup|parody)\b/i;
-        for (const item of items) {
-            if (!item.videoRenderer)
-                continue;
-            const vr = item.videoRenderer;
-            const videoId = vr.videoId;
-            const title = vr.title?.runs?.[0]?.text || '';
-            if (!videoId || !title)
-                continue;
-            // Skip non-music content
-            if (MUSIC_REJECT.test(title))
-                continue;
-            // Duration: songs are 1.5-10 min
-            const durationSec = parseDuration(vr.lengthText?.simpleText || '');
-            if (durationSec > 0 && (durationSec < 90 || durationSec > 600))
-                continue;
-            // Basic view floor — 10K minimum
-            const viewText = vr.viewCountText?.simpleText || vr.viewCountText?.runs?.[0]?.text || '';
-            const views = parseViewCount(viewText);
-            if (views < 10_000)
-                continue;
-            // Check embeddability
-            if (await isEmbeddable(videoId)) {
-                return { videoId, title };
-            }
-        }
-    }
-    catch { /* search failed */ }
-    return null;
-}
 /** Single best travel-biased video (used by itinerary planner) */
 async function searchYouTubeVideo(query) {
     // Fetch a few candidates so we can skip non-embeddable ones
@@ -442,13 +391,21 @@ async function isEmbeddable(videoId) {
         if (!res.ok)
             return false;
         const html = await res.text();
-        // Only check playabilityStatus — not generic "status" fields that appear
-        // throughout YouTube's page (analytics, configs, etc.)
-        if (/playabilityStatus.*?\\?"status\\?"\s*:\s*\\?"(ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED)\\?"/.test(html))
-            return false;
         if (html.includes('Video unavailable'))
             return false;
-        if (/playableInEmbed.*?false|\\?"embeddable\\?"\s*:\s*false/.test(html))
+        // Check for error statuses near "playabilityStatus" (within 200 chars).
+        // This avoids false positives from generic "status":"ERROR" fields in
+        // analytics/config JSON elsewhere on the page.
+        const psIdx = html.indexOf('playabilityStatus');
+        if (psIdx !== -1) {
+            const nearby = html.substring(psIdx, psIdx + 200);
+            if (/ERROR|UNPLAYABLE|LOGIN_REQUIRED|CONTENT_CHECK_REQUIRED/.test(nearby))
+                return false;
+            if (/playableInEmbed[^a-z]*false/.test(nearby))
+                return false;
+        }
+        // Also check for embedding disabled outside the playabilityStatus block
+        if (/embeddable[^a-z]*false/.test(html))
             return false;
         return true;
     }

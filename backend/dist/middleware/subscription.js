@@ -59,7 +59,23 @@ async function checkSubscription(req, _res, next) {
                 }
             }
             catch (syncErr) {
-                console.warn('[Sub] Stripe sync failed:', syncErr?.message || syncErr);
+                const msg = syncErr?.message || '';
+                if (msg.includes('No such customer') || syncErr?.code === 'resource_missing') {
+                    // Stale customer ID (test mode, deleted, etc.) — clear it
+                    console.warn(`[Sub] Stale customer ID ${data.stripe_customer_id}: ${msg}`);
+                    await supabase_admin_1.supabaseAdmin
+                        .from('subscriptions')
+                        .update({
+                        stripe_customer_id: null,
+                        plan_type: 'free',
+                        current_period_end: null,
+                        updated_at: new Date().toISOString(),
+                    })
+                        .eq('user_id', req.userId);
+                }
+                else {
+                    console.warn('[Sub] Stripe sync failed:', msg);
+                }
             }
         }
         console.log(`[Sub] Final tier=${tier}`);
@@ -67,9 +83,10 @@ async function checkSubscription(req, _res, next) {
         req.features = stripe_1.TIERS[tier].features;
     }
     catch (err) {
-        console.error('[Sub] Middleware error:', err?.message || err);
-        req.tier = 'free';
-        req.features = stripe_1.TIERS.free.features;
+        console.error('[Sub] Middleware error — cannot determine tier:', err?.message || err);
+        return _res.status(503).json({
+            error: 'Unable to verify subscription. Please try again in a moment.',
+        });
     }
     next();
 }

@@ -40,7 +40,7 @@ function urlLabel(url: string): string {
       const q = decodeURIComponent(u.searchParams.get('q') || '').replace(/\+/g, ' ');
       return q.split(',')[0].trim() || 'View on Maps';
     }
-    if (host.includes('spotify.com')) return 'Open in Spotify';
+
     if (host.includes('eventbrite.com')) return 'View Events';
     if (host.includes('groupon.com')) return 'View Deals';
     if (host.includes('gocity.com')) return 'Go City';
@@ -185,24 +185,6 @@ function RichText({ text }: { text: string }) {
   return <>{renderInline(text)}</>;
 }
 
-/** Cap a Soundtrack section to at most 5 track lines */
-function capSoundtrackTracks(text: string): string {
-  const lines = text.split('\n');
-  let trackCount = 0;
-  const kept: string[] = [];
-  for (const line of lines) {
-    // Any numbered or bulleted line inside Soundtrack is a track entry
-    // (covers links, plain text, bold, etc.)
-    const isTrackLine = /^\s*(\d+\.|[-•*])\s+/.test(line) ||
-      /\[.+?\]\(https?:\/\/open\.spotify\.com/.test(line);
-    if (isTrackLine) {
-      trackCount++;
-      if (trackCount > 5) continue; // drop extra tracks
-    }
-    kept.push(line);
-  }
-  return kept.join('\n');
-}
 
 function FormattedContent({ text }: { text: string }) {
   const lines = text.split('\n');
@@ -348,7 +330,7 @@ function parseItinerary(text: string): ParsedPlan {
     const daySlots: TimeSlot[] = [];
 
     for (const slot of allSlots) {
-      if (/^(where to stay|soundtrack|estimated total)$/i.test(slot.period)) {
+      if (/^(where to stay|estimated total)$/i.test(slot.period)) {
         globalSections.push(slot);
       } else {
         daySlots.push(slot);
@@ -360,7 +342,7 @@ function parseItinerary(text: string): ParsedPlan {
     }
   }
 
-  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Soundtrack|Estimated Total)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
+  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Estimated Total)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
   if (afterLastDay) {
     for (const match of afterLastDay) {
       const m = match.match(/## ([^\n(]+?)(?:\s*\(([^)]*)\))?\s*\n([\s\S]*)/);
@@ -414,8 +396,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onSpeak, onShare, i
   const renderSlots = (slots: TimeSlot[], startIndex = 0) => (
     <div className="space-y-0">
       {slots.map((slot, index) => {
-        const isSoundtrack = slot.period.toLowerCase() === 'soundtrack';
-        const sectionPlaces = !isSoundtrack && mediaData && mediaData.size > 0
+        const sectionPlaces = mediaData && mediaData.size > 0
           ? getSectionPlaces(slot.content, [...mediaData.keys()], shownPlacesRef.current, mediaData, shownVideoIdsRef.current)
           : [];
 
@@ -429,11 +410,6 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onSpeak, onShare, i
             <div className="grid grid-cols-[120px_1fr] gap-8 py-8">
               <div>
                 <p className="text-sm font-medium text-on-surface/90 flex items-center gap-2">
-                  {isSoundtrack && (
-                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
-                    </svg>
-                  )}
                   {slot.period}
                 </p>
                 {slot.time && <p className="text-xs text-on-surface/30 mt-0.5">{slot.time}</p>}
@@ -446,7 +422,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onSpeak, onShare, i
                     mediaData={mediaData}
                   />
                 ) : (
-                  <FormattedContent text={isSoundtrack ? capSoundtrackTracks(slot.content) : slot.content} />
+                  <FormattedContent text={slot.content} />
                 )}
               </div>
             </div>
@@ -537,7 +513,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onSpeak, onShare, i
       {/* Time slots for selected day */}
       {renderSlots(activeSlots)}
 
-      {/* Global sections (Where to Stay, Soundtrack) — always shown */}
+      {/* Global sections (Where to Stay, Estimated Total) — always shown */}
       {parsed.globalSections.length > 0 && renderSlots(parsed.globalSections, activeSlots.length)}
     </div>
   );

@@ -5,7 +5,6 @@ const weather_1 = require("./apis/weather");
 const events_1 = require("./apis/events");
 const news_1 = require("./apis/news");
 const restaurants_1 = require("./apis/restaurants");
-const spotify_1 = require("./apis/spotify");
 const transit_1 = require("./apis/transit");
 const gas_prices_1 = require("./apis/gas_prices");
 const happy_hours_1 = require("./apis/happy_hours");
@@ -88,27 +87,6 @@ exports.tools = [
                         type: 'string',
                         description: 'Budget level: "low", "medium", "high"',
                         enum: ['low', 'medium', 'high']
-                    }
-                },
-                required: ['city']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'get_playlist_suggestion',
-            description: 'Generate a Spotify playlist suggestion based on the city and mood. Returns a themed playlist with tracks that match the location\'s musical culture and vibe. Always pass the city so the playlist fits the destination.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    city: {
-                        type: 'string',
-                        description: 'City name — used to pick location-appropriate music (e.g., jazz for New Orleans, bossa nova for Rio)'
-                    },
-                    mood: {
-                        type: 'string',
-                        description: 'Desired mood for the playlist (optional)'
                     }
                 },
                 required: ['city']
@@ -341,8 +319,6 @@ const executeToolCall = async (toolName, args, context) => {
                 return await news_1.newsService.getNews(args.city);
             case 'get_restaurant_recommendations':
                 return await restaurants_1.restaurantService.getRestaurants(args.city, args.cuisine, args.budget);
-            case 'get_playlist_suggestion':
-                return await spotify_1.spotifyService.getPlaylist(args.city || '', args.mood);
             case 'get_transit_estimates':
                 return await transit_1.transitService.getTransitEstimates(args.city, args.from, args.to);
             case 'get_gas_prices':

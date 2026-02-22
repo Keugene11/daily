@@ -167,7 +167,7 @@ function buildSystemPrompt(request: PlanRequest): string {
       `  - NEVER repeat the same restaurant, bar, or attraction across days\n` +
       `  - Spread neighborhoods logically — don't bounce across the city unnecessarily\n` +
       `  - Reference previous days for continuity ("After yesterday's street food marathon, today is all about fine dining...")\n` +
-      `  - Where to Stay and Soundtrack appear ONCE at the end, not per-day`
+      `  - Where to Stay appears ONCE at the end, not per-day`
     );
   }
 
@@ -253,7 +253,7 @@ Day of the week: ${dayOfWeek}
 This is important! Many events, free museum days, deals, and specials are day-specific. The tools will return ONLY what's available today — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!" or "Today's ${dayOfWeek} deal: $1 tacos at...").
 
 IMPORTANT RULES:
-1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_playlist_suggestion, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the playlist or accommodations tools.
+1. You MUST call tools before writing any itinerary. Call ALL of these in your FIRST response: get_weather, get_local_events, get_restaurant_recommendations, get_free_stuff, get_deals_coupons, get_happy_hours, get_accommodations. Also call get_sunrise_sunset and others as relevant. The more tools you call, the richer the plan. NEVER skip the accommodations tool.
 2. Tools give you structured data, but YOU are the expert. If a tool returns generic/placeholder data, REPLACE it with real places you know. Never recommend a restaurant called "Local Favorite Grill" or an event called "Community Art Walk" — use actual real places, real restaurant names, real landmarks, and real neighborhoods that exist in that city.
 3. Every recommendation must be a REAL place that actually exists. Use real street names, real neighborhoods, real venue names. You have extensive knowledge of cities worldwide — use it.
 4. Include the city's ICONIC experiences and signature attractions — the things the city is famous for that visitors should not miss. For NYC that's Summit One Vanderbilt, Top of the Rock, or the High Line; for Paris it's the Eiffel Tower or Musée d'Orsay; for Tokyo it's Shibuya Crossing or Tsukiji Outer Market. Mix these marquee attractions with hidden gems and local favorites for a balanced itinerary.
@@ -263,7 +263,7 @@ Available tools (call all that are relevant):
 - get_weather: Always call this. Use the data for practical advice.
 - get_local_events: City events and activities — DAY-AWARE, only returns events for today's day of the week. Check the todayHighlights array for day-specific finds!
 - get_restaurant_recommendations: Real restaurant data (name, cuisine, price level, rating, review count, neighborhood, Google Maps link). May include a "reviewHighlights" array — these are real snippets from customer reviews mentioning specific dishes they ordered. USE these to recommend specific items (e.g., if a review says "The cacio e pepe was incredible", tell the user to order the cacio e pepe). If no reviewHighlights are present, describe what the restaurant is known for based on its cuisine type but do NOT invent specific named dishes. Approximate a per-person cost from the price level ($=~$10-15, $$=~$20-35, $$$=~$50+).
-- get_playlist_suggestion: City-themed music. Always pass the city name.
+
 - get_trending_news: Current headlines for conversation starters.
 - get_free_stuff: Free activities available TODAY — DAY-AWARE, filters to today's day. Highlight the todayHighlights prominently (e.g., "Since it's ${dayOfWeek}, you can get into MoMA for FREE!").
 - get_deals_coupons: Deals and discounts — DAY-AWARE, shows only today's deals. Highlight todayDeals prominently (e.g., "It's Taco Tuesday — $1 tacos at...").
@@ -299,9 +299,6 @@ Use the specific prices you cited throughout the plan. If something was free, do
 
 ## Pro Tips
 [REQUIRED — include 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know. These should be city-level insider knowledge, NOT about specific venues in the itinerary above. Examples: "Tap water is safe to drink everywhere — skip the bottled water", "The metro is fastest between 10am-4pm — avoid rush hour sardine cans", "Tipping 18-20% is expected at sit-down restaurants", "Street parking is free on Sundays", "Download the city transit app — it works offline", "Most museums are closed on Mondays". Keep each tip to one line.]
-
-## Soundtrack
-[REQUIRED — copy the "formattedMarkdown" field from the get_playlist_suggestion tool result EXACTLY as-is. Do NOT rewrite it, do NOT replace Spotify URLs with YouTube URLs, do NOT add extra songs. Just paste the formattedMarkdown value verbatim.]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -377,9 +374,9 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   if (request.rightNow) {
     userParts.push(`What can I do RIGHT NOW? I have about 2 hours. Call the most relevant tools — weather, events, free stuff, happy hours, deals — and tell me what's happening right now or starting very soon. Keep it short and actionable.`);
   } else if (isMultiDay) {
-    userParts.push(`Plan all ${request.days} days cohesively. Call ALL relevant tools first — weather, events, restaurants, playlist, accommodations, sunrise/sunset, free stuff, deals, and any others. Then create ${request.days} days of amazing, specific itineraries with real places. Don't repeat places across days.`);
+    userParts.push(`Plan all ${request.days} days cohesively. Call ALL relevant tools first — weather, events, restaurants, accommodations, sunrise/sunset, free stuff, deals, and any others. Then create ${request.days} days of amazing, specific itineraries with real places. Don't repeat places across days.`);
   } else {
-    userParts.push(`What should I do today? Call ALL relevant tools first — weather, events, restaurants, playlist, accommodations, sunrise/sunset, free stuff, deals, and any others that fit. Then create an amazing, specific itinerary with real places.`);
+    userParts.push(`What should I do today? Call ALL relevant tools first — weather, events, restaurants, accommodations, sunrise/sunset, free stuff, deals, and any others that fit. Then create an amazing, specific itinerary with real places.`);
   }
 
   const messages: any[] = [
@@ -430,7 +427,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
         messages.push({ role: 'assistant', content: assistantMessage.content });
         messages.push({
           role: 'user',
-          content: 'Please call the tools first — get_weather, get_local_events, get_restaurant_recommendations, get_playlist_suggestion, get_accommodations, get_sunrise_sunset, get_free_stuff, get_deals_coupons, and any others that are relevant. Do not respond with text — only call tools.'
+          content: 'Please call the tools first — get_weather, get_local_events, get_restaurant_recommendations, get_accommodations, get_sunrise_sunset, get_free_stuff, get_deals_coupons, and any others that are relevant. Do not respond with text — only call tools.'
         });
       }
 
@@ -514,13 +511,10 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     );
 
     const forceCalls: { name: string; args: Record<string, any> }[] = [];
-    // Accommodations and playlist use hardcoded data (instant, no external API),
-    // so always force-call them regardless of time pressure
+    // Accommodations uses hardcoded data (instant, no external API),
+    // so always force-call it regardless of time pressure
     if (!calledTools.has('get_accommodations') && toolCity && !request.rightNow) {
       forceCalls.push({ name: 'get_accommodations', args: { city: toolCity, budget: request.budget && request.budget !== 'any' ? request.budget : undefined } });
-    }
-    if (!calledTools.has('get_playlist_suggestion') && toolCity) {
-      forceCalls.push({ name: 'get_playlist_suggestion', args: { city: toolCity } });
     }
 
     if (forceCalls.length > 0) {

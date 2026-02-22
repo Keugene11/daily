@@ -12,7 +12,6 @@ const TOOL_CONFIG: Record<string, { label: string }> = {
   get_local_events: { label: 'Events' },
   get_trending_news: { label: 'News' },
   get_restaurant_recommendations: { label: 'Restaurants' },
-  get_playlist_suggestion: { label: 'Playlist' },
   get_transit_estimates: { label: 'Transit' },
   get_accommodations: { label: 'Stays' },
 };

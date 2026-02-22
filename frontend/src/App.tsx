@@ -4,7 +4,7 @@ import { CityInput } from './components/CityInput';
 import { ToolCallIndicator } from './components/ToolCallIndicator';
 import { ItineraryDisplay } from './components/ItineraryDisplay';
 import { WeatherCard } from './components/WeatherCard';
-import { MusicPlayer } from './components/MusicPlayer';
+
 import { CherryBlossoms } from './components/CherryBlossoms';
 import { PlanHistory, SavedPlan } from './components/PlanHistory';
 import { ProfilePage } from './components/ProfilePage';
@@ -247,7 +247,7 @@ function App() {
 
   // Extract tool results for standalone cards
   const weatherData = state.toolResults['get_weather']?.data || null;
-  const playlistData = state.toolResults['get_playlist_suggestion']?.data || null;
+
 
   const showResults = state.content || state.error || Object.keys(state.toolResults).length > 0 || state.thinking.length > 0;
 
@@ -508,11 +508,6 @@ function App() {
           {/* Outfit suggestion — weather-based clothing recommendation */}
           {weatherData && !state.isStreaming && (
             <OutfitSuggestion weatherData={weatherData} city={city} />
-          )}
-
-          {/* Music player — appears and auto-plays as soon as playlist tool completes (during generation) */}
-          {playlistData && (
-            <MusicPlayer playlist={playlistData} />
           )}
 
           {/* Error */}

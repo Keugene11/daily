@@ -3,13 +3,9 @@
  * Parses Google Maps links, markdown links, and bold text to find venue names.
  */
 export function extractPlaces(content: string, city: string, maxResults = 10): string[] {
-  // Strip everything after ## Soundtrack to avoid extracting song titles as places
-  const soundtrackIdx = content.search(/##\s*Soundtrack/i);
-  const mainContent = soundtrackIdx > -1 ? content.slice(0, soundtrackIdx) : content;
-
   // Strip "Where to Stay" section — hotels don't need video thumbnails
-  const stayIdx = mainContent.search(/##\s*Where to Stay/i);
-  const itineraryContent = stayIdx > -1 ? mainContent.slice(0, stayIdx) : mainContent;
+  const stayIdx = content.search(/##\s*Where to Stay/i);
+  const itineraryContent = stayIdx > -1 ? content.slice(0, stayIdx) : content;
 
   const cityLower = city.toLowerCase();
 
@@ -42,7 +38,7 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
         return;
       }
       // Skip links to non-map sites (Spotify, Yelp review pages, etc.)
-      if (/spotify\.com|yelp\.com\/biz|tripadvisor\.com|opentable\.com|youtube\.com|instagram\.com|facebook\.com|eventbrite\.com/i.test(url)) {
+      if (/yelp\.com\/biz|tripadvisor\.com|opentable\.com|youtube\.com|instagram\.com|facebook\.com|eventbrite\.com/i.test(url)) {
         return;
       }
       names.push(label);

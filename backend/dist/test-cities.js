@@ -9,7 +9,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
  */
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-const spotify_1 = require("./services/apis/spotify");
 const restaurants_1 = require("./services/apis/restaurants");
 const events_1 = require("./services/apis/events");
 const free_stuff_1 = require("./services/apis/free_stuff");
@@ -33,35 +32,6 @@ function check(city, service, ok, issue) {
 }
 async function testCity(city) {
     console.log(`\n--- ${city} ---`);
-    // Spotify
-    try {
-        const playlist = await spotify_1.spotifyService.getPlaylist(city);
-        const tracks = playlist.data?.tracks || [];
-        check(city, 'spotify', playlist.success, !playlist.success ? 'failed' : undefined);
-        check(city, 'spotify:trackCount', tracks.length >= 3, `only ${tracks.length} tracks`);
-        for (const t of tracks) {
-            if (!t.spotifyUrl || !t.spotifyUrl.startsWith('https://open.spotify.com/')) {
-                check(city, 'spotify:url', false, `bad URL for "${t.title}": ${t.spotifyUrl}`);
-            }
-            if (t.youtubeUrl) {
-                check(city, 'spotify:noYoutube', false, `youtubeUrl still present on "${t.title}"`);
-            }
-            if (!t.title || !t.artist) {
-                check(city, 'spotify:fields', false, `missing title/artist`);
-            }
-        }
-        if (tracks.length >= 3)
-            check(city, 'spotify:url', true);
-        if (!playlist.data?.playlistUrl) {
-            check(city, 'spotify:playlistUrl', false, 'missing playlistUrl');
-        }
-        else {
-            check(city, 'spotify:playlistUrl', true);
-        }
-    }
-    catch (e) {
-        check(city, 'spotify', false, e.message);
-    }
     // Restaurants
     try {
         const res = await restaurants_1.restaurantService.getRestaurants(city);
@@ -125,7 +95,7 @@ async function testCity(city) {
     }
 }
 async function main() {
-    console.log(`Testing ${CITIES.length} cities across 7 services...\n`);
+    console.log(`Testing ${CITIES.length} cities across 6 services...\n`);
     for (const city of CITIES) {
         await testCity(city);
     }
