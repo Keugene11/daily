@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { extractPlaces } from '../utils/extractPlaces';
+import { extractPlaces, extractPlaceCoords } from '../utils/extractPlaces';
 import {
   MapLocation,
   getCachedGeocode,
@@ -389,23 +389,24 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const isNearCity = (coords: { lat: number; lng: number }) =>
           !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= effectiveRadius;
 
-        // Separate places into: cached (instant) vs uncached (needs Nominatim API)
-        // NOTE: We intentionally do NOT use embedded @lat,lng from LLM-generated URLs
-        // for itinerary places. LLMs hallucinate coordinates. Nominatim is more accurate.
-        // Exception: hotel coords from URLs are used because Nominatim can't find hotels.
-        const cached: MapLocation[] = [];
-        const uncachedPlaces: string[] = [];
+        // Build an ordered results map keyed by place name (content order).
+        // Resolve coords via: geocode cache → Nominatim → embedded @lat,lng fallback.
+        // This keeps markers in the same order as the itinerary text.
+        const embeddedCoords = extractPlaceCoords(content);
+        const resolved = new Map<string, MapLocation>();
 
-        // If hotel has embedded coords, add it as the first marker (no geocoding needed)
+        // If hotel has embedded coords, add it first (no geocoding needed)
         if (hotelHasCoords && hotel) {
-          cached.push({ name: hotel.name, lat: hotel.lat!, lng: hotel.lng! });
+          resolved.set(hotel.name, { name: hotel.name, lat: hotel.lat!, lng: hotel.lng! });
         }
 
+        // Check geocode cache for instant results
+        const uncachedPlaces: string[] = [];
         for (const place of places) {
           const coords = getCachedGeocode(place, geocodeCity_);
           if (coords) {
             if (isNearCity(coords)) {
-              cached.push({ name: place, ...coords });
+              resolved.set(place, { name: place, ...coords });
             }
           } else {
             uncachedPlaces.push(place);
@@ -413,32 +414,53 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
 
         // Show cached results immediately (in content order)
-        if (cached.length > 0) {
-          setLocations(cached);
-          setResolvedCount(cached.length);
-          updateMarkers(cached);
-          fitMapBounds(cached);
+        const orderedSnapshot = () => {
+          const ordered: MapLocation[] = [];
+          if (hotelHasCoords && hotel && resolved.has(hotel.name)) {
+            ordered.push(resolved.get(hotel.name)!);
+          }
+          for (const place of places) {
+            if (resolved.has(place)) ordered.push(resolved.get(place)!);
+          }
+          return ordered;
+        };
+
+        if (resolved.size > 0) {
+          const snap = orderedSnapshot();
+          setLocations(snap);
+          setResolvedCount(snap.length);
+          updateMarkers(snap);
+          fitMapBounds(snap);
         }
 
-        // Geocode uncached places, adding markers incrementally
-        const allResults = [...cached];
-
+        // Geocode uncached places via Nominatim, falling back to embedded coords
         for (let i = 0; i < uncachedPlaces.length; i++) {
           if (cancelled) return;
           // Wait 1100ms between Nominatim requests to respect rate limit (1 req/sec).
-          // Always delay — even the first call needs spacing after geocodeCity.
           await new Promise(r => setTimeout(r, 1100));
 
-          const coords = await geocode(uncachedPlaces[i], geocodeCity_, cityCoords ?? undefined, countryCode, country, effectiveRadius);
+          const place = uncachedPlaces[i];
+          const coords = await geocode(place, geocodeCity_, cityCoords ?? undefined, countryCode, country, effectiveRadius);
           if (cancelled) return;
 
           if (coords && isNearCity(coords)) {
-            allResults.push({ name: uncachedPlaces[i], ...coords });
-            setLocations([...allResults]);
-            setResolvedCount(allResults.length);
-            updateMarkers([...allResults]);
+            resolved.set(place, { name: place, ...coords });
+          } else {
+            // Nominatim failed — fall back to embedded @lat,lng from Google Maps URL
+            const embedded = embeddedCoords.get(place);
+            if (embedded && isNearCity(embedded)) {
+              resolved.set(place, { name: place, ...embedded });
+            }
           }
+
+          // Update map progressively (always in content order)
+          const snap = orderedSnapshot();
+          setLocations(snap);
+          setResolvedCount(snap.length);
+          updateMarkers(snap);
         }
+
+        const allResults = orderedSnapshot();
 
         if (cancelled) return;
 
