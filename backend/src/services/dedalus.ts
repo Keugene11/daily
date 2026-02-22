@@ -612,17 +612,23 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
           max_tokens: tokenBudget
         });
 
+        let outputTokens = 0;
         for await (const chunk of stream) {
           const delta = chunk.choices?.[0]?.delta;
           const content = delta?.content;
 
           if (content) {
             contentReceived = true;
+            outputTokens += Math.ceil(content.length / 4); // rough estimate
             yield { type: 'content_chunk', content };
           }
 
           if (chunk.choices?.[0]?.finish_reason) {
-            console.log('[Dedalus] Stream finished:', chunk.choices[0].finish_reason, '| content received:', contentReceived);
+            const reason = chunk.choices[0].finish_reason;
+            console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens used of ${tokenBudget} budget | content: ${contentReceived}`);
+            if (reason === 'length') {
+              console.warn(`[Dedalus] OUTPUT TRUNCATED — model hit max_tokens (${tokenBudget})`);
+            }
             break;
           }
         }
