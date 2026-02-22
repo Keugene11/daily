@@ -573,10 +573,23 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
     yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
 
-    // Remind model to complete ALL sections — placed last so it's freshest in context
+    // Final instruction — this is the LAST thing the model sees before generating.
+    // Keep it short and forceful. Everything here overrides earlier instructions.
+    const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
+      ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
+      : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
+      ? 'This is a SURF destination — surfing MUST be the centerpiece of the plan. '
+      : request.city.match(/patagonia|annapurna|kilimanjaro|appalachian|camino|dolomites/i)
+      ? 'This is a HIKING destination — hiking/trekking MUST be the centerpiece of the plan. '
+      : '';
     messages.push({
       role: 'user',
-      content: 'Now write the full itinerary using the tool data above. You MUST include EVERY section: the time-of-day sections, then ## Where to Stay, then ## Estimated Total (with cost breakdown), then ## Pro Tips. Do NOT stop after Where to Stay — the Estimated Total and Pro Tips are required.'
+      content: `Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — you will be penalized for missing any:
+1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
+2. ## Where to Stay — 2-4 real accommodations with prices
+3. ## Estimated Total — add up ALL costs: Food & Drinks ~$X, Activities ~$X, Transport ~$X, **Total: ~$X per person**
+4. ## Pro Tips — 2-4 insider tips
+You MUST write all 4. Do NOT stop after Where to Stay.`
     });
 
     // ── Step 3: Second API call – model synthesizes tool results into itinerary ──
