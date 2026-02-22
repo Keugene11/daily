@@ -451,7 +451,7 @@ export const restaurantService = {
     const cached = getFromCache(cacheKey);
     if (cached) {
       console.log(`[Restaurants] Cache hit for "${cacheKey}"`);
-      return { success: true, data: cached.slice(0, 4) };
+      return { success: true, data: cached.slice(0, 8) };
     }
 
     // Try Google Places API
@@ -460,7 +460,7 @@ export const restaurantService = {
     if (googleResults.length > 0) {
       console.log(`[Restaurants] Google Places returned ${googleResults.length} results for ${city}`);
       setCache(cacheKey, googleResults);
-      return { success: true, data: googleResults.slice(0, 4) };
+      return { success: true, data: googleResults.slice(0, 8) };
     }
 
     // Fallback: hardcoded data
@@ -492,6 +492,6 @@ export const restaurantService = {
       return { ...r, url, link: `[${r.name}](${url})` };
     });
 
-    return { success: true, data: withUrls.slice(0, 4) };
+    return { success: true, data: withUrls.slice(0, 8) };
   }
 };
