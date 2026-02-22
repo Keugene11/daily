@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { StreamEvent, PlanState } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -14,6 +14,8 @@ export const usePlanStream = () => {
     connected: false
   });
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const startStream = useCallback(async (city: string, budget?: string, extras?: {
     mood?: string;
     currentHour?: number;
@@ -27,6 +29,11 @@ export const usePlanStream = () => {
     rightNow?: boolean;
     days?: number;
   }, getAccessToken?: () => Promise<string | null>) => {
+    // Abort any in-flight stream
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // Reset state
     setState({
       isStreaming: true,
@@ -47,7 +54,8 @@ export const usePlanStream = () => {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ city, budget, ...extras })
+        body: JSON.stringify({ city, budget, ...extras }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -71,6 +79,7 @@ export const usePlanStream = () => {
       let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
       const flushContent = () => {
+        if (controller.signal.aborted) { contentBuffer = ''; return; }
         if (contentBuffer) {
           const buffered = contentBuffer;
           contentBuffer = '';
@@ -139,6 +148,7 @@ export const usePlanStream = () => {
         return { ...prev, isStreaming: false };
       });
     } catch (error) {
+      if (controller.signal.aborted) return; // navigated away — ignore
       console.error('[SSE] Stream error:', error);
       setState(prev => ({
         ...prev,
@@ -149,6 +159,7 @@ export const usePlanStream = () => {
   }, []);
 
   const reset = useCallback(() => {
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     setState({
       isStreaming: false,
       activeToolCalls: [],
