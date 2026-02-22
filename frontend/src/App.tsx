@@ -459,8 +459,8 @@ function App() {
       {/* Results */}
       {isHome && showResults && (
         <div className="max-w-3xl mx-auto px-6 py-16">
-          {/* Tool calls + thinking */}
-          {(state.isStreaming || Object.keys(state.toolResults).length > 0 || state.thinking.length > 0) && (
+          {/* Tool calls + thinking — only visible while streaming */}
+          {state.isStreaming && (
             <div className="mb-12">
               <ToolCallIndicator
                 activeToolCalls={state.activeToolCalls}
