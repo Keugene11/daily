@@ -8,7 +8,7 @@ exports.weatherService = void 0;
 exports.weatherService = {
     async getWeather(city) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
             const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
             const response = await fetch(url, { signal: controller.signal });

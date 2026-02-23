@@ -481,6 +481,8 @@ ${dataSections.join('\n\n')}
 
 ---
 
+If any data section above is missing (e.g., no Weather section), simply omit that topic from the itinerary — do NOT write "Unavailable" or "Not available".
+
 Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
