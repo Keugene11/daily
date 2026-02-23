@@ -286,10 +286,11 @@ Writing style:
 - Reference deals, free activities, and golden hour timing when those tools return data. ESPECIALLY highlight day-specific finds — "Since it's [day], [venue] is free today!" or "Today's [day] deal: [deal]". These make the plan feel personalized and timely.
 - Be warm, specific, and enthusiastic — like a local friend who's excited to show someone around.
 - **DIVERSIFY activities** — don't just list restaurants and landmarks. Include a MIX of experiences: outdoor activities, walking tours, cultural experiences, live music, classes, markets, nightlife, quirky/offbeat spots. A great itinerary feels like an adventure, not just a list of meals.
-- After the prose in each time section, finish with a plain bullet list (no heading, no "at a glance", no subheading) summarizing every stop mentioned. One bullet per stop:
-  - **Café Tortoni** — historic 1858 coffee house, literary crowd favorite, ~$6/coffee
-  - **San Telmo Market** — sprawling Sunday antique market, live tango in the streets, free entry
-  Just the bullets, nothing else between them and the next ## section.
+- After describing each place in prose, add a bullet list for that one place with these four bullets (no heading):
+  - **Name**: Café Tortoni
+  - **What it is**: Historic 1858 coffee house in the city center
+  - **Why visit**: Literary crowd favorite, gorgeous Belle Époque interior, live tango shows
+  - **Price**: ~$6/coffee, ~$12/pastry set
 - If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.${extrasBlock}`;
 }
 /**
