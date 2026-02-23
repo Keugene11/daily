@@ -285,6 +285,7 @@ Writing style:
   - "Save 45% — was $180, now $99" not "big discount"
 - Reference deals, free activities, and golden hour timing when those tools return data. ESPECIALLY highlight day-specific finds — "Since it's [day], [venue] is free today!" or "Today's [day] deal: [deal]". These make the plan feel personalized and timely.
 - Be warm, specific, and enthusiastic — like a local friend who's excited to show someone around.
+- **DIVERSIFY activities** — don't just list restaurants and landmarks. Include a MIX of experiences: outdoor activities, walking tours, cultural experiences, live music, classes, markets, nightlife, quirky/offbeat spots. A great itinerary feels like an adventure, not just a list of meals.
 - After each venue description, include a few bullet points highlighting the key details (e.g. price, must-try dish, best time to go, neighborhood) so readers can quickly scan the essentials.
 - If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.${extrasBlock}`;
 }

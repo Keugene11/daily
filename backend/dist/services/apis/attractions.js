@@ -33,6 +33,25 @@ const ATTRACTION_TYPE_MAP = {
     'stadium': 'Stadium',
     'visitor_center': 'Visitor Center',
     'zoo': 'Zoo',
+    'bowling_alley': 'Bowling',
+    'community_center': 'Community Center',
+    'dog_park': 'Dog Park',
+    'hiking_area': 'Hiking',
+    'golf_course': 'Golf',
+    'gym': 'Fitness',
+    'playground': 'Playground',
+    'swimming_pool': 'Pool',
+    'sports_complex': 'Sports Complex',
+    'market': 'Market',
+    'shopping_mall': 'Shopping',
+    'book_store': 'Bookstore',
+    'library': 'Library',
+    'karaoke': 'Karaoke',
+    'comedy_club': 'Comedy Club',
+    'concert_hall': 'Concert Hall',
+    'live_music_venue': 'Live Music',
+    'cultural_center': 'Cultural Center',
+    'escape_room': 'Escape Room',
 };
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const cache = new Map();
@@ -180,12 +199,13 @@ exports.attractionService = {
             console.log(`[Attractions] Cache hit for "${cacheKey}"`);
             return { success: true, data: cached };
         }
-        // Search two categories in parallel for broader coverage
+        // Search three categories in parallel for broader coverage
         const queries = category
             ? [`best ${category} in ${city}`]
             : [
                 `top attractions things to do in ${city}`,
                 `unique experiences tours activities in ${city}`,
+                `outdoor adventures classes workshops entertainment in ${city}`,
             ];
         const results = await Promise.all(queries.map(q => searchGooglePlaces(city, q)));
         // Merge and deduplicate
@@ -203,7 +223,7 @@ exports.attractionService = {
         if (merged.length > 0) {
             console.log(`[Attractions] Google Places returned ${merged.length} attractions for ${city}`);
             setCache(cacheKey, merged);
-            return { success: true, data: merged.slice(0, 15) };
+            return { success: true, data: merged.slice(0, 20) };
         }
         console.log(`[Attractions] No results for ${city}`);
         return { success: true, data: [] };
