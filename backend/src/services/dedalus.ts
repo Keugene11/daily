@@ -309,9 +309,7 @@ Writing style:
   - "Save 45% — was $180, now $99" not "big discount"
 - Reference deals, free activities, and golden hour timing when those tools return data. ESPECIALLY highlight day-specific finds — "Since it's [day], [venue] is free today!" or "Today's [day] deal: [deal]". These make the plan feel personalized and timely.
 - Be warm, specific, and enthusiastic — like a local friend who's excited to show someone around.
-- **FORMAT**: Use a mix of short narrative and bullet points. Start each time period with 1-2 sentences setting the scene (weather, neighborhood vibe, transition). Then list each stop as a bullet point with key info bolded:
-  - **[Venue Name](link)** **(Neighborhood)** — one punchy line about what makes it special. **~$XX/person.**
-  Bold the venue name, neighborhood, and price so a skimmer can instantly find them. Keep descriptions to one line per stop. Transition sentences between time periods can be prose, but individual stops must be bullets.
+- After each venue description, include a few bullet points highlighting the key details (e.g. price, must-try dish, best time to go, neighborhood) so readers can quickly scan the essentials.
 - If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.${extrasBlock}`;
 }
 
