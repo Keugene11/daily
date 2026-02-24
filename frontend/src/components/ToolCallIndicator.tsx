@@ -57,7 +57,7 @@ export const ToolCallIndicator: React.FC<Props> = React.memo(({ activeToolCalls,
                       : success
                       ? 'border-on-surface/10 bg-on-surface/[0.02]'
                       : failed
-                      ? 'border-red-500/20 bg-red-500/[0.03]'
+                      ? 'border-on-surface/10 bg-on-surface/[0.02] opacity-50'
                       : 'border-on-surface/5 opacity-30'
                   }`}
                 >
@@ -72,8 +72,8 @@ export const ToolCallIndicator: React.FC<Props> = React.memo(({ activeToolCalls,
                       </svg>
                     )}
                     {failed && (
-                      <svg className="h-3 w-3 text-red-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      <svg className="h-3 w-3 text-on-surface/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
                       </svg>
                     )}
                   </div>
@@ -83,7 +83,7 @@ export const ToolCallIndicator: React.FC<Props> = React.memo(({ activeToolCalls,
                     </div>
                   )}
                   {failed && (
-                    <p className="text-[10px] text-red-400/50 mt-1 truncate">Unavailable</p>
+                    <p className="text-[10px] text-on-surface/30 mt-1 truncate">Skipped</p>
                   )}
                 </div>
               );
