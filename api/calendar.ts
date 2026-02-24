@@ -124,6 +124,36 @@ async function createCalendarEvent(
   return { id: result.id, htmlLink: result.htmlLink };
 }
 
+// ── Fetch existing events for a date range ──────────────────────────────
+
+async function getExistingEvents(
+  accessToken: string,
+  timeMin: string,
+  timeMax: string,
+  timezone: string,
+): Promise<{ summary: string; startDateTime: string }[]> {
+  const params = new URLSearchParams({
+    timeMin,
+    timeMax,
+    timeZone: timezone,
+    singleEvents: 'true',
+    maxResults: '100',
+  });
+
+  const resp = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!resp.ok) return []; // fail open — worst case we create duplicates
+
+  const data: any = await resp.json();
+  return (data.items || []).map((e: any) => ({
+    summary: e.summary || '',
+    startDateTime: e.start?.dateTime || '',
+  }));
+}
+
 // ── Main handler ────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -167,7 +197,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'No calendar event data found in the itinerary. Try generating a new plan.' });
     }
 
+    // Figure out the date range spanned by all events
+    let maxDay = 1;
+    for (const evt of events) {
+      if (evt.day && evt.day > maxDay) maxDay = evt.day;
+    }
+    const rangeStart = new Date(startDate + 'T00:00:00');
+    const rangeEnd = new Date(startDate + 'T00:00:00');
+    rangeEnd.setDate(rangeEnd.getDate() + maxDay); // day after last event day
+
+    // Fetch existing calendar events in that range to avoid duplicates
+    const existing = await getExistingEvents(
+      googleToken,
+      rangeStart.toISOString(),
+      rangeEnd.toISOString(),
+      timezone,
+    );
+
     const createdEvents: { title: string; id: string; htmlLink: string }[] = [];
+    let skippedCount = 0;
 
     for (const evt of events) {
       // Calculate the date for this event
@@ -175,6 +223,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const eventDate = new Date(startDate + 'T00:00:00');
       eventDate.setDate(eventDate.getDate() + dayOffset);
       const dateStr = eventDate.toISOString().split('T')[0];
+      const startDT = `${dateStr}T${evt.start}:00`;
+
+      // Skip if an event with the same title and start time already exists
+      const isDuplicate = existing.some(e =>
+        e.summary === evt.title && e.startDateTime.startsWith(startDT)
+      );
+      if (isDuplicate) {
+        skippedCount++;
+        continue;
+      }
 
       const created = await createCalendarEvent(
         googleToken,
@@ -189,9 +247,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createdEvents.push({ title: evt.title, ...created });
     }
 
+    if (createdEvents.length === 0 && skippedCount > 0) {
+      return res.json({
+        success: true,
+        eventsCreated: 0,
+        skipped: skippedCount,
+        events: [],
+        message: 'All events already exist in your calendar',
+      });
+    }
+
     return res.json({
       success: true,
       eventsCreated: createdEvents.length,
+      skipped: skippedCount,
       events: createdEvents,
     });
   } catch (err: any) {

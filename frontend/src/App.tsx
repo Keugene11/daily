@@ -267,9 +267,13 @@ function App() {
         throw new Error(data.error || 'Failed to add to calendar');
       }
 
-      setToastMsg(`Added ${data.eventsCreated} events to Google Calendar!`);
+      if (data.eventsCreated === 0 && data.skipped > 0) {
+        setToastMsg('Events already in your calendar');
+      } else {
+        setToastMsg(`Added ${data.eventsCreated} events to Google Calendar!`);
+        window.open('https://calendar.google.com', '_blank', 'noopener');
+      }
       setTimeout(() => setToastMsg(''), 3000);
-      window.open('https://calendar.google.com', '_blank', 'noopener');
     } catch (err: any) {
       console.error('[Calendar] Error:', err);
       const msg = err.message || 'Failed to add to calendar';
