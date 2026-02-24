@@ -250,7 +250,12 @@ function App() {
         }),
       });
 
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server error (${res.status})`);
+      }
 
       if (!res.ok) {
         if (data.error === 'google_reauth_required') {
@@ -267,8 +272,9 @@ function App() {
       window.open('https://calendar.google.com', '_blank', 'noopener');
     } catch (err: any) {
       console.error('[Calendar] Error:', err);
-      setToastMsg('Failed to add to calendar');
-      setTimeout(() => setToastMsg(''), 3000);
+      const msg = err.message || 'Failed to add to calendar';
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(''), 5000);
     } finally {
       setCalendarLoading(false);
     }
