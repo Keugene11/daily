@@ -639,6 +639,7 @@ function App() {
       <footer className="border-t border-on-surface/10 mt-auto px-8 py-6 text-center flex items-center justify-center gap-4">
         <p className="text-xs text-on-surface/30">AI-powered daily planning</p>
         <a href="/privacy.html" target="_blank" rel="noopener" className="text-xs text-on-surface/30 hover:text-on-surface/50 transition-colors">Privacy Policy</a>
+        <a href="/terms.html" target="_blank" rel="noopener" className="text-xs text-on-surface/30 hover:text-on-surface/50 transition-colors">Terms of Service</a>
       </footer>
     </div>
   );

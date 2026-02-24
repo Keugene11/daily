@@ -33,6 +33,7 @@
     { "source": "/api/(.*)", "destination": "/api/v2" },
     { "source": "/health", "destination": "/api/v2" },
     { "source": "/privacy.html", "destination": "/privacy.html" },
+    { "source": "/terms.html", "destination": "/terms.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
