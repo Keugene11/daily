@@ -19,6 +19,8 @@ import { useSubscription } from './hooks/useSubscription';
 import { PricingModal } from './components/PricingModal';
 import './styles/index.css';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 const BUDGET_OPTIONS = [
   { id: 'any', label: 'Any' },
   { id: 'free', label: 'Free' },
@@ -62,6 +64,9 @@ function App() {
   const [city, setCity] = useState('');
   const [budget, setBudget] = useState('any');
   const { state, startStream, reset } = usePlanStream();
+
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
 
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -219,6 +224,54 @@ function App() {
     }
   };
 
+  const handleAddToCalendar = async () => {
+    if (!state.content || !session) return;
+
+    setCalendarLoading(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setToastMsg('Sign in to add to calendar');
+        setTimeout(() => setToastMsg(''), 3000);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/calendar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: state.content,
+          city,
+          startDate: new Date().toISOString().split('T')[0],
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.error === 'google_reauth_required') {
+          // Need to re-sign-in with calendar scope
+          sessionStorage.setItem('daily_pending_calendar', 'true');
+          signInWithGoogle();
+          return;
+        }
+        throw new Error(data.error || 'Failed to add to calendar');
+      }
+
+      setToastMsg(`Added ${data.eventsCreated} events to Google Calendar!`);
+      setTimeout(() => setToastMsg(''), 3000);
+    } catch (err: any) {
+      console.error('[Calendar] Error:', err);
+      setToastMsg('Failed to add to calendar');
+      setTimeout(() => setToastMsg(''), 3000);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
 
   // Extract tool results for standalone cards
   const weatherData = state.toolResults['get_weather']?.data || null;
@@ -528,6 +581,8 @@ function App() {
               city={city}
               days={tripDays}
               mediaData={mediaData}
+              onAddToCalendar={session ? handleAddToCalendar : undefined}
+              calendarLoading={calendarLoading}
             />
           )}
 
@@ -554,6 +609,13 @@ function App() {
                 </button>
               </div>
 
+            </div>
+          )}
+
+          {/* Toast notification */}
+          {toastMsg && (
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-accent text-on-accent rounded-full text-sm font-medium animate-fadeIn">
+              {toastMsg}
             </div>
           )}
         </div>
