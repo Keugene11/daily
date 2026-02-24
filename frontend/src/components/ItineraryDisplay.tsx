@@ -375,7 +375,9 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
 
   // Memoize content parsing — only re-parse when content changes, not on every re-render
   const { processed, parsed } = useMemo(() => {
-    const p = convertRawUrls(content);
+    // Strip hidden CALENDAR_EVENTS JSON block before parsing/display
+    const stripped = content.replace(/<!--\s*CALENDAR_EVENTS\s*\n[\s\S]*?\n\s*-->/g, '').trim();
+    const p = convertRawUrls(stripped);
     return { processed: p, parsed: parseItinerary(p) };
   }, [content]);
 

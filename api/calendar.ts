@@ -54,92 +54,29 @@ async function getValidGoogleToken(userId: string): Promise<string> {
   return tokens.access_token;
 }
 
-// ── Markdown parsing ────────────────────────────────────────────────────
+// ── Parse structured CALENDAR_EVENTS from markdown ──────────────────────
 
-interface TimeSlot {
-  period: string;
-  time: string;
-  content: string;
+interface CalendarEvent {
+  title: string;
+  start: string;   // "09:00" (24h)
+  end: string;      // "10:00" (24h)
+  location: string;
+  description: string;
+  day?: number;     // for multi-day plans
 }
 
-interface DayPlan {
-  dayNumber: number;
-  slots: TimeSlot[];
-}
+function parseCalendarEvents(content: string): CalendarEvent[] | null {
+  const match = content.match(/<!--\s*CALENDAR_EVENTS\s*\n([\s\S]*?)\n\s*-->/);
+  if (!match) return null;
 
-function parseSections(text: string): TimeSlot[] {
-  const slots: TimeSlot[] = [];
-  const sections = text.split(/^##\s+/m);
-  sections.shift(); // before first ##
-
-  for (const section of sections) {
-    const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
-    if (match) {
-      const period = match[1].trim();
-      // Skip non-time sections
-      if (/^(estimated total|pro tips|your hotel|where to stay)/i.test(period)) continue;
-      slots.push({ period, time: match[2] || '', content: match[3].trim() });
-    }
+  try {
+    const events = JSON.parse(match[1]);
+    if (!Array.isArray(events) || events.length === 0) return null;
+    return events;
+  } catch (err) {
+    console.error('[Calendar] Failed to parse CALENDAR_EVENTS JSON:', err);
+    return null;
   }
-  return slots;
-}
-
-function parseItinerary(text: string): { days: DayPlan[]; slots: TimeSlot[] } {
-  const hasMultipleDays = /^# Day \d/m.test(text);
-
-  if (!hasMultipleDays) {
-    return { days: [], slots: parseSections(text) };
-  }
-
-  const dayChunks = text.split(/^# /m);
-  dayChunks.shift();
-  const days: DayPlan[] = [];
-
-  for (const chunk of dayChunks) {
-    const headerMatch = chunk.match(/^(Day (\d+)[^\n]*)\n([\s\S]*)/);
-    if (!headerMatch) continue;
-    const dayNumber = parseInt(headerMatch[2]);
-    const daySlots = parseSections(headerMatch[3]);
-    if (daySlots.length > 0) {
-      days.push({ dayNumber, slots: daySlots });
-    }
-  }
-
-  return { days, slots: [] };
-}
-
-// ── Time range mapping ──────────────────────────────────────────────────
-
-function getTimeRange(period: string, timeHint: string): { startHour: number; endHour: number } {
-  // Try parsing explicit time like "8am - 12pm"
-  const rangeMatch = timeHint.match(/(\d{1,2})\s*(am|pm)\s*-\s*(\d{1,2})\s*(am|pm)/i);
-  if (rangeMatch) {
-    let startH = parseInt(rangeMatch[1]);
-    let endH = parseInt(rangeMatch[3]);
-    if (rangeMatch[2].toLowerCase() === 'pm' && startH !== 12) startH += 12;
-    if (rangeMatch[2].toLowerCase() === 'am' && startH === 12) startH = 0;
-    if (rangeMatch[4].toLowerCase() === 'pm' && endH !== 12) endH += 12;
-    if (rangeMatch[4].toLowerCase() === 'am' && endH === 12) endH = 0;
-    return { startHour: startH, endHour: endH };
-  }
-
-  // Fallback by period name
-  const lower = period.toLowerCase();
-  if (lower.includes('morning')) return { startHour: 8, endHour: 12 };
-  if (lower.includes('afternoon') || lower.includes('lunch')) return { startHour: 12, endHour: 18 };
-  if (lower.includes('evening') || lower.includes('night')) return { startHour: 18, endHour: 23 };
-  return { startHour: 9, endHour: 12 };
-}
-
-// ── Strip markdown for calendar description ─────────────────────────────
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^#+\s*/gm, '')
-    .replace(/^[-*]\s+/gm, '- ')
-    .trim();
 }
 
 // ── Create Google Calendar event ────────────────────────────────────────
@@ -149,18 +86,18 @@ async function createCalendarEvent(
   summary: string,
   description: string,
   date: string,
-  startHour: number,
-  endHour: number,
-  city: string,
+  startTime: string,
+  endTime: string,
+  location: string,
   timezone: string,
 ): Promise<{ id: string; htmlLink: string }> {
-  const startDT = `${date}T${String(startHour).padStart(2, '0')}:00:00`;
-  const endDT = `${date}T${String(endHour).padStart(2, '0')}:00:00`;
+  const startDT = `${date}T${startTime}:00`;
+  const endDT = `${date}T${endTime}:00`;
 
   const event = {
     summary,
-    description: description.slice(0, 8000),
-    location: city,
+    description,
+    location,
     start: { dateTime: startDT, timeZone: timezone },
     end: { dateTime: endDT, timeZone: timezone },
   };
@@ -224,38 +161,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw err;
     }
 
-    // Parse the markdown
-    const parsed = parseItinerary(content);
-    const createdEvents: { day: number; period: string; id: string; htmlLink: string }[] = [];
+    // Parse structured calendar events from the hidden JSON block
+    const events = parseCalendarEvents(content);
+    if (!events || events.length === 0) {
+      return res.status(400).json({ error: 'No calendar event data found in the itinerary. Try generating a new plan.' });
+    }
 
-    if (parsed.days.length > 0) {
-      // Multi-day plan
-      for (const day of parsed.days) {
-        const date = new Date(startDate + 'T00:00:00');
-        date.setDate(date.getDate() + day.dayNumber - 1);
-        const dateStr = date.toISOString().split('T')[0];
+    const createdEvents: { title: string; id: string; htmlLink: string }[] = [];
 
-        for (const slot of day.slots) {
-          const { startHour, endHour } = getTimeRange(slot.period, slot.time);
-          const summary = `${city} — ${slot.period}`;
-          const description = stripMarkdown(slot.content);
-          const event = await createCalendarEvent(
-            googleToken, summary, description, dateStr, startHour, endHour, city, timezone
-          );
-          createdEvents.push({ day: day.dayNumber, period: slot.period, ...event });
-        }
-      }
-    } else {
-      // Single-day plan
-      for (const slot of parsed.slots) {
-        const { startHour, endHour } = getTimeRange(slot.period, slot.time);
-        const summary = `${city} — ${slot.period}`;
-        const description = stripMarkdown(slot.content);
-        const event = await createCalendarEvent(
-          googleToken, summary, description, startDate, startHour, endHour, city, timezone
-        );
-        createdEvents.push({ day: 1, period: slot.period, ...event });
-      }
+    for (const evt of events) {
+      // Calculate the date for this event
+      const dayOffset = (evt.day || 1) - 1;
+      const eventDate = new Date(startDate + 'T00:00:00');
+      eventDate.setDate(eventDate.getDate() + dayOffset);
+      const dateStr = eventDate.toISOString().split('T')[0];
+
+      const created = await createCalendarEvent(
+        googleToken,
+        evt.title,
+        evt.description || '',
+        dateStr,
+        evt.start,
+        evt.end,
+        evt.location || city,
+        timezone,
+      );
+      createdEvents.push({ title: evt.title, ...created });
     }
 
     return res.json({

@@ -315,7 +315,16 @@ Writing style:
   - **What it is**: Historic 1858 coffee house in the city center
   - **Why visit**: Literary crowd favorite, gorgeous Belle Époque interior, live tango shows
   - **Price**: ~$6/coffee, ~$12/pastry set
-- If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.${extrasBlock}`;
+- If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.
+
+**REQUIRED — CALENDAR DATA**: At the very end of your response (after everything else), append a hidden JSON block for Google Calendar export. Use this EXACT format:
+<!-- CALENDAR_EVENTS
+[
+  {"title":"Café Tortoni","start":"09:00","end":"10:00","location":"Av. de Mayo 825, Buenos Aires","description":"Historic coffee house — try the churros con chocolate"},
+  {"title":"San Telmo Market","start":"10:30","end":"12:00","location":"Defensa St, San Telmo, Buenos Aires","description":"Sunday antique market with live tango"}
+]
+-->
+Include EVERY venue/stop from the itinerary. Use 24-hour time format. Estimate realistic start/end times based on the time section and logical flow. The "location" should be the street address or neighborhood + city. The "description" should be one short line. For multi-day plans, add a "day" field (1, 2, 3...) to each event.${extrasBlock}`;
 }
 
 /**
