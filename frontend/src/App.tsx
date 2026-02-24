@@ -264,6 +264,7 @@ function App() {
 
       setToastMsg(`Added ${data.eventsCreated} events to Google Calendar!`);
       setTimeout(() => setToastMsg(''), 3000);
+      window.open('https://calendar.google.com', '_blank', 'noopener');
     } catch (err: any) {
       console.error('[Calendar] Error:', err);
       setToastMsg('Failed to add to calendar');
