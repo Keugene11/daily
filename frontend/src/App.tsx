@@ -425,7 +425,7 @@ function App() {
                 Trip Length
               </label>
               <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5, 6, 7].map(d => (
+                {[1, 2, 3].map(d => (
                   <button
                     key={d}
                     onClick={() => {
