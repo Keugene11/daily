@@ -348,9 +348,21 @@ function App() {
       {isHome && !showResults && (
         <div className="flex flex-col items-center justify-center px-6 pt-32 pb-20">
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
-            {greeting}
+            {greeting.split(/(\s+)/).map((word, i) => {
+              if (/^\s+$/.test(word)) return word;
+              const wordIndex = greeting.split(/(\s+)/).slice(0, i).filter(w => !/^\s+$/.test(w)).length;
+              return (
+                <span
+                  key={i}
+                  className="animate-greeting-word inline-block"
+                  style={{ animationDelay: `${wordIndex * 120}ms` }}
+                >
+                  {word}
+                </span>
+              );
+            })}
           </h1>
-          <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16">
+          <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16 animate-greeting-word" style={{ animationDelay: '500ms' }}>
             A new way to plan your perfect day.
           </p>
 
