@@ -72,16 +72,8 @@ export interface StreamEvent {
 export interface PlanRequest {
   city: string;
   budget?: string;
-  mood?: string;
   currentHour?: number;
   timezone?: string;
-  energyLevel?: 'low' | 'medium' | 'high';
-  dietary?: string[];
-  accessible?: boolean;
-  dateNight?: boolean;
-  antiRoutine?: boolean;
-  pastPlaces?: string[];
-  recurring?: boolean;
   rightNow?: boolean;
   days?: number;
 }

@@ -14,12 +14,12 @@ export const TIERS: Record<TierName, TierConfig> = {
   free: {
     planLimit: 3,
     period: 'month',
-    features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
+    features: new Set(['multiDay', 'cloudSync']),
   },
   pro: {
     planLimit: Infinity,
     period: 'month',
-    features: new Set(['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy']),
+    features: new Set(['multiDay', 'cloudSync']),
   },
 };
 

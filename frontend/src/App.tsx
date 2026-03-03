@@ -77,8 +77,12 @@ function App() {
   const { plans: savedPlans, savePlan, deletePlan } = usePlans(user);
   const planSavedRef = useRef(false);
 
+  const recentCities = useMemo(() =>
+    [...new Map(savedPlans.slice().sort((a, b) => b.timestamp - a.timestamp).map(p => [p.city.toLowerCase(), p.city])).values()],
+    [savedPlans]
+  );
+
   // Feature inputs
-  const [mood, setMood] = useState('');
   const [rightNow, setRightNow] = useState(false);
   const [tripDays, setTripDays] = useState(1);
 
@@ -109,12 +113,10 @@ function App() {
       // Restore form state
       setCity(pending.city);
       setBudget(pending.budget || 'any');
-      if (pending.mood) setMood(pending.mood);
       if (pending.rightNow) setRightNow(true);
       setTripDays(pending.tripDays || 1);
       // Build extras from the saved params
       const extras: Record<string, any> = {};
-      if (pending.mood?.trim()) extras.mood = pending.mood.trim();
       extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (pending.rightNow) {
         extras.rightNow = true;
@@ -179,7 +181,6 @@ function App() {
   // Build extras object for all new features
   const buildExtras = () => {
     const extras: Record<string, any> = {};
-    if (mood.trim()) extras.mood = mood.trim();
     extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (rightNow) {
       extras.rightNow = true;
@@ -195,7 +196,7 @@ function App() {
     if (!session) {
       // Save pending plan so we can resume after OAuth redirect
       sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-        city, budget, mood, rightNow: false, tripDays,
+        city, budget, rightNow: false, tripDays,
       }));
       signInWithGoogle();
       return;
@@ -212,7 +213,6 @@ function App() {
     reset();
     setCity('');
     setBudget('any');
-    setMood('');
     setRightNow(false);
     setTripDays(1);
     navigate('/');
@@ -384,18 +384,12 @@ function App() {
                   value={city}
                   onChange={setCity}
                   disabled={state.isStreaming}
-                  recentCities={[...new Map(savedPlans.sort((a, b) => b.timestamp - a.timestamp).map(p => [p.city.toLowerCase(), p.city])).values()]}
+                  recentCities={recentCities}
                 />
               </div>
               <VoiceInput
                 onResult={(text) => {
-                  // If it sounds like a mood, set mood; otherwise set city
-                  const moodWords = /feeling|tired|exhausted|wired|excited|sad|happy|terrible|awful|great|bored|adventurous|chill|stressed/i;
-                  if (moodWords.test(text)) {
-                    setMood(text);
-                  } else {
-                    setCity(text);
-                  }
+                  setCity(text);
                 }}
                 disabled={state.isStreaming}
               />
@@ -494,7 +488,7 @@ function App() {
                     if (!city.trim()) return;
                     if (!session) {
                       sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-                        city, budget, mood, rightNow: true, tripDays: 1,
+                        city, budget, rightNow: true, tripDays: 1,
                       }));
                       signInWithGoogle();
                       return;

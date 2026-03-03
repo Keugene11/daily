@@ -25,7 +25,7 @@ export const PlaceMedia: React.FC<Props> = ({ places, mediaData, city }) => {
   // If a video is expanded, show the embed full-width
   const expandedMedia = expandedVideo ? mediaData.get(expandedVideo) : null;
 
-  // Static map fallback — uses OpenStreetMap's static tile service
+  // Static map fallback — uses Google Maps Static API
   const staticMapUrl = (place: string) => {
     const q = city ? `${place}, ${city}` : place;
     return `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(q)}&zoom=15&size=320x200&scale=2&maptype=roadmap&key=${import.meta.env.VITE_GOOGLE_MAPS_KEY || ''}`;

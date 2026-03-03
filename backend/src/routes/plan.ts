@@ -9,13 +9,6 @@ const router = Router();
 // Feature → required tier mapping for error messages
 const FEATURE_TIER: Record<string, string> = {
   multiDay: 'starter',
-  recurring: 'pro',
-  antiRoutine: 'pro',
-  dateNight: 'pro',
-  dietary: 'pro',
-  accessible: 'pro',
-  mood: 'pro',
-  energy: 'pro',
 };
 
 /**
@@ -23,7 +16,7 @@ const FEATURE_TIER: Record<string, string> = {
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: Response) => {
-  const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
+  const { city, budget, currentHour, rightNow, days, timezone } = req.body;
 
   // Validate input
   if (!city) {
@@ -39,25 +32,12 @@ router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: R
 
   // Feature gate checks
   const features = req.features || new Set();
-  const gatedChecks: [boolean, string][] = [
-    [days && Number(days) > 1, 'multiDay'],
-    [recurring, 'recurring'],
-    [antiRoutine, 'antiRoutine'],
-    [dateNight, 'dateNight'],
-    [dietary && dietary.length > 0, 'dietary'],
-    [accessible, 'accessible'],
-    [mood, 'mood'],
-    [energyLevel, 'energy'],
-  ];
-
-  for (const [isUsed, feature] of gatedChecks) {
-    if (isUsed && !features.has(feature)) {
-      return res.status(403).json({
-        error: 'feature_locked',
-        feature,
-        requiredTier: FEATURE_TIER[feature] || 'pro',
-      });
-    }
+  if (days && Number(days) > 1 && !features.has('multiDay')) {
+    return res.status(403).json({
+      error: 'feature_locked',
+      feature: 'multiDay',
+      requiredTier: FEATURE_TIER['multiDay'] || 'starter',
+    });
   }
 
   console.log(`[SSE] Starting stream for city: ${city}${days > 1 ? `, days: ${days}` : ''}`);
@@ -84,7 +64,7 @@ router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: R
   res.write('data: {"type":"connected"}\n\n');
 
   try {
-    const stream = streamPlanGeneration({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone });
+    const stream = streamPlanGeneration({ city, budget, currentHour, rightNow, days, timezone });
 
     for await (const event of stream) {
       if (clientDisconnected) break;

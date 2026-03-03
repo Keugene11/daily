@@ -8,20 +8,13 @@ const router = (0, express_1.Router)();
 // Feature → required tier mapping for error messages
 const FEATURE_TIER = {
     multiDay: 'starter',
-    recurring: 'pro',
-    antiRoutine: 'pro',
-    dateNight: 'pro',
-    dietary: 'pro',
-    accessible: 'pro',
-    mood: 'pro',
-    energy: 'pro',
 };
 /**
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
-    const { city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone } = req.body;
+    const { city, budget, currentHour, rightNow, days, timezone } = req.body;
     // Validate input
     if (!city) {
         return res.status(400).json({ error: 'City is required' });
@@ -34,24 +27,12 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     }
     // Feature gate checks
     const features = req.features || new Set();
-    const gatedChecks = [
-        [days && Number(days) > 1, 'multiDay'],
-        [recurring, 'recurring'],
-        [antiRoutine, 'antiRoutine'],
-        [dateNight, 'dateNight'],
-        [dietary && dietary.length > 0, 'dietary'],
-        [accessible, 'accessible'],
-        [mood, 'mood'],
-        [energyLevel, 'energy'],
-    ];
-    for (const [isUsed, feature] of gatedChecks) {
-        if (isUsed && !features.has(feature)) {
-            return res.status(403).json({
-                error: 'feature_locked',
-                feature,
-                requiredTier: FEATURE_TIER[feature] || 'pro',
-            });
-        }
+    if (days && Number(days) > 1 && !features.has('multiDay')) {
+        return res.status(403).json({
+            error: 'feature_locked',
+            feature: 'multiDay',
+            requiredTier: FEATURE_TIER['multiDay'] || 'starter',
+        });
     }
     console.log(`[SSE] Starting stream for city: ${city}${days > 1 ? `, days: ${days}` : ''}`);
     // Track client disconnect so we can stop the generator
@@ -73,7 +54,7 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, mood, currentHour, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days, timezone });
+        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, rightNow, days, timezone });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;

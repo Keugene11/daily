@@ -17,17 +17,10 @@ export const usePlanStream = () => {
   const abortRef = useRef<AbortController | null>(null);
 
   const startStream = useCallback(async (city: string, budget?: string, extras?: {
-    mood?: string;
     currentHour?: number;
-    energyLevel?: 'low' | 'medium' | 'high';
-    dietary?: string[];
-    accessible?: boolean;
-    dateNight?: boolean;
-    antiRoutine?: boolean;
-    pastPlaces?: string[];
-    recurring?: boolean;
     rightNow?: boolean;
     days?: number;
+    timezone?: string;
   }, getAccessToken?: () => Promise<string | null>) => {
     // Abort any in-flight stream
     if (abortRef.current) abortRef.current.abort();

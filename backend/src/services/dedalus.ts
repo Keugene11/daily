@@ -80,7 +80,7 @@ function getClient(): Dedalus {
 }
 
 function buildSystemPrompt(request: PlanRequest): string {
-  const { budget, mood, currentHour, timezone, energyLevel, dietary, accessible, dateNight, antiRoutine, pastPlaces, recurring, rightNow, days } = request;
+  const { budget, currentHour, timezone, rightNow, days } = request;
 
   // Helper to get time in the user's timezone
   const userNow = (tz?: string) => {
@@ -98,11 +98,6 @@ function buildSystemPrompt(request: PlanRequest): string {
     extras.push(`- Budget: ${budget === 'free' ? 'FREE activities only' : budget === 'low' ? 'affordable options ($)' : budget === 'medium' ? 'mid-range options ($$)' : 'premium experiences ($$$)'}. Factor cost into every suggestion.`);
   }
 
-  // Mood detection
-  if (mood) {
-    extras.push(`- The user's mood/vibe: "${mood}". Read between the lines — if they sound stressed or exhausted, plan a calming, low-key day. If they sound excited or adventurous, plan bold experiences. If they're sad, plan uplifting comfort activities. Let their emotional state shape the entire tone and activity selection of the plan.`);
-  }
-
   // Time-aware planning
   if (currentHour !== undefined && currentHour !== null) {
     if (currentHour >= 12 && currentHour < 18) {
@@ -110,41 +105,6 @@ function buildSystemPrompt(request: PlanRequest): string {
     } else if (currentHour >= 18) {
       extras.push(`- It's currently ${currentHour > 12 ? currentHour - 12 : 12}pm. SKIP Morning and Afternoon entirely — only plan the Evening section since that's all the time they have left today.`);
     }
-  }
-
-  // Energy level
-  if (energyLevel) {
-    const energyMap = {
-      low: '- Energy level: LOW. The user is tired/exhausted. Plan gentle, relaxing activities — cafés, parks, bookstores, scenic walks, spas, casual dining. Avoid anything strenuous, crowded, or requiring lots of walking/standing.',
-      medium: '- Energy level: MEDIUM. Balance active and chill activities — mix exploration with downtime.',
-      high: '- Energy level: HIGH. The user is wired and energetic! Plan active, exciting activities — walking tours, sports, dancing, nightlife, adventure activities, exploring multiple neighborhoods.'
-    };
-    extras.push(energyMap[energyLevel]);
-  }
-
-  // Dietary restrictions
-  if (dietary && dietary.length > 0) {
-    extras.push(`- Dietary restrictions: ${dietary.join(', ')}. ALL restaurant recommendations MUST accommodate these restrictions. Mention specific dishes that fit. If suggesting a restaurant, note which menu items are safe.`);
-  }
-
-  // Accessibility
-  if (accessible) {
-    extras.push(`- ACCESSIBILITY REQUIRED: All venues must be wheelchair accessible. Note elevator availability, step-free routes, accessible restrooms. Avoid cobblestone streets, steep hills, or venues with stairs-only access. Mention accessible transit options.`);
-  }
-
-  // Date night mode
-  if (dateNight) {
-    extras.push(`- DATE NIGHT MODE: This is a romantic plan for two. Focus on intimate restaurants (not chains), scenic spots, cocktail bars with ambiance, sunset viewpoints, live music venues. Suggest sharing plates and couple-friendly activities. Include reservation tips ("book ahead", "ask for the corner table"). Skip touristy/crowded spots in favor of hidden gems with atmosphere.`);
-  }
-
-  // Anti-routine mode
-  if (antiRoutine && pastPlaces && pastPlaces.length > 0) {
-    extras.push(`- ANTI-ROUTINE MODE: The user wants to try NEW things. They have previously visited these places: ${pastPlaces.slice(0, 30).join(', ')}. DO NOT recommend any of these. Deliberately suggest places and activities they haven't tried — different neighborhoods, different cuisines, different types of experiences.`);
-  }
-
-  // Recurring plans
-  if (recurring) {
-    extras.push(`- RECURRING PLANS MODE: Generate 4 DIFFERENT Saturday plans for this city over the next month. Each plan should have a unique theme and explore different neighborhoods/cuisines. Label them "## Week 1 — [Theme]", "## Week 2 — [Theme]", etc. Each week should have Morning, Afternoon, and Evening subsections. Ensure variety — don't repeat restaurants, neighborhoods, or activity types across weeks.`);
   }
 
   // Multi-day vacation
@@ -202,20 +162,6 @@ function buildSystemPrompt(request: PlanRequest): string {
 ## Evening (6pm - 11pm)
 [Specific recommendation for the night]`;
     }
-  }
-
-  if (recurring) {
-    timeSections = `## Week 1 — [Theme Name]
-### Morning / Afternoon / Evening plans
-
-## Week 2 — [Theme Name]
-### Morning / Afternoon / Evening plans
-
-## Week 3 — [Theme Name]
-### Morning / Afternoon / Evening plans
-
-## Week 4 — [Theme Name]
-### Morning / Afternoon / Evening plans`;
   }
 
   if (rightNow) {
@@ -464,12 +410,6 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
       : `I'm visiting ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}. Plan my day there.`
   ];
   if (request.budget && request.budget !== 'any') userParts.push(`Budget: ${request.budget}`);
-  if (request.mood) userParts.push(`How I'm feeling: "${request.mood}"`);
-  if (request.energyLevel) userParts.push(`Energy level: ${request.energyLevel}`);
-  if (request.dietary && request.dietary.length > 0) userParts.push(`Dietary needs: ${request.dietary.join(', ')}`);
-  if (request.accessible) userParts.push(`I need wheelchair accessible venues`);
-  if (request.dateNight) userParts.push(`This is a date night — make it romantic`);
-  if (request.recurring) userParts.push(`Plan my next 4 Saturdays with variety`);
 
   // Embed tool results as structured data sections
   const TOOL_LABELS: Record<string, string> = {
@@ -514,7 +454,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
     // Compact: strip nulls and truncate long strings
     const compacted = JSON.stringify(raw, (_, v) => {
       if (v === null || v === undefined || v === '') return undefined;
-      if (typeof v === 'string' && v.length > 200) return v.slice(0, 200) + '...';
+      if (typeof v === 'string' && v.length > 200 && !v.startsWith('http')) return v.slice(0, 200) + '...';
       return v;
     }, 0);
     dataSections.push(`### ${label}\n${compacted}`);
@@ -610,9 +550,11 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
           }
         }
 
-        // If truncated and we have time, send continuation requests until complete
-        while (wasTruncated && timeRemaining() > 8_000) {
-          console.log(`[Dedalus] Continuing truncated output (${timeRemaining()}ms remaining)...`);
+        // If truncated and we have time, send continuation requests until complete (max 2)
+        let continuations = 0;
+        while (wasTruncated && timeRemaining() > 8_000 && continuations < 2) {
+          continuations++;
+          console.log(`[Dedalus] Continuation #${continuations} (${timeRemaining()}ms remaining)...`);
           const continuationBudget = Math.min(6000, tokenBudget);
           // Only send the last ~3000 chars of accumulated content to save context space
           const contextTail = accumulatedContent.length > 3000
@@ -631,22 +573,26 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
           });
 
           wasTruncated = false;
+          let contChars = 0;
           for await (const chunk of contStream) {
             const delta = chunk.choices?.[0]?.delta;
             const content = delta?.content;
             if (content) {
               accumulatedContent += content;
+              contChars += content.length;
               yield { type: 'content_chunk', content };
             }
             if (chunk.choices?.[0]?.finish_reason) {
               const contReason = chunk.choices[0].finish_reason;
-              console.log(`[Dedalus] Continuation finished: ${contReason} | ${elapsed()}ms total`);
+              console.log(`[Dedalus] Continuation #${continuations} finished: ${contReason} | +${contChars} chars | ${elapsed()}ms total`);
               if (contReason === 'length') {
-                wasTruncated = true; // loop again if still truncated
+                wasTruncated = true;
               }
               break;
             }
           }
+          // If continuation produced nothing, stop looping
+          if (contChars === 0) break;
         }
       } else {
         const fallbackResponse = await dedalus.chat.completions.create({
