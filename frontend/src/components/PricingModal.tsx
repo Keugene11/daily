@@ -15,15 +15,18 @@ interface Props {
 
 const freeFeatures = [
   '3 plans per month',
-  'Multi-day trip planning',
   'Real-time weather & events',
   'Restaurant recommendations',
-  'Spotify soundtracks',
-  'Cloud sync',
+  'Google Maps integration',
+  'Transit & walking directions',
+  'YouTube video guides',
 ];
 
 const monthlyFeatures = [
   'Unlimited plans',
+  'Google Calendar sync',
+  'Booking.com links',
+  'Deals, happy hours & coupons',
   'Priority support',
 ];
 
