@@ -19,7 +19,6 @@ const freeFeatures = [
   'Restaurant recommendations',
   'Google Maps integration',
   'Transit & walking directions',
-  'YouTube video guides',
 ];
 
 const monthlyFeatures = [

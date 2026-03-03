@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const dedalus_1 = require("../services/dedalus");
-const youtube_1 = require("../services/apis/youtube");
 const usage_1 = require("../middleware/usage");
 const router = (0, express_1.Router)();
 /**
@@ -64,24 +63,6 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
             res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
             res.end();
         }
-    }
-});
-/**
- * GET /api/youtube-search?q=query
- * Returns { videoId, title } for the top YouTube result, or { videoId: null } on failure.
- */
-router.get('/youtube-search', async (req, res) => {
-    const q = req.query.q;
-    if (!q) {
-        return res.status(400).json({ error: 'Query parameter "q" is required' });
-    }
-    try {
-        const result = await (0, youtube_1.searchYouTubeVideo)(q);
-        res.json(result || { videoId: null, title: null });
-    }
-    catch (error) {
-        console.error('[YouTube Search] Error:', error);
-        res.json({ videoId: null, title: null });
     }
 });
 exports.default = router;

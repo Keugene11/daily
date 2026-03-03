@@ -1,10 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import type { PlaceMediaData } from '../hooks/useMediaEnrichment';
-
 interface Props {
   content: string;
   city?: string;
-  mediaData?: Map<string, PlaceMediaData>;
   onAddToCalendar?: () => void;
   calendarLoading?: boolean;
 }
@@ -151,34 +148,6 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
   return elements;
 }
 
-/** Find which places from the media map appear in this section's text, skipping already-shown ones.
- *  Also deduplicates by videoId — different places can return the same YouTube video. */
-export function getSectionPlaces(
-  sectionContent: string,
-  allPlaces: string[],
-  shownSet: Set<string>,
-  mediaData?: Map<string, PlaceMediaData>,
-  shownVideoIds?: Set<string>,
-): string[] {
-  const lower = sectionContent.toLowerCase();
-  return allPlaces.filter(p => {
-    if (shownSet.has(p)) return false;
-    if (!lower.includes(p.toLowerCase())) return false;
-    // Skip if this place's video was already shown for a different place
-    if (mediaData && shownVideoIds) {
-      const media = mediaData.get(p);
-      if (media?.videoId && shownVideoIds.has(media.videoId)) {
-        // Still mark the place as shown so it doesn't appear later
-        shownSet.add(p);
-        return false;
-      }
-      if (media?.videoId) shownVideoIds.add(media.videoId);
-    }
-    shownSet.add(p);
-    return true;
-  });
-}
-
 function RichText({ text }: { text: string }) {
   return <>{renderInline(text)}</>;
 }
@@ -212,83 +181,7 @@ function FormattedContent({ text }: { text: string }) {
   );
 }
 
-/**
- * Renders section text at full width with media absolutely positioned to the
- * right, completely outside the text column. Text width is never affected.
- * Videos play inline when clicked. Max 1 video, 2 items total per section.
- */
-function ContentWithMedia({ text, places, mediaData }: {
-  text: string;
-  places: string[];
-  mediaData: Map<string, PlaceMediaData>;
-}) {
-  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
-  // Only show places that have a video — no static fallback cards
-  const mediaItems = places.filter(p => mediaData.get(p)?.videoId).slice(0, 1);
-
-  if (mediaItems.length === 0) {
-    return <FormattedContent text={text} />;
-  }
-
-  return (
-    <div>
-      <FormattedContent text={text} />
-      {/* Media rendered inline below text with proper spacing */}
-      <div className="mt-5 flex flex-col gap-5">
-        {mediaItems.map(place => {
-          const media = mediaData.get(place)!;
-          const isPlaying = playingVideo === place;
-
-          if (isPlaying) {
-            return (
-              <div key={place} className="rounded-xl overflow-hidden animate-fadeIn">
-                <div className="relative aspect-video bg-black">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${media.videoId}?autoplay=1&rel=0`}
-                    className="absolute inset-0 w-full h-full"
-                    allow="autoplay; encrypted-media"
-                    allowFullScreen
-                    title={place}
-                  />
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <button
-              key={place}
-              onClick={() => setPlayingVideo(place)}
-              className="relative w-full aspect-video bg-black cursor-pointer group block rounded-xl overflow-hidden"
-            >
-              <img
-                src={`https://img.youtube.com/vi/${media.videoId}/maxresdefault.jpg`}
-                alt={place}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  // maxresdefault 404s on some videos — fall back to hqdefault
-                  const img = e.currentTarget;
-                  if (!img.src.includes('hqdefault')) {
-                    img.src = `https://img.youtube.com/vi/${media.videoId}/hqdefault.jpg`;
-                  }
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-11 bg-red-600 rounded-xl flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
-                  <svg className="w-6 h-6 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // Pure parsing functions — defined outside component to avoid recreation on every render
 function parseSections(text: string): TimeSlot[] {
@@ -366,11 +259,8 @@ function parseItinerary(text: string): ParsedPlan {
   return { preamble, days: parsedDays, slots: [], globalSections };
 }
 
-export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToCalendar, calendarLoading }) => {
+export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, calendarLoading }) => {
   const ref = useRef<HTMLDivElement>(null);
-  // Track places and videoIds already shown so each appears only once across all sections
-  const shownPlacesRef = useRef<Set<string>>(new Set());
-  const shownVideoIdsRef = useRef<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState(0);
   const prevContentRef = useRef(content);
 
@@ -393,10 +283,6 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
   const hasDayParsing = parsed.days.length > 0;
   const showDayTabs = parsed.days.length > 1;
 
-  // Reset shown places/videos each render so dedup is fresh for new content
-  shownPlacesRef.current.clear();
-  shownVideoIdsRef.current.clear();
-
   // Clamp selectedDay to valid range
   const activeDayIdx = showDayTabs ? Math.min(selectedDay, parsed.days.length - 1) : 0;
   const activeSlots = (hasDayParsing ? (parsed.days[activeDayIdx]?.slots || []) : parsed.slots)
@@ -405,12 +291,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
 
   const renderSlots = (slots: TimeSlot[], startIndex = 0) => (
     <div className="space-y-2">
-      {slots.map((slot, index) => {
-        const sectionPlaces = mediaData && mediaData.size > 0
-          ? getSectionPlaces(slot.content, [...mediaData.keys()], shownPlacesRef.current, mediaData, shownVideoIdsRef.current)
-          : [];
-
-        return (
+      {slots.map((slot, index) => (
           <div
             key={`${slot.period}-${startIndex + index}`}
             className="animate-slideInUp"
@@ -425,20 +306,11 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
                 {slot.time && <p className="text-xs text-on-surface/30 sm:mt-0.5">{slot.time}</p>}
               </div>
               <div className="text-[15px] leading-[1.8] text-on-surface/60">
-                {sectionPlaces.length > 0 && mediaData ? (
-                  <ContentWithMedia
-                    text={slot.content}
-                    places={sectionPlaces}
-                    mediaData={mediaData}
-                  />
-                ) : (
-                  <FormattedContent text={slot.content} />
-                )}
+                <FormattedContent text={slot.content} />
               </div>
             </div>
           </div>
-        );
-      })}
+        ))}
     </div>
   );
 

@@ -78,7 +78,6 @@ app.get('/api/privacy', (_req, res) => {
       <li><strong>Anthropic (Claude)</strong> — to generate day plans</li>
       <li><strong>OpenStreetMap / Nominatim</strong> — for geocoding places on the map</li>
       <li><strong>Wikipedia / Wikimedia Commons</strong> — for place images</li>
-      <li><strong>YouTube</strong> — for place video recommendations</li>
       <li><strong>Vercel</strong> — for hosting</li>
     </ul>
     <h2>Data Retention</h2>
@@ -99,7 +98,7 @@ app.get('/api/privacy', (_req, res) => {
 });
 // Stripe routes (checkout, portal, subscription status)
 app.use('/api', auth_1.requireAuth, subscription_1.checkSubscription, stripe_1.default);
-// API routes — usage limit is on the POST /plan route only (not youtube-search)
+// API routes — usage limit is on the POST /plan route only
 app.use('/api', auth_1.requireAuth, subscription_1.checkSubscription, plan_1.default);
 // 404 handler
 app.use((_req, res) => {

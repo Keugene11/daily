@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { streamPlanGeneration } from '../services/dedalus';
-import { searchYouTubeVideo } from '../services/apis/youtube';
 import { SubscriptionRequest } from '../middleware/subscription';
 import { checkUsage } from '../middleware/usage';
 
@@ -72,25 +71,6 @@ router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: R
       res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
       res.end();
     }
-  }
-});
-
-/**
- * GET /api/youtube-search?q=query
- * Returns { videoId, title } for the top YouTube result, or { videoId: null } on failure.
- */
-router.get('/youtube-search', async (req: Request, res: Response) => {
-  const q = req.query.q as string;
-  if (!q) {
-    return res.status(400).json({ error: 'Query parameter "q" is required' });
-  }
-
-  try {
-    const result = await searchYouTubeVideo(q);
-    res.json(result || { videoId: null, title: null });
-  } catch (error) {
-    console.error('[YouTube Search] Error:', error);
-    res.json({ videoId: null, title: null });
   }
 });
 

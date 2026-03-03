@@ -12,7 +12,6 @@ import { VoiceInput } from './components/VoiceInput';
 import { PlanMap } from './components/PlanMap';
 import { OutfitSuggestion } from './components/OutfitSuggestion';
 import { usePlanStream } from './hooks/usePlanStream';
-import { useMediaEnrichment } from './hooks/useMediaEnrichment';
 import { useAuth } from './hooks/useAuth';
 import { usePlans } from './hooks/usePlans';
 import { useSubscription } from './hooks/useSubscription';
@@ -85,11 +84,8 @@ function App() {
   // Feature inputs
   const [rightNow, setRightNow] = useState(false);
 
-  // Use the backend-resolved city for map/media (handles typos and landmark names)
+  // Use the backend-resolved city for map (handles typos and landmark names)
   const mapCity = state.resolvedCity || city;
-
-  // Media enrichment — progressively fetches images + YouTube videos as places appear in the stream
-  const { data: mediaData } = useMediaEnrichment(state.content, mapCity, 12, getAccessToken);
 
   // Theme toggle
   useEffect(() => {
@@ -538,7 +534,6 @@ function App() {
             <ItineraryDisplay
               content={state.content}
               city={city}
-              mediaData={mediaData}
               onAddToCalendar={session ? handleAddToCalendar : undefined}
               calendarLoading={calendarLoading}
             />
