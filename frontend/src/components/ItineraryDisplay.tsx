@@ -402,12 +402,12 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
             style={{ animationDelay: `${(startIndex + index) * 50}ms`, opacity: 0 }}
           >
             {(startIndex + index) > 0 && <div className="border-t border-on-surface/[0.06] my-0" />}
-            <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[120px_1fr] gap-4 sm:gap-8 py-8">
-              <div>
-                <p className="text-sm font-medium text-on-surface/90 flex items-center gap-2">
+            <div className="flex flex-col sm:grid sm:grid-cols-[120px_1fr] sm:gap-8 py-6 sm:py-8">
+              <div className="flex items-center gap-2 sm:block mb-2 sm:mb-0">
+                <p className="text-sm font-medium text-on-surface/90">
                   {slot.period}
                 </p>
-                {slot.time && <p className="text-xs text-on-surface/30 mt-0.5">{slot.time}</p>}
+                {slot.time && <p className="text-xs text-on-surface/30 sm:mt-0.5">{slot.time}</p>}
               </div>
               <div className="text-[15px] leading-relaxed text-on-surface/60">
                 {sectionPlaces.length > 0 && mediaData ? (
