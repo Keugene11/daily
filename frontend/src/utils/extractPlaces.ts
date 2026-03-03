@@ -38,7 +38,7 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
         return;
       }
       // Skip links to non-map sites (Spotify, Yelp review pages, etc.)
-      if (/yelp\.com\/biz|tripadvisor\.com|opentable\.com|youtube\.com|instagram\.com|facebook\.com|eventbrite\.com/i.test(url)) {
+      if (/yelp\.com\/biz|tripadvisor\.com|opentable\.com|youtube\.com|instagram\.com|facebook\.com|eventbrite\.com|booking\.com|hostelworld\.com|getyourguide\.com/i.test(url)) {
         return;
       }
       names.push(label);
@@ -70,7 +70,7 @@ export function extractPlaces(content: string, city: string, maxResults = 10): s
       // Skip the city name itself — it geocodes to wrong locations
       .filter(p => p.toLowerCase() !== cityLower)
       // Skip section headings and non-venue text
-      .filter(p => !p.match(/^(morning|afternoon|evening|night|soundtrack|tip|note|pro tip|free|deal|save|right now|quick bite|week \d|today|tonight|sunrise|sunset|golden hour|brunch|lunch|dinner|breakfast|where to stay|happy hour|your route)/i))
+      .filter(p => !p.match(/^(morning|afternoon|evening|nightlife|night\b|soundtrack|tip|note|pro tip|free|deal|save|right now|quick bite|week \d|today|tonight|sunrise|sunset|golden hour|brunch|lunch|dinner|breakfast|where to stay|happy hour|your route|pre-game|main event|late night|estimated total|your hotel)/i))
       // Skip entries starting with a digit (times like "8:00 AM")
       .filter(p => !p.match(/^\d/))
       // Skip song/artist names — they tend to have " - " in them
