@@ -108,7 +108,18 @@ function mapPlaceToAccommodation(place: any, city: string): Accommodation {
   const addressParts = (place.formattedAddress || '').split(',').map((s: string) => s.trim());
   const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
 
-  const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+  // Build a booking.com search link instead of Google Maps so the model
+  // uses it directly — this is what users actually want to click on.
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const checkin = today.toISOString().split('T')[0];
+  const checkout = tomorrow.toISOString().split('T')[0];
+  const bookingName = name.replace(/\s+/g, '+');
+  const bookingCity = city.replace(/\s+/g, '+');
+  const bookingUrl = type === 'hostel'
+    ? `https://www.hostelworld.com/find/s?q=${bookingName},+${bookingCity}&dateFrom=${checkin}&dateTo=${checkout}&guests=1`
+    : `https://www.booking.com/searchresults.html?ss=${bookingName},+${bookingCity}&checkin=${checkin}&checkout=${checkout}&no_rooms=1&group_adults=2`;
 
   return {
     name,
@@ -118,8 +129,8 @@ function mapPlaceToAccommodation(place: any, city: string): Accommodation {
     ratingCount,
     description,
     neighborhood,
-    url: googleMapsUri,
-    link: `[${name}](${googleMapsUri})`,
+    url: bookingUrl,
+    link: `[${name}](${bookingUrl})`,
   };
 }
 
