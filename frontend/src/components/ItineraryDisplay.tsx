@@ -275,7 +275,11 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, ca
   // Memoize content parsing — only re-parse when content changes, not on every re-render
   const { processed, parsed } = useMemo(() => {
     // Strip hidden CALENDAR_EVENTS JSON block before parsing/display
-    const stripped = content.replace(/<!--\s*CALENDAR_EVENTS\s*\n[\s\S]*?\n\s*-->/g, '').trim();
+    // Also strip incomplete block still streaming (no closing --> yet)
+    const stripped = content
+      .replace(/<!--\s*CALENDAR_EVENTS\s*\n[\s\S]*?\n\s*-->/g, '')
+      .replace(/<!--\s*CALENDAR_EVENTS[\s\S]*$/g, '')
+      .trim();
     const p = convertRawUrls(stripped);
     return { processed: p, parsed: parseItinerary(p) };
   }, [content]);
