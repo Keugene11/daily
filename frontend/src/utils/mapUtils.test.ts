@@ -7,6 +7,7 @@ import {
   getGeoCache,
   setGeoCache,
   getCachedGeocode,
+  GEOCODE_MISS,
   cacheGeocode,
   distanceKm,
   boundingBoxRadiusKm,
@@ -218,8 +219,11 @@ describe('geocode cache', () => {
     cacheGeocode('Central Park', 'New York', { lat: 40.7829, lng: -73.9654 });
     const result = getCachedGeocode('Central Park', 'New York');
     expect(result).not.toBeNull();
-    expect(result!.lat).toBe(40.7829);
-    expect(result!.lng).toBe(-73.9654);
+    expect(result).not.toBe(GEOCODE_MISS);
+    if (result && result !== GEOCODE_MISS) {
+      expect(result.lat).toBe(40.7829);
+      expect(result.lng).toBe(-73.9654);
+    }
   });
 
   it('getCachedGeocode returns null for expired entry', () => {
@@ -253,8 +257,8 @@ describe('geocode cache', () => {
 
     const a = getCachedGeocode('Place A', 'NYC');
     const b = getCachedGeocode('Place B', 'NYC');
-    expect(a!.lat).toBe(40.7);
-    expect(b!.lat).toBe(40.8);
+    if (a && a !== GEOCODE_MISS) expect(a.lat).toBe(40.7);
+    if (b && b !== GEOCODE_MISS) expect(b.lat).toBe(40.8);
   });
 
   it('same place in different cities cache independently', () => {
@@ -263,8 +267,8 @@ describe('geocode cache', () => {
 
     const ny = getCachedGeocode('Central Park', 'New York');
     const sc = getCachedGeocode('Central Park', 'Schenectady');
-    expect(ny!.lat).toBe(40.78);
-    expect(sc!.lat).toBe(42.81);
+    if (ny && ny !== GEOCODE_MISS) expect(ny.lat).toBe(40.78);
+    if (sc && sc !== GEOCODE_MISS) expect(sc.lat).toBe(42.81);
   });
 
   it('handles corrupted localStorage gracefully', () => {

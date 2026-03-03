@@ -94,7 +94,8 @@ export function extractPlaceCoords(content: string): Map<string, { lat: number; 
   const regex = /\[([^\]]+)\]\([^)]*@(-?\d+\.?\d*),(-?\d+\.?\d*)[^)]*\)/g;
   let match;
   while ((match = regex.exec(content)) !== null) {
-    const name = match[1].trim();
+    // Decode + to space to match how extractPlaces normalizes names
+    const name = match[1].replace(/\+/g, ' ').trim();
     const lat = parseFloat(match[2]);
     const lng = parseFloat(match[3]);
     if (name.length > 2 && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {

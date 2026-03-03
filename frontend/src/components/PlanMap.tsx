@@ -3,6 +3,7 @@ import { extractPlaces, extractPlaceCoords } from '../utils/extractPlaces';
 import {
   MapLocation,
   getCachedGeocode,
+  GEOCODE_MISS,
   geocode,
   geocodeCity,
   boundingBoxRadiusKm,
@@ -382,7 +383,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const uncachedPlaces: string[] = [];
         for (const place of places) {
           const coords = getCachedGeocode(place, geocodeCity_);
-          if (coords) {
+          if (coords === GEOCODE_MISS) {
+            // Previously failed — try embedded coords as fallback before skipping
+            const embedded = embeddedCoords.get(place);
+            if (embedded && isNearCity(embedded)) {
+              resolved.set(place, { name: place, ...embedded });
+            }
+            // else skip — don't re-geocode
+          } else if (coords) {
             if (isNearCity(coords)) {
               resolved.set(place, { name: place, ...coords });
             }
@@ -412,17 +420,26 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         for (let i = 0; i < uncachedPlaces.length; i++) {
           if (cancelled) return;
-          await new Promise(r => setTimeout(r, 1100));
 
           const place = uncachedPlaces[i];
-          const coords = await geocode(place, geocodeCity_, cityCoords ?? undefined, countryCode, country, effectiveRadius);
-          if (cancelled) return;
 
-          if (coords && isNearCity(coords)) {
-            resolved.set(place, { name: place, ...coords });
+          // If we already have embedded coordinates from the Google Maps URL,
+          // use them directly — no need to hit Nominatim at all
+          const embedded = embeddedCoords.get(place);
+          if (embedded && isNearCity(embedded)) {
+            resolved.set(place, { name: place, ...embedded });
           } else {
-            const embedded = embeddedCoords.get(place);
-            if (embedded && isNearCity(embedded)) {
+            // Rate-limit: wait 1.1s before each Nominatim request
+            await new Promise(r => setTimeout(r, 1100));
+
+            const coords = await geocode(place, geocodeCity_, cityCoords ?? undefined, countryCode, country, effectiveRadius);
+            if (cancelled) return;
+
+            if (coords && isNearCity(coords)) {
+              resolved.set(place, { name: place, ...coords });
+            } else if (embedded) {
+              // Nominatim failed but we have embedded coords (even if slightly outside range)
+              // — use them as a best-effort fallback
               resolved.set(place, { name: place, ...embedded });
             }
           }

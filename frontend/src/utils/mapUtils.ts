@@ -12,13 +12,16 @@ export interface MapLocation {
 // ── Geocode cache (localStorage, 7-day TTL, versioned) ──────────────
 const GEO_CACHE_KEY = 'daily_geocache';
 const GEO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const GEO_MISS_TTL = 24 * 60 * 60 * 1000; // 1 day for negative (miss) entries
 // Bump this to invalidate ALL cached geocode entries (forces re-geocoding with constraints)
-const GEO_CACHE_VERSION = 8;
+const GEO_CACHE_VERSION = 9;
 
 interface GeoCacheEntry {
   lat: number;
   lng: number;
   ts: number;
+  /** If true, this is a negative cache entry (geocoding failed for this place) */
+  miss?: boolean;
 }
 
 interface GeoCacheStore {
@@ -45,14 +48,29 @@ export function setGeoCache(cache: Record<string, GeoCacheEntry>) {
   } catch { /* quota exceeded — ignore */ }
 }
 
-export function getCachedGeocode(place: string, city: string): { lat: number; lng: number } | null {
+/** Sentinel value returned when a place is in the negative cache (geocoding previously failed) */
+export const GEOCODE_MISS = Symbol('GEOCODE_MISS');
+
+export function getCachedGeocode(place: string, city: string): { lat: number; lng: number } | typeof GEOCODE_MISS | null {
   const cache = getGeoCache();
   const key = `${place}|||${city}`;
   const entry = cache[key];
-  if (entry && Date.now() - entry.ts < GEO_CACHE_TTL) {
-    return { lat: entry.lat, lng: entry.lng };
+  if (entry) {
+    const ttl = entry.miss ? GEO_MISS_TTL : GEO_CACHE_TTL;
+    if (Date.now() - entry.ts < ttl) {
+      if (entry.miss) return GEOCODE_MISS;
+      return { lat: entry.lat, lng: entry.lng };
+    }
   }
   return null;
+}
+
+/** Cache a negative result so we don't re-try failing places on every render.
+ *  Negative entries use a shorter TTL (1 day) so they auto-expire. */
+export function cacheGeocodeMiss(place: string, city: string) {
+  const cache = getGeoCache();
+  cache[`${place}|||${city}`] = { lat: 0, lng: 0, ts: Date.now(), miss: true };
+  setGeoCache(cache);
 }
 
 export function cacheGeocode(place: string, city: string, coords: { lat: number; lng: number }) {
@@ -110,15 +128,21 @@ export const MAX_DISTANCE_KM = 80;
  * centroid and inflate the median).
  */
 export function removeOutliers(locs: MapLocation[]): MapLocation[] {
+  if (locs.length <= 3) return locs;
+
+  // Never remove more than 20% of locations (at least keep 80%)
+  const minKeep = Math.max(3, Math.ceil(locs.length * 0.8));
   let current = [...locs];
-  while (current.length > 3) {
+
+  while (current.length > minKeep) {
     const n = current.length;
     const cLat = current.reduce((s, l) => s + l.lat, 0) / n;
     const cLng = current.reduce((s, l) => s + l.lng, 0) / n;
     const dists = current.map(l => distanceKm(cLat, cLng, l.lat, l.lng));
     const sorted = [...dists].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const threshold = Math.max(median * 3, 5);
+    // Use a more generous threshold: 4x median (was 3x) and minimum 8km (was 5km)
+    const threshold = Math.max(median * 4, 8);
     // Find the farthest point
     let maxDist = 0;
     let maxIdx = -1;
@@ -154,16 +178,21 @@ function toViewbox(lat: number, lng: number, radiusKm: number): string {
   return `${lng - lngDeg},${lat + latDeg},${lng + lngDeg},${lat - latDeg}`;
 }
 
-// Geocode a single query string using Nominatim
+// Geocode a single query string using Nominatim.
+// `bounded` controls whether viewbox is strict (bounded=1) or just a bias.
+// Default: false (bias only) — this avoids dropping places just outside the viewbox.
 export async function geocodeQuery(
   query: string,
-  options?: { viewbox?: string; countrycodes?: string }
+  options?: { viewbox?: string; countrycodes?: string; bounded?: boolean }
 ): Promise<{ lat: number; lng: number } | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=dailyplanner@app.dev`;
-    if (options?.viewbox) url += `&viewbox=${options.viewbox}&bounded=1`;
+    if (options?.viewbox) {
+      url += `&viewbox=${options.viewbox}`;
+      if (options.bounded) url += `&bounded=1`;
+    }
     if (options?.countrycodes) url += `&countrycodes=${options.countrycodes}`;
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
@@ -283,6 +312,7 @@ export async function geocode(
   maxDistKm = MAX_DISTANCE_KM
 ): Promise<{ lat: number; lng: number } | null> {
   const cached = getCachedGeocode(place, city);
+  if (cached === GEOCODE_MISS) return null; // negative cache hit — skip
   if (cached) {
     // Validate cached results against city coords — reject stale bad entries
     if (cityCoords && !isWithinRange(cached, cityCoords, maxDistKm)) return null;
@@ -306,6 +336,8 @@ export async function geocode(
 
   // For wide areas (countries/regions), don't use bounded=1 — it's too restrictive.
   // Just use countrycodes to keep results in the right country.
+  // For city-level queries, use viewbox as a bias (not bounded) so places just
+  // outside the box still appear — distance check filters bad results after.
   const useViewbox = maxDistKm <= MAX_DISTANCE_KM;
   const queryOptions: { viewbox?: string; countrycodes?: string } = {};
   if (useViewbox && options.viewbox) queryOptions.viewbox = options.viewbox;
@@ -328,6 +360,8 @@ export async function geocode(
   // so "Half Dome, Yosemite, United States" returns wrong results, but
   // "Half Dome" with the viewbox constraint returns the correct one).
   if (options.viewbox || options.countrycodes) {
+    // Respect Nominatim 1 req/sec rate limit before the fallback request
+    await new Promise(r => setTimeout(r, 1100));
     const fallbackOptions: { viewbox?: string; countrycodes?: string } = {};
     if (options.viewbox) fallbackOptions.viewbox = options.viewbox;
     if (options.countrycodes) fallbackOptions.countrycodes = options.countrycodes;
@@ -340,5 +374,7 @@ export async function geocode(
     }
   }
 
+  // All attempts failed — cache the miss so we don't re-try on next render
+  cacheGeocodeMiss(place, city);
   return null;
 }
