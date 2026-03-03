@@ -115,9 +115,11 @@ function App() {
       // Build extras from the saved params
       const extras: Record<string, any> = {};
       if (pending.mood?.trim()) extras.mood = pending.mood.trim();
-      extras.currentHour = new Date().getHours();
       extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (pending.rightNow) extras.rightNow = true;
+      if (pending.rightNow) {
+        extras.rightNow = true;
+        extras.currentHour = new Date().getHours();
+      }
       if (pending.tripDays > 1) extras.days = pending.tripDays;
       // Auto-start the plan
       localStorage.setItem('daily_prefs', JSON.stringify({ city: pending.city, budget: pending.budget || 'any' }));
@@ -178,9 +180,11 @@ function App() {
   const buildExtras = () => {
     const extras: Record<string, any> = {};
     if (mood.trim()) extras.mood = mood.trim();
-    extras.currentHour = new Date().getHours();
     extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (rightNow) extras.rightNow = true;
+    if (rightNow) {
+      extras.rightNow = true;
+      extras.currentHour = new Date().getHours();
+    }
     if (tripDays > 1) extras.days = tripDays;
     return extras;
   };
