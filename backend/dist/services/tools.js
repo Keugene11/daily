@@ -353,7 +353,7 @@ const executeToolCall = async (toolName, args, context) => {
             case 'get_weather':
                 return await weather_1.weatherService.getWeather(args.city);
             case 'get_local_events':
-                return await events_1.eventsService.getEvents(args.city, context?.rightNow, context?.currentHour);
+                return await events_1.eventsService.getEvents(args.city, undefined, context?.currentHour);
             case 'get_trending_news':
                 return await news_1.newsService.getNews(args.city);
             case 'get_restaurant_recommendations':
@@ -363,9 +363,9 @@ const executeToolCall = async (toolName, args, context) => {
             case 'get_gas_prices':
                 return await gas_prices_1.gasPriceService.getGasPrices(args.city);
             case 'get_happy_hours':
-                return await happy_hours_1.happyHourService.getHappyHours(args.city, context?.rightNow, context?.currentHour);
+                return await happy_hours_1.happyHourService.getHappyHours(args.city, undefined, context?.currentHour);
             case 'get_free_stuff':
-                return await free_stuff_1.freeStuffService.getFreeStuff(args.city, context?.rightNow, context?.currentHour);
+                return await free_stuff_1.freeStuffService.getFreeStuff(args.city, undefined, context?.currentHour);
             case 'get_sunrise_sunset':
                 return await sunrise_sunset_1.sunriseSunsetService.getSunriseSunset(args.city);
             case 'get_parking':
@@ -375,7 +375,7 @@ const executeToolCall = async (toolName, args, context) => {
             case 'get_wait_times':
                 return await wait_times_1.waitTimeService.getWaitTimes(args.city, args.venue);
             case 'get_deals_coupons':
-                return await deals_1.dealsService.getDeals(args.city, args.category, context?.rightNow, context?.currentHour);
+                return await deals_1.dealsService.getDeals(args.city, args.category, undefined, context?.currentHour);
             case 'get_accommodations':
                 return await accommodations_1.accommodationService.getAccommodations(args.city, args.budget, args.type);
             case 'get_attractions':

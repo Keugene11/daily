@@ -80,7 +80,7 @@ function getClient(): Dedalus {
 }
 
 function buildSystemPrompt(request: PlanRequest): string {
-  const { budget, currentHour, timezone, rightNow } = request;
+  const { budget, currentHour, timezone } = request;
 
   // Helper to get time in the user's timezone
   const userNow = (tz?: string) => {
@@ -152,18 +152,7 @@ function buildSystemPrompt(request: PlanRequest): string {
     extras.push(`- **NIGHTLIFE MODE**: The user wants a night out — bars, clubs, live music, lounges, late-night food. Focus on what's open LATE, cover charge info, dress codes, drink specials, vibes, and live music schedules. Do NOT plan daytime activities. This is an evening-only plan starting around 7pm. Mention which nights are best for each venue if known.`);
   }
 
-  if (rightNow) {
-    const timeOpts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-    if (timezone) timeOpts.timeZone = timezone;
-    const nowTime = new Date().toLocaleTimeString('en-US', timeOpts);
-    const endHour = new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleTimeString('en-US', timeOpts);
-    timeSections = `## Right Now (${nowTime} - ${endHour})
-[2-3 specific things the user can do RIGHT NOW or within the next 2 hours. Focus on what's immediately available — no "later today" suggestions. Include walk-in-friendly places, things that don't need reservations, and whatever is open/happening at this exact moment.]
 
-## Quick Bite
-[One fast, nearby food recommendation that's open right now — could be a restaurant, food truck, café, or street food. Include specific dish to order.]`;
-    extras.push(`- **RIGHT NOW MODE**: The user wants to know what they can do IMMEDIATELY — in the next 2 hours. Do NOT plan a full day. Be ultra-specific about timing: "open right now until 8 PM", "starts in 45 minutes", "happy hour ends at 7 PM". Only suggest places that are OPEN and things that are HAPPENING right now or very soon. Keep it short and actionable — this is not a full itinerary, it's a quick "here's what to do right now" guide.`);
-  }
 
   const dateOpts: Intl.DateTimeFormatOptions = { weekday: 'long' };
   if (timezone) dateOpts.timeZone = timezone;
@@ -274,18 +263,6 @@ function getCoreToolCalls(request: PlanRequest, city: string): { name: string; a
     ];
   }
 
-  if (request.rightNow) {
-    // Right Now mode: only time-sensitive tools
-    return [
-      { name: 'get_weather', args: { city } },
-      { name: 'get_local_events', args: { city } },
-      { name: 'get_free_stuff', args: { city } },
-      { name: 'get_happy_hours', args: { city } },
-      { name: 'get_deals_coupons', args: { city } },
-      { name: 'get_restaurant_recommendations', args: { city, budget } },
-    ];
-  }
-
   // Regular single-day: all 9 core tools
   return [
     { name: 'get_weather', args: { city } },
@@ -307,7 +284,7 @@ function getCoreToolCalls(request: PlanRequest, city: string): { name: string; a
  * 3. Stream itinerary with tool data embedded in user message (single LLM call)
  */
 export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerator<StreamEvent> {
-  console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, rightNow=${!!request.rightNow})`);
+  console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, nightlife=${!!request.nightlife})`);
 
   // Track elapsed time to gracefully stop before Vercel's 60s hard limit
   const startTime = Date.now();
@@ -347,7 +324,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   const toolSettled = await Promise.allSettled(
     coreTools.map(async (tc) => {
       const result = await Promise.race([
-        executeToolCall(tc.name, tc.args, { rightNow: request.rightNow, currentHour: request.currentHour }),
+        executeToolCall(tc.name, tc.args, { currentHour: request.currentHour }),
         toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
       ]);
       return { name: tc.name, result };

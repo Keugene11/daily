@@ -82,7 +82,6 @@ function App() {
   );
 
   // Feature inputs
-  const [rightNow, setRightNow] = useState(false);
 
   // Use the backend-resolved city for map (handles typos and landmark names)
   const mapCity = state.resolvedCity || city;
@@ -107,14 +106,9 @@ function App() {
       // Restore form state
       setCity(pending.city);
       setBudget(pending.budget || 'any');
-      if (pending.rightNow) setRightNow(true);
       // Build extras from the saved params
       const extras: Record<string, any> = {};
       extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (pending.rightNow) {
-        extras.rightNow = true;
-        extras.currentHour = new Date().getHours();
-      }
       if (pending.nightlife) {
         extras.nightlife = true;
       }
@@ -166,10 +160,6 @@ function App() {
   const buildExtras = () => {
     const extras: Record<string, any> = {};
     extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (rightNow) {
-      extras.rightNow = true;
-      extras.currentHour = new Date().getHours();
-    }
     return extras;
   };
 
@@ -178,7 +168,7 @@ function App() {
     if (!session) {
       // Save pending plan so we can resume after OAuth redirect
       sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-        city, budget, rightNow: false,
+        city, budget,
       }));
       signInWithGoogle();
       return;
@@ -195,7 +185,6 @@ function App() {
     reset();
     setCity('');
     setBudget('any');
-    setRightNow(false);
     navigate('/');
   };
 
@@ -442,34 +431,6 @@ function App() {
                     )}
                   </button>
                 </div>
-
-                {/* Right Now mode */}
-                <button
-                  onClick={() => {
-                    if (!city.trim()) return;
-                    if (!session) {
-                      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-                        city, budget, rightNow: true,
-                      }));
-                      signInWithGoogle();
-                      return;
-                    }
-                    if (subscription.isLimitReached('plan')) {
-                      setShowPricing(true);
-                      return;
-                    }
-                    setRightNow(true);
-                    savePrefs();
-                    startStream(city, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
-                  }}
-                  disabled={state.isStreaming || !city.trim()}
-                  className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  What's happening right now?
-                </button>
 
                 {/* Nightlife mode */}
                 <button

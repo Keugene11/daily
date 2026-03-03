@@ -368,7 +368,7 @@ export const tools: Tool[] = [
 export const executeToolCall = async (
   toolName: string,
   args: Record<string, any>,
-  context?: { rightNow?: boolean; currentHour?: number }
+  context?: { currentHour?: number }
 ): Promise<ToolResult> => {
   try {
     switch (toolName) {
@@ -376,7 +376,7 @@ export const executeToolCall = async (
         return await weatherService.getWeather(args.city);
 
       case 'get_local_events':
-        return await eventsService.getEvents(args.city, context?.rightNow, context?.currentHour);
+        return await eventsService.getEvents(args.city, undefined, context?.currentHour);
 
       case 'get_trending_news':
         return await newsService.getNews(args.city);
@@ -391,10 +391,10 @@ export const executeToolCall = async (
         return await gasPriceService.getGasPrices(args.city);
 
       case 'get_happy_hours':
-        return await happyHourService.getHappyHours(args.city, context?.rightNow, context?.currentHour);
+        return await happyHourService.getHappyHours(args.city, undefined, context?.currentHour);
 
       case 'get_free_stuff':
-        return await freeStuffService.getFreeStuff(args.city, context?.rightNow, context?.currentHour);
+        return await freeStuffService.getFreeStuff(args.city, undefined, context?.currentHour);
 
       case 'get_sunrise_sunset':
         return await sunriseSunsetService.getSunriseSunset(args.city);
@@ -409,7 +409,7 @@ export const executeToolCall = async (
         return await waitTimeService.getWaitTimes(args.city, args.venue);
 
       case 'get_deals_coupons':
-        return await dealsService.getDeals(args.city, args.category, context?.rightNow, context?.currentHour);
+        return await dealsService.getDeals(args.city, args.category, undefined, context?.currentHour);
 
       case 'get_accommodations':
         return await accommodationService.getAccommodations(args.city, args.budget, args.type);

@@ -10,7 +10,7 @@ const router = Router();
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: Response) => {
-  const { city, budget, currentHour, rightNow, nightlife, timezone } = req.body;
+  const { city, budget, currentHour, nightlife, timezone } = req.body;
 
   // Validate input
   if (!city) {
@@ -41,7 +41,7 @@ router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: R
   res.write('data: {"type":"connected"}\n\n');
 
   try {
-    const stream = streamPlanGeneration({ city, budget, currentHour, rightNow, nightlife, timezone });
+    const stream = streamPlanGeneration({ city, budget, currentHour, nightlife, timezone });
 
     for await (const event of stream) {
       if (clientDisconnected) break;
