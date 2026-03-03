@@ -187,10 +187,9 @@ function FormattedContent({ text }: { text: string }) {
   // Split on double newlines into paragraphs, then render lines within each
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   if (paragraphs.length <= 1) {
-    // Single paragraph — add line breaks between lines
     const lines = text.split('\n');
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-3">
         {lines.map((line, i) => (
           <p key={i}><RichText text={line} /></p>
         ))}
@@ -198,11 +197,11 @@ function FormattedContent({ text }: { text: string }) {
     );
   }
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {paragraphs.map((para, i) => {
         const lines = para.split('\n');
         return (
-          <div key={i} className="space-y-1.5">
+          <div key={i} className="space-y-3">
             {lines.map((line, j) => (
               <p key={j}><RichText text={line} /></p>
             ))}
@@ -425,7 +424,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
                 </p>
                 {slot.time && <p className="text-xs text-on-surface/30 sm:mt-0.5">{slot.time}</p>}
               </div>
-              <div className="text-[15px] leading-relaxed text-on-surface/60">
+              <div className="text-[15px] leading-[1.8] text-on-surface/60">
                 {sectionPlaces.length > 0 && mediaData ? (
                   <ContentWithMedia
                     text={slot.content}
