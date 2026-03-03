@@ -184,16 +184,32 @@ function RichText({ text }: { text: string }) {
 }
 
 function FormattedContent({ text }: { text: string }) {
-  const lines = text.split('\n');
+  // Split on double newlines into paragraphs, then render lines within each
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length <= 1) {
+    // Single paragraph — add line breaks between lines
+    const lines = text.split('\n');
+    return (
+      <div className="space-y-1.5">
+        {lines.map((line, i) => (
+          <p key={i}><RichText text={line} /></p>
+        ))}
+      </div>
+    );
+  }
   return (
-    <>
-      {lines.map((line, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <br />}
-          <RichText text={line} />
-        </React.Fragment>
-      ))}
-    </>
+    <div className="space-y-4">
+      {paragraphs.map((para, i) => {
+        const lines = para.split('\n');
+        return (
+          <div key={i} className="space-y-1.5">
+            {lines.map((line, j) => (
+              <p key={j}><RichText text={line} /></p>
+            ))}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -389,7 +405,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
   const allSlots = [...activeSlots, ...parsed.globalSections.filter(s => s.content.trim().length > 0)];
 
   const renderSlots = (slots: TimeSlot[], startIndex = 0) => (
-    <div className="space-y-0">
+    <div className="space-y-2">
       {slots.map((slot, index) => {
         const sectionPlaces = mediaData && mediaData.size > 0
           ? getSectionPlaces(slot.content, [...mediaData.keys()], shownPlacesRef.current, mediaData, shownVideoIdsRef.current)
