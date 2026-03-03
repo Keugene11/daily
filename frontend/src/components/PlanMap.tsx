@@ -64,7 +64,7 @@ function loadGoogleMaps(): Promise<void> {
 
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
@@ -118,13 +118,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [totalPlaces, setTotalPlaces] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const overlaysRef = useRef<google.maps.OverlayView[]>([]);
   const routeLineRef = useRef<google.maps.Polyline | null>(null);
 
   // Destroy existing map instance
   const destroyMap = useCallback(() => {
-    markersRef.current.forEach(m => { m.map = null; });
+    markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
+    overlaysRef.current.forEach(o => o.setMap(null));
+    overlaysRef.current = [];
     if (routeLineRef.current) {
       routeLineRef.current.setMap(null);
       routeLineRef.current = null;
@@ -150,7 +153,6 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         disableDefaultUI: true,
         zoomControl: true,
         styles: isDark ? DARK_MAP_STYLES : undefined,
-        mapId: 'plan-map',
       });
       mapInstanceRef.current = map;
       return true;
@@ -166,8 +168,10 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     if (!map || locs.length === 0) return;
 
     // Clear old markers and route line
-    markersRef.current.forEach(m => { m.map = null; });
+    markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
+    overlaysRef.current.forEach(o => o.setMap(null));
+    overlaysRef.current = [];
     if (routeLineRef.current) {
       routeLineRef.current.setMap(null);
       routeLineRef.current = null;
@@ -176,31 +180,58 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     const isDark = document.documentElement.classList.contains('dark');
     const accentColor = isDark ? '#818CF8' : '#3B82F6';
 
-    // Add markers with labels
+    // Add numbered circle markers with label overlays
     locs.forEach((loc, i) => {
-      const content = document.createElement('div');
-      content.style.cssText = 'display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:default;';
-      content.innerHTML = `
-        <div style="
-          width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-          background: ${accentColor};
-          color: white; display: flex; align-items: center; justify-content: center;
-          font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          border: 2px solid white;
-        ">${i + 1}</div>
-        <span style="
-          font-size: 11px; font-weight: 600; color: ${isDark ? '#e2e8f0' : '#1e293b'};
-          background: ${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};
-          padding: 2px 8px; border-radius: 4px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        ">${loc.name}</span>`;
+      // SVG circle with number as marker icon
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+        <circle cx="14" cy="14" r="12" fill="${accentColor}" stroke="white" stroke-width="2"/>
+        <text x="14" y="18" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="sans-serif">${i + 1}</text>
+      </svg>`;
 
-      const marker = new google.maps.marker.AdvancedMarkerElement({
+      const marker = new google.maps.Marker({
         map,
         position: { lat: loc.lat, lng: loc.lng },
-        content,
+        icon: {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 14),
+        },
       });
       markersRef.current.push(marker);
+
+      // Custom overlay for the name label
+      class LabelOverlay extends google.maps.OverlayView {
+        private div: HTMLDivElement | null = null;
+        private position: google.maps.LatLng;
+        private text: string;
+        constructor(position: google.maps.LatLng, text: string) {
+          super();
+          this.position = position;
+          this.text = text;
+        }
+        onAdd() {
+          this.div = document.createElement('div');
+          this.div.style.cssText = `position:absolute;white-space:nowrap;font-size:11px;font-weight:600;color:${isDark ? '#e2e8f0' : '#1e293b'};background:${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};padding:2px 8px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none;`;
+          this.div.textContent = this.text;
+          this.getPanes()!.overlayLayer.appendChild(this.div);
+        }
+        draw() {
+          if (!this.div) return;
+          const point = this.getProjection().fromLatLngToDivPixel(this.position);
+          if (point) {
+            this.div.style.left = (point.x + 18) + 'px';
+            this.div.style.top = (point.y - 10) + 'px';
+          }
+        }
+        onRemove() {
+          this.div?.remove();
+          this.div = null;
+        }
+      }
+
+      const overlay = new LabelOverlay(new google.maps.LatLng(loc.lat, loc.lng), loc.name);
+      overlay.setMap(map);
+      overlaysRef.current.push(overlay);
     });
 
     // Draw dashed route line connecting markers in order
