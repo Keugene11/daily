@@ -384,6 +384,7 @@ function App() {
                   value={city}
                   onChange={setCity}
                   disabled={state.isStreaming}
+                  recentCities={[...new Map(savedPlans.sort((a, b) => b.timestamp - a.timestamp).map(p => [p.city.toLowerCase(), p.city])).values()]}
                 />
               </div>
               <VoiceInput

@@ -767,16 +767,16 @@ async function testStreamReaderCleanup() {
   assert(content.includes('releaseLock'), 'usePlanStream releases reader lock');
 }
 
-// ─── Test: Leaflet singleton loading ─────────────────────────────────
-async function testLeafletSingleton() {
-  console.log('\n=== Leaflet Singleton Loading ===');
+// ─── Test: Google Maps singleton loading ─────────────────────────────
+async function testGoogleMapsSingleton() {
+  console.log('\n=== Google Maps Singleton Loading ===');
 
   const fs = await import('fs');
   const content = fs.readFileSync('../frontend/src/components/PlanMap.tsx', 'utf8');
 
   // Should use singleton promise pattern
-  assert(content.includes('_leafletPromise'), 'PlanMap uses singleton promise for Leaflet');
-  assert(content.includes('if (_leafletPromise) return _leafletPromise'), 'PlanMap returns cached promise');
+  assert(content.includes('_gmapsPromise'), 'PlanMap uses singleton promise for Google Maps');
+  assert(content.includes('if (_gmapsPromise) return _gmapsPromise'), 'PlanMap returns cached promise');
 
   // Geocode cache (localStorage, 7-day TTL) — now in mapUtils.ts
   const mapUtilsForCache = (await import('fs')).readFileSync('../frontend/src/utils/mapUtils.ts', 'utf8');
@@ -914,7 +914,7 @@ async function testPlanMapRendering() {
 
   // ── 4. Map container is ALWAYS in the DOM (never display:none) ──
   assert(!planMap.includes("display: mapReady") && !planMap.includes("display: 'none'"),
-    'Map container never has display:none (Leaflet needs real dimensions)');
+    'Map container never has display:none (Google Maps needs real dimensions)');
   assert(planMap.includes("width: '100%', height: '100%'"),
     'Map container has explicit 100% width and height');
   assert(planMap.includes("height: '300px'"),
@@ -924,33 +924,32 @@ async function testPlanMapRendering() {
   assert(planMap.includes('absolute inset-0'),
     'Loading overlay uses absolute positioning over the map');
   assert(planMap.includes('z-[1000]'),
-    'Loading overlay has high z-index to cover Leaflet tiles');
+    'Loading overlay has high z-index to cover Google Maps tiles');
 
   // ── 6. City is geocoded FIRST for instant map display ──
-  assert(planMap.includes('geocodeQuery(city)'),
+  assert(planMap.includes('geocodeCity(city)'),
     'PlanMap geocodes the city name directly');
-  assert(planMap.includes("Promise.all") && planMap.includes('loadLeaflet()') && planMap.includes('geocodeQuery(city)'),
-    'Leaflet loading and city geocoding happen in parallel');
+  assert(planMap.includes("Promise.all") && planMap.includes('loadGoogleMaps()') && planMap.includes('geocodeCity(city)'),
+    'Google Maps loading and city geocoding happen in parallel');
 
-  // ── 7. Fallback center if city geocode fails ──
-  assert(planMap.includes('40.7128') && planMap.includes('-74.006'),
-    'PlanMap has NYC fallback coordinates if city geocoding fails');
+  // ── 7. Google Maps API is loaded from CDN ──
+  assert(planMap.includes('maps.googleapis.com/maps/api/js'),
+    'PlanMap loads Google Maps JS API from CDN');
+  assert(planMap.includes('libraries=marker'),
+    'PlanMap loads marker library for AdvancedMarkerElement');
 
-  // ── 8. Leaflet _leaflet_id cleanup prevents container reuse crash ──
-  assert(planMap.includes('_leaflet_id'),
-    'PlanMap cleans _leaflet_id from container to prevent "already initialized" error');
-  assert(planMap.includes('delete') && planMap.includes('_leaflet_id'),
-    'PlanMap deletes _leaflet_id attribute from container element');
-
-  // ── 9. L.map() is wrapped in try/catch with retry ──
-  assert(planMap.includes("L.map(mapContainerRef.current)"),
-    'PlanMap calls L.map on container ref');
-  // Check that there's error handling around L.map
+  // ── 8. Google Maps map creation with error handling ──
+  assert(planMap.includes('new google.maps.Map'),
+    'PlanMap creates map with google.maps.Map constructor');
   const createMapFn = planMap.slice(planMap.indexOf('const createMap'), planMap.indexOf('// Update markers'));
   assert(createMapFn.includes('try') && createMapFn.includes('catch'),
-    'createMap wraps L.map in try/catch');
-  assert(createMapFn.includes('innerHTML'),
-    'createMap has fallback to clear container innerHTML on L.map failure');
+    'createMap wraps google.maps.Map in try/catch');
+
+  // ── 9. Dark mode styles ──
+  assert(planMap.includes('DARK_MAP_STYLES'),
+    'PlanMap has dark mode map styles');
+  assert(planMap.includes("document.documentElement.classList.contains('dark')"),
+    'PlanMap checks for dark mode class');
 
   // ── 10. Entire loadAndBuildMap wrapped in try/catch ──
   assert(planMap.includes("'[PlanMap] loadAndBuildMap failed:'"),
@@ -967,17 +966,15 @@ async function testPlanMapRendering() {
   assert(mapUtilsSrc.includes('AbortController') && mapUtilsSrc.includes('5000'),
     'Geocode requests have 5s AbortController timeout');
 
-  // ── 13. CDN fallback for Leaflet ──
-  assert(planMap.includes('unpkg.com/leaflet') && planMap.includes('cdnjs.cloudflare.com'),
-    'Leaflet loads from unpkg with cdnjs fallback');
-  assert(planMap.includes('_leafletPromise = null'),
-    'Leaflet singleton resets on double CDN failure so retry is possible');
+  // ── 13. Google Maps singleton resets on failure ──
+  assert(planMap.includes('_gmapsPromise = null'),
+    'Google Maps singleton resets on load failure so retry is possible');
 
-  // ── 14. ResizeObserver for dynamic container resizing ──
-  assert(planMap.includes('ResizeObserver'),
-    'PlanMap uses ResizeObserver to handle container resize');
-  assert(planMap.includes('invalidateSize'),
-    'PlanMap calls invalidateSize on resize');
+  // ── 14. AdvancedMarkerElement for custom markers ──
+  assert(planMap.includes('AdvancedMarkerElement'),
+    'PlanMap uses AdvancedMarkerElement for custom numbered markers');
+  assert(planMap.includes('google.maps.Polyline'),
+    'PlanMap uses google.maps.Polyline for route line');
 
   // ── 15. Cancelled flag prevents stale updates ──
   assert(planMap.includes('let cancelled = false'),
@@ -1001,11 +998,11 @@ async function testPlanMapRendering() {
   assert(planMap.includes('1100'),
     'PlanMap has 1.1s delay between Nominatim requests');
 
-  // ── 19. Tile layer URLs are valid ──
-  assert(planMap.includes('basemaps.cartocdn.com') && planMap.includes('dark_all'),
-    'Dark mode uses CARTO dark tiles');
-  assert(planMap.includes('tile.openstreetmap.org'),
-    'Light mode uses OSM tiles');
+  // ── 19. Google Maps dark mode styling ──
+  assert(planMap.includes('DARK_MAP_STYLES') && planMap.includes('MapTypeStyle'),
+    'Dark mode uses custom Google Maps styles');
+  assert(planMap.includes('disableDefaultUI') && planMap.includes('zoomControl'),
+    'Map has minimal UI with zoom control only');
 
   // ── 20. Dedalus SDK has timeout ──
   const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
@@ -1176,7 +1173,7 @@ async function main() {
   await testItineraryDisplayKey();
   await testMusicPlayerCleanup();
   await testStreamReaderCleanup();
-  await testLeafletSingleton();
+  await testGoogleMapsSingleton();
   await testYouTubeService();
   await testInlineMediaIntegration();
   await testMultiDay();

@@ -19,65 +19,62 @@ interface Props {
   city: string;
 }
 
-// Ensure Leaflet CSS and JS are loaded (singleton promise prevents duplicate loads)
-let _leafletPromise: Promise<void> | null = null;
-function loadLeaflet(): Promise<void> {
-  if (_leafletPromise) return _leafletPromise;
-  _leafletPromise = new Promise((resolve) => {
-    if ((window as any).L) {
+const DARK_MAP_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#212121' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#757575' }] },
+  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#bdbdbd' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#181818' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#2c2c2c' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#373737' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3c3c3c' }] },
+  { featureType: 'road.highway.controlled_access', elementType: 'geometry', stylers: [{ color: '#4e4e4e' }] },
+  { featureType: 'road.local', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { featureType: 'transit', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#000000' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d3d3d' }] },
+];
+
+// Singleton promise to load Google Maps JS API
+let _gmapsPromise: Promise<void> | null = null;
+function loadGoogleMaps(): Promise<void> {
+  if (_gmapsPromise) return _gmapsPromise;
+  _gmapsPromise = new Promise((resolve, reject) => {
+    if (window.google?.maps?.Map) {
       resolve();
       return;
     }
 
-    // Try primary CDN, fall back to secondary
-    const CDN_PRIMARY = 'https://unpkg.com/leaflet@1.9.4/dist';
-    const CDN_FALLBACK = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4';
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+    if (existingScript) {
+      if (window.google?.maps?.Map) { resolve(); return; }
+      existingScript.addEventListener('load', () => resolve());
+      existingScript.addEventListener('error', () => {
+        _gmapsPromise = null;
+        reject(new Error('Google Maps script failed to load'));
+      });
+      return;
+    }
 
-    const cssReady = new Promise<void>((cssResolve) => {
-      if (document.querySelector('link[href*="leaflet"]')) {
-        cssResolve();
-        return;
-      }
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = `${CDN_PRIMARY}/leaflet.css`;
-      link.onload = () => cssResolve();
-      link.onerror = () => {
-        link.href = `${CDN_FALLBACK}/leaflet.min.css`;
-        link.onload = () => cssResolve();
-        link.onerror = () => cssResolve();
-      };
-      document.head.appendChild(link);
-    });
-
-    const jsReady = new Promise<void>((jsResolve) => {
-      const existingScript = document.querySelector('script[src*="leaflet"]');
-      if (existingScript) {
-        if ((window as any).L) { jsResolve(); return; }
-        existingScript.addEventListener('load', () => jsResolve());
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = `${CDN_PRIMARY}/leaflet.js`;
-      script.onload = () => jsResolve();
-      script.onerror = () => {
-        document.head.removeChild(script);
-        const fallback = document.createElement('script');
-        fallback.src = `${CDN_FALLBACK}/leaflet.min.js`;
-        fallback.onload = () => jsResolve();
-        fallback.onerror = () => {
-          console.error('[PlanMap] Failed to load Leaflet from both CDNs');
-          _leafletPromise = null; // Reset so next attempt can retry
-          jsResolve();
-        };
-        document.head.appendChild(fallback);
-      };
-      document.head.appendChild(script);
-    });
-
-    Promise.all([cssReady, jsReady]).then(() => resolve());
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      _gmapsPromise = null;
+      reject(new Error('Google Maps script failed to load'));
+    };
+    document.head.appendChild(script);
   });
-  return _leafletPromise;
+  return _gmapsPromise;
 }
 
 // Extract the first accommodation name + coordinates from the "Where to Stay" section.
@@ -120,154 +117,126 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
   const [resolvedCount, setResolvedCount] = useState(0);
   const [totalPlaces, setTotalPlaces] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const routeLineRef = useRef<any>(null);
-  const mapTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const routeLineRef = useRef<google.maps.Polyline | null>(null);
 
-  // Destroy existing map instance and clean up Leaflet's internal state
+  // Destroy existing map instance
   const destroyMap = useCallback(() => {
-    // Clear any pending invalidateSize timers from previous map
-    mapTimersRef.current.forEach(t => clearTimeout(t));
-    mapTimersRef.current = [];
-    // Disconnect ResizeObserver
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-      resizeObserverRef.current = null;
-    }
-    if (mapInstanceRef.current) {
-      try { mapInstanceRef.current.remove(); } catch { /* already removed */ }
-      mapInstanceRef.current = null;
-    }
-    // Leaflet stamps _leaflet_id on the container. If map.remove() fails,
-    // this persists and L.map() throws "Map container is already initialized."
-    // Always clean it so the container can be safely reused.
-    if (mapContainerRef.current) {
-      delete (mapContainerRef.current as any)._leaflet_id;
-    }
+    markersRef.current.forEach(m => { m.map = null; });
     markersRef.current = [];
+    if (routeLineRef.current) {
+      routeLineRef.current.setMap(null);
+      routeLineRef.current = null;
+    }
+    mapInstanceRef.current = null;
+    if (mapContainerRef.current) {
+      mapContainerRef.current.innerHTML = '';
+    }
   }, []);
 
   // Create the map on the always-present container div
-  const createMap = useCallback((center: [number, number], zoom = 13) => {
-    const L = (window as any).L;
-    if (!L || !mapContainerRef.current) return false;
+  const createMap = useCallback((center: { lat: number; lng: number }, zoom = 13) => {
+    if (!window.google?.maps?.Map || !mapContainerRef.current) return false;
 
     destroyMap();
 
-    let map: any;
-    try {
-      map = L.map(mapContainerRef.current).setView(center, zoom);
-    } catch (err) {
-      console.error('[PlanMap] L.map() failed:', err);
-      // Last resort: clear container innerHTML and _leaflet_id, retry once
-      try {
-        delete (mapContainerRef.current as any)._leaflet_id;
-        mapContainerRef.current.innerHTML = '';
-        map = L.map(mapContainerRef.current).setView(center, zoom);
-      } catch {
-        return false;
-      }
-    }
-    mapInstanceRef.current = map;
-
     const isDark = document.documentElement.classList.contains('dark');
-    L.tileLayer(
-      isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {
-        attribution: isDark
-          ? '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
-      }
-    ).addTo(map);
 
-    // Force Leaflet to recalculate container size (fixes grey/missing tiles)
-    // Store timer IDs so destroyMap can cancel them if the map is recreated
-    mapTimersRef.current = [
-      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 100),
-      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 500),
-      setTimeout(() => { mapInstanceRef.current?.invalidateSize(); }, 1500),
-    ];
-
-    // Watch for container resize — use ref so destroyMap can disconnect
-    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { mapInstanceRef.current?.invalidateSize(); });
-      ro.observe(mapContainerRef.current);
-      resizeObserverRef.current = ro;
+    try {
+      const map = new google.maps.Map(mapContainerRef.current, {
+        center,
+        zoom,
+        disableDefaultUI: true,
+        zoomControl: true,
+        styles: isDark ? DARK_MAP_STYLES : undefined,
+        mapId: 'plan-map',
+      });
+      mapInstanceRef.current = map;
+      return true;
+    } catch (err) {
+      console.error('[PlanMap] google.maps.Map() failed:', err);
+      return false;
     }
-
-    return true;
   }, [destroyMap]);
 
-  // Update markers and route line on the existing map (no destroy/recreate).
-  // Expects locs to be already in display order. Does NOT fit bounds — caller decides.
+  // Update markers and route line on the existing map
   const updateMarkers = useCallback((locs: MapLocation[]) => {
-    const L = (window as any).L;
     const map = mapInstanceRef.current;
-    if (!L || !map || locs.length === 0) return;
+    if (!map || locs.length === 0) return;
 
     // Clear old markers and route line
-    markersRef.current.forEach(m => map.removeLayer(m));
+    markersRef.current.forEach(m => { m.map = null; });
     markersRef.current = [];
     if (routeLineRef.current) {
-      map.removeLayer(routeLineRef.current);
+      routeLineRef.current.setMap(null);
       routeLineRef.current = null;
     }
 
     const isDark = document.documentElement.classList.contains('dark');
     const accentColor = isDark ? '#818CF8' : '#3B82F6';
 
-    // Add markers with permanent labels
+    // Add markers with labels
     locs.forEach((loc, i) => {
-      const icon = L.divIcon({
-        className: 'custom-marker',
-        html: `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-          <div style="
-            width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-            background: ${accentColor};
-            color: white; display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            border: 2px solid white;
-          ">${i + 1}</div>
-          <span style="
-            font-size: 11px; font-weight: 600; color: ${isDark ? '#e2e8f0' : '#1e293b'};
-            background: ${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};
-            padding: 2px 8px; border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-          ">${loc.name}</span>
-        </div>`,
-        iconSize: [0, 0],
-        iconAnchor: [13, 13],
-      });
+      const content = document.createElement('div');
+      content.style.cssText = 'display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:default;';
+      content.innerHTML = `
+        <div style="
+          width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+          background: ${accentColor};
+          color: white; display: flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          border: 2px solid white;
+        ">${i + 1}</div>
+        <span style="
+          font-size: 11px; font-weight: 600; color: ${isDark ? '#e2e8f0' : '#1e293b'};
+          background: ${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};
+          padding: 2px 8px; border-radius: 4px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        ">${loc.name}</span>`;
 
-      const marker = L.marker([loc.lat, loc.lng], { icon }).addTo(map);
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position: { lat: loc.lat, lng: loc.lng },
+        content,
+      });
       markersRef.current.push(marker);
     });
 
-    // Draw route line connecting markers in order
+    // Draw dashed route line connecting markers in order
     if (locs.length >= 2) {
-      routeLineRef.current = L.polyline(
-        locs.map(l => [l.lat, l.lng]),
-        { color: accentColor, weight: 3, opacity: 0.5, dashArray: '8, 8' }
-      ).addTo(map);
+      routeLineRef.current = new google.maps.Polyline({
+        path: locs.map(l => ({ lat: l.lat, lng: l.lng })),
+        strokeColor: accentColor,
+        strokeOpacity: 0,
+        strokeWeight: 3,
+        icons: [{
+          icon: {
+            path: 'M 0,-1 0,1',
+            strokeOpacity: 0.5,
+            strokeWeight: 3,
+            scale: 4,
+          },
+          offset: '0',
+          repeat: '16px',
+        }],
+        map,
+      });
     }
   }, []);
 
   // Fit map bounds to show all current markers
   const fitMapBounds = useCallback((locs: MapLocation[]) => {
-    const L = (window as any).L;
     const map = mapInstanceRef.current;
-    if (!L || !map || locs.length === 0) return;
+    if (!map || locs.length === 0) return;
 
     if (locs.length > 1) {
-      const bounds = L.latLngBounds(locs.map(l => [l.lat, l.lng]));
-      map.fitBounds(bounds, { padding: [40, 40] });
+      const bounds = new google.maps.LatLngBounds();
+      locs.forEach(l => bounds.extend({ lat: l.lat, lng: l.lng }));
+      map.fitBounds(bounds, 40);
     } else {
-      map.setView([locs[0].lat, locs[0].lng], 15);
+      map.setCenter({ lat: locs[0].lat, lng: locs[0].lng });
+      map.setZoom(15);
     }
   }, []);
 
@@ -284,10 +253,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         setLocations([]);
         setResolvedCount(0);
 
-        // Step 1: Load Leaflet + geocode the CITY to get a map center + country code
-        // Retry geocodeCity once if it fails (Nominatim can rate-limit or timeout)
+        // Step 1: Load Google Maps + geocode the CITY to get a map center + country code
         const [, firstTry] = await Promise.all([
-          loadLeaflet(),
+          loadGoogleMaps(),
           geocodeCity(city),
         ]);
         if (cancelled) return;
@@ -304,30 +272,20 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const cityCoords = cityResult ? { lat: cityResult.lat, lng: cityResult.lng } : null;
         const countryCode = cityResult?.countryCode;
         const country = cityResult?.country;
-        // Use the resolved city name for geocoding individual places.
-        // If the user typed "Cornell", Nominatim resolves to Cornell University
-        // and the address has city: "Ithaca". Using "Ithaca" in place queries
-        // (e.g., "Ithaca Commons, Ithaca, United States") works much better than
-        // "Ithaca Commons, Cornell, United States" which Nominatim can't resolve.
         const geocodeCity_ = cityResult?.resolvedCity || city;
 
-        // Compute effective radius from bounding box (for countries/regions this can be 1000+ km)
         const bboxRadius = cityResult?.boundingBox ? boundingBoxRadiusKm(cityResult.boundingBox) : 0;
-        // Scale radius with actual area: small towns get tight radius, countries get wide.
-        // bboxRadius * 3 gives reasonable padding; 25km minimum for tiny villages
-        // (covers nearby towns the AI might recommend).
         const effectiveRadius = bboxRadius > 0
           ? Math.max(bboxRadius * 3, 25)
           : MAX_DISTANCE_KM;
 
-        if (!(window as any).L) {
-          console.error('[PlanMap] Leaflet failed to load');
+        if (!window.google?.maps?.Map) {
+          console.error('[PlanMap] Google Maps failed to load');
           setMapError('Map library failed to load');
           setLoading(false);
           return;
         }
 
-        // If city geocode failed after retry, show error instead of permanent spinner
         if (!cityCoords) {
           console.error('[PlanMap] geocodeCity returned null for:', city);
           setMapError('Could not locate this destination');
@@ -335,8 +293,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Step 2: Create the map — use bounding box for countries, fixed zoom for cities
-        const center: [number, number] = [cityCoords.lat, cityCoords.lng];
+        // Step 2: Create the map
+        const center = { lat: cityCoords.lat, lng: cityCoords.lng };
         const zoom = bboxRadius > 200 ? 5 : bboxRadius > 50 ? 8 : 12;
         const created = createMap(center, zoom);
         if (!created) {
@@ -368,12 +326,9 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         const maxPlaces = Math.min(dayCount * 10, 25);
         const places = extractPlaces(content, city, maxPlaces);
 
-        // Extract hotel with embedded coords from Google Maps URL
         const hotel = extractFirstAccommodation(content);
         const hotelName = hotel?.name ?? null;
-        // If hotel has coords from the URL, we'll inject it directly (no Nominatim needed)
         const hotelHasCoords = hotel && hotel.lat != null && hotel.lng != null;
-        // Only add hotel to places array if it DOESN'T have coords (needs geocoding)
         if (hotelName && !hotelHasCoords && !places.includes(hotelName)) {
           places.unshift(hotelName);
         }
@@ -384,23 +339,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           return;
         }
 
-        // Helper: check if coords are within range of city/country center.
-        // If city geocode failed, reject ALL results — we can't verify they're correct.
         const isNearCity = (coords: { lat: number; lng: number }) =>
           !!cityCoords && distanceKm(cityCoords.lat, cityCoords.lng, coords.lat, coords.lng) <= effectiveRadius;
 
-        // Build an ordered results map keyed by place name (content order).
-        // Resolve coords via: geocode cache → Nominatim → embedded @lat,lng fallback.
-        // This keeps markers in the same order as the itinerary text.
         const embeddedCoords = extractPlaceCoords(content);
         const resolved = new Map<string, MapLocation>();
 
-        // If hotel has embedded coords, add it first (no geocoding needed)
         if (hotelHasCoords && hotel) {
           resolved.set(hotel.name, { name: hotel.name, lat: hotel.lat!, lng: hotel.lng! });
         }
 
-        // Check geocode cache for instant results
         const uncachedPlaces: string[] = [];
         for (const place of places) {
           const coords = getCachedGeocode(place, geocodeCity_);
@@ -413,7 +361,6 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           }
         }
 
-        // Show cached results immediately (in content order)
         const orderedSnapshot = () => {
           const ordered: MapLocation[] = [];
           if (hotelHasCoords && hotel && resolved.has(hotel.name)) {
@@ -433,10 +380,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           fitMapBounds(snap);
         }
 
-        // Geocode uncached places via Nominatim, falling back to embedded coords
         for (let i = 0; i < uncachedPlaces.length; i++) {
           if (cancelled) return;
-          // Wait 1100ms between Nominatim requests to respect rate limit (1 req/sec).
           await new Promise(r => setTimeout(r, 1100));
 
           const place = uncachedPlaces[i];
@@ -446,14 +391,12 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           if (coords && isNearCity(coords)) {
             resolved.set(place, { name: place, ...coords });
           } else {
-            // Nominatim failed — fall back to embedded @lat,lng from Google Maps URL
             const embedded = embeddedCoords.get(place);
             if (embedded && isNearCity(embedded)) {
               resolved.set(place, { name: place, ...embedded });
             }
           }
 
-          // Update map progressively (always in content order)
           const snap = orderedSnapshot();
           setLocations(snap);
           setResolvedCount(snap.length);
@@ -464,17 +407,11 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         if (cancelled) return;
 
-        // Final update — remove outliers (mis-geocoded places far from the cluster),
-        // then fit bounds so the map frames the real locations correctly.
-        // Keep content order (Morning → Afternoon → Evening → Where to Stay)
-        // so markers match the itinerary flow.
         if (allResults.length > 0) {
-          // Pull hotel out before outlier removal so it can't be stripped
           const hotelLoc = hotelName ? allResults.find(l => l.name === hotelName) : null;
           const toClean = hotelLoc ? allResults.filter(l => l.name !== hotelName) : allResults;
           const cleaned = removeOutliers(toClean);
 
-          // Re-insert hotel as first stop and add return marker at the end
           if (hotelLoc) {
             cleaned.unshift(hotelLoc);
             cleaned.push({ ...hotelLoc, name: `${hotelName} (return)` });
@@ -534,15 +471,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         })()}
       </div>
 
-      {/* Map wrapper — container is ALWAYS visible so Leaflet can measure it */}
+      {/* Map container */}
       <div className="relative border border-on-surface/10 rounded-xl overflow-hidden" style={{ height: '300px' }}>
-        {/* Actual map container — always has layout dimensions */}
         <div
           ref={mapContainerRef}
           style={{ width: '100%', height: '100%' }}
         />
 
-        {/* Loading/error overlay — sits on top until map tiles are ready */}
+        {/* Loading/error overlay */}
         {!mapReady && (
           <div className="absolute inset-0 bg-surface flex flex-col items-center justify-center gap-2 z-[1000]">
             {mapError ? (
