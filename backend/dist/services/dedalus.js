@@ -469,7 +469,7 @@ If any data section above is missing (e.g., no Weather section), simply omit tha
 Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
-3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review
+3. ## Your Hotel — ONE accommodation with price, a 2-3 sentence review, and a BOOKING LINK (booking.com for hotels, hostelworld.com for hostels — with dates pre-filled). The hotel name MUST be a clickable link to the booking page, NOT a Google Maps link.
 You MUST write all 3. Do NOT stop early.
 
 CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
