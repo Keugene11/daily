@@ -402,7 +402,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, mediaData, onAddToC
             style={{ animationDelay: `${(startIndex + index) * 50}ms`, opacity: 0 }}
           >
             {(startIndex + index) > 0 && <div className="border-t border-on-surface/[0.06] my-0" />}
-            <div className="grid grid-cols-[120px_1fr] gap-8 py-8">
+            <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[120px_1fr] gap-4 sm:gap-8 py-8">
               <div>
                 <p className="text-sm font-medium text-on-surface/90 flex items-center gap-2">
                   {slot.period}

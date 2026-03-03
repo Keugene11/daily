@@ -288,7 +288,7 @@ function App() {
     <div className="min-h-screen bg-surface text-on-surface transition-colors duration-300">
       {city.toLowerCase().includes('tokyo') && showResults && <CherryBlossoms />}
       {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-on-surface/10">
+      <nav className="flex items-center justify-between px-4 md:px-8 py-5 border-b border-on-surface/10">
         <button onClick={handleReset} className="text-lg font-semibold tracking-tight hover:opacity-70 transition-opacity cursor-pointer">daily</button>
         <div className="flex items-center gap-6 text-sm text-on-surface/50">
           <button onClick={handleReset} className="hover:text-on-surface transition-colors">home</button>
@@ -475,7 +475,7 @@ function App() {
 
       {/* Results */}
       {isHome && showResults && (
-        <div className="max-w-3xl mx-auto px-6 py-16">
+        <div className="max-w-3xl mx-auto px-4 md:px-6 py-16">
           {/* Tool calls + thinking — only visible while streaming */}
           {state.isStreaming && (
             <div className="mb-12">
@@ -593,7 +593,7 @@ function App() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-on-surface/10 mt-auto px-8 py-6 text-center flex items-center justify-center gap-4">
+      <footer className="border-t border-on-surface/10 mt-auto px-4 md:px-8 py-6 text-center flex items-center justify-center gap-4">
         <p className="text-xs text-on-surface/30">AI-powered daily planning</p>
         <a href="/privacy.html" target="_blank" rel="noopener" className="text-xs text-on-surface/30 hover:text-on-surface/50 transition-colors">Privacy Policy</a>
         <a href="/terms.html" target="_blank" rel="noopener" className="text-xs text-on-surface/30 hover:text-on-surface/50 transition-colors">Terms of Service</a>
