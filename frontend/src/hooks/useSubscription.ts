@@ -144,7 +144,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
             period: 'month',
             limits: { plans: -1 },
             usage: { plans: 0 },
-            features: ['multiDay', 'cloudSync'],
+            features: ['cloudSync'],
           });
         }
       }

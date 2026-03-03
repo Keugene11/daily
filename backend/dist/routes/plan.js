@@ -5,36 +5,17 @@ const dedalus_1 = require("../services/dedalus");
 const youtube_1 = require("../services/apis/youtube");
 const usage_1 = require("../middleware/usage");
 const router = (0, express_1.Router)();
-// Feature → required tier mapping for error messages
-const FEATURE_TIER = {
-    multiDay: 'starter',
-};
 /**
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
-    const { city, budget, currentHour, rightNow, days, timezone } = req.body;
+    const { city, budget, currentHour, rightNow, timezone } = req.body;
     // Validate input
     if (!city) {
         return res.status(400).json({ error: 'City is required' });
     }
-    if (days !== undefined) {
-        const numDays = Number(days);
-        if (!Number.isInteger(numDays) || numDays < 1 || numDays > 7) {
-            return res.status(400).json({ error: 'Days must be an integer between 1 and 7' });
-        }
-    }
-    // Feature gate checks
-    const features = req.features || new Set();
-    if (days && Number(days) > 1 && !features.has('multiDay')) {
-        return res.status(403).json({
-            error: 'feature_locked',
-            feature: 'multiDay',
-            requiredTier: FEATURE_TIER['multiDay'] || 'starter',
-        });
-    }
-    console.log(`[SSE] Starting stream for city: ${city}${days > 1 ? `, days: ${days}` : ''}`);
+    console.log(`[SSE] Starting stream for city: ${city}`);
     // Track client disconnect so we can stop the generator
     // IMPORTANT: Listen on `res` not `req` — req 'close' fires when the POST body
     // is fully consumed, which happens immediately after express.json() parses it.
@@ -54,7 +35,7 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, rightNow, days, timezone });
+        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, rightNow, timezone });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;

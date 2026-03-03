@@ -84,14 +84,13 @@ function App() {
 
   // Feature inputs
   const [rightNow, setRightNow] = useState(false);
-  const [tripDays, setTripDays] = useState(1);
 
 
   // Use the backend-resolved city for map/media (handles typos and landmark names)
   const mapCity = state.resolvedCity || city;
 
   // Media enrichment — progressively fetches images + YouTube videos as places appear in the stream
-  const { data: mediaData } = useMediaEnrichment(state.content, mapCity, tripDays > 1 ? tripDays * 5 : 12, getAccessToken);
+  const { data: mediaData } = useMediaEnrichment(state.content, mapCity, 12, getAccessToken);
 
   // Theme toggle
   useEffect(() => {
@@ -114,7 +113,6 @@ function App() {
       setCity(pending.city);
       setBudget(pending.budget || 'any');
       if (pending.rightNow) setRightNow(true);
-      setTripDays(pending.tripDays || 1);
       // Build extras from the saved params
       const extras: Record<string, any> = {};
       extras.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -122,7 +120,6 @@ function App() {
         extras.rightNow = true;
         extras.currentHour = new Date().getHours();
       }
-      if (pending.tripDays > 1) extras.days = pending.tripDays;
       // Auto-start the plan
       localStorage.setItem('daily_prefs', JSON.stringify({ city: pending.city, budget: pending.budget || 'any' }));
       startStream(pending.city, pending.budget || 'any', extras, getAccessToken);
@@ -145,7 +142,6 @@ function App() {
         content: state.content,
         date: new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         timestamp: Date.now(),
-        days: tripDays > 1 ? tripDays : undefined,
       };
       savePlan(newPlan);
       // Refresh subscription so usage count reflects the plan we just generated
@@ -167,14 +163,8 @@ function App() {
     }
     setCity(plan.city);
     setBudget(plan.budget);
-    setTripDays(plan.days || 1);
     navigate('/');
     const extras = buildExtras();
-    if (plan.days && plan.days > 1) {
-      extras.days = plan.days;
-    } else {
-      delete extras.days;
-    }
     startStream(plan.city, plan.budget, extras, getAccessToken);
   };
 
@@ -186,7 +176,6 @@ function App() {
       extras.rightNow = true;
       extras.currentHour = new Date().getHours();
     }
-    if (tripDays > 1) extras.days = tripDays;
     return extras;
   };
 
@@ -196,7 +185,7 @@ function App() {
     if (!session) {
       // Save pending plan so we can resume after OAuth redirect
       sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-        city, budget, rightNow: false, tripDays,
+        city, budget, rightNow: false,
       }));
       signInWithGoogle();
       return;
@@ -214,7 +203,6 @@ function App() {
     setCity('');
     setBudget('any');
     setRightNow(false);
-    setTripDays(1);
     navigate('/');
   };
 
@@ -418,34 +406,6 @@ function App() {
               </div>
             </div>
 
-            {/* Trip Length */}
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-on-surface/40 mb-3">
-                Trip Length
-              </label>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3].map(d => (
-                  <button
-                    key={d}
-                    onClick={() => {
-                      setTripDays(d);
-                      if (d > 1) { setRightNow(false); }
-                    }}
-                    disabled={state.isStreaming}
-                    className={`w-10 h-10 rounded-full text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-                      tripDays === d
-                        ? 'bg-accent text-on-accent'
-                        : 'border border-on-surface/20 text-on-surface/60 hover:border-on-surface/40'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-                <span className="text-xs text-on-surface/30 ml-1">
-                  {tripDays === 1 ? 'day' : 'days'}
-                </span>
-              </div>
-            </div>
 
             {/* Action buttons */}
             {subscription.isLimitReached('plan') ? (
@@ -474,8 +434,6 @@ function App() {
                         </svg>
                         Planning...
                       </span>
-                    ) : tripDays > 1 ? (
-                      `Plan My ${tripDays}-Day Trip`
                     ) : (
                       'Plan My Day'
                     )}
@@ -488,7 +446,7 @@ function App() {
                     if (!city.trim()) return;
                     if (!session) {
                       sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-                        city, budget, rightNow: true, tripDays: 1,
+                        city, budget, rightNow: true,
                       }));
                       signInWithGoogle();
                       return;
@@ -498,11 +456,10 @@ function App() {
                       return;
                     }
                     setRightNow(true);
-                    setTripDays(1);
                     savePrefs();
                     startStream(city, budget, { ...buildExtras(), rightNow: true }, getAccessToken);
                   }}
-                  disabled={state.isStreaming || !city.trim() || tripDays > 1}
+                  disabled={state.isStreaming || !city.trim()}
                   className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -589,7 +546,6 @@ function App() {
             <ItineraryDisplay
               content={state.content}
               city={city}
-              days={tripDays}
               mediaData={mediaData}
               onAddToCalendar={session ? handleAddToCalendar : undefined}
               calendarLoading={calendarLoading}

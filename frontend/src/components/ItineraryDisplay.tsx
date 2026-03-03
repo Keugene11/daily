@@ -4,7 +4,6 @@ import type { PlaceMediaData } from '../hooks/useMediaEnrichment';
 interface Props {
   content: string;
   city?: string;
-  days?: number;
   mediaData?: Map<string, PlaceMediaData>;
   onAddToCalendar?: () => void;
   calendarLoading?: boolean;

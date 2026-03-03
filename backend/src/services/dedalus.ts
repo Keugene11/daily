@@ -80,7 +80,7 @@ function getClient(): Dedalus {
 }
 
 function buildSystemPrompt(request: PlanRequest): string {
-  const { budget, currentHour, timezone, rightNow, days } = request;
+  const { budget, currentHour, timezone, rightNow } = request;
 
   // Helper to get time in the user's timezone
   const userNow = (tz?: string) => {
@@ -107,34 +107,10 @@ function buildSystemPrompt(request: PlanRequest): string {
     }
   }
 
-  // Multi-day vacation
-  if (days && days > 1) {
-    const start = new Date();
-    const dayLabels: string[] = [];
-    for (let i = 0; i < days; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-      dayLabels.push(`Day ${i + 1} - ${label}`);
-    }
-    extras.push(
-      `- MULTI-DAY VACATION MODE (${days} days): Plan a cohesive ${days}-day trip.\n` +
-      `  - Use these EXACT day headers as H1 headings: ${dayLabels.join(', ')}\n` +
-      `  - Each day should have a distinct theme and character:\n` +
-      `    - Day 1: Arrival day — settle in, explore the immediate neighborhood, ease into the city\n` +
-      `    - Middle days: Deep exploration — different neighborhoods, major attractions, local experiences\n` +
-      `    - Final day: Departure day — lighter schedule, revisit favorites, last-minute shopping, relaxed brunch\n` +
-      `  - NEVER repeat the same restaurant, bar, or attraction across days\n` +
-      `  - Spread neighborhoods logically — don't bounce across the city unnecessarily\n` +
-      `  - Reference previous days for continuity ("After yesterday's street food marathon, today is all about fine dining...")\n` +
-      `  - Your Hotel appears ONCE at the end, not per-day`
-    );
-  }
-
   // Compute check-in / check-out dates for booking links
   const checkinDate = localNow;
   const checkoutDate = new Date(checkinDate);
-  checkoutDate.setDate(checkoutDate.getDate() + (days && days > 1 ? days : 1));
+  checkoutDate.setDate(checkoutDate.getDate() + 1);
   const fmtDate = (d: Date) => d.toISOString().split('T')[0]; // YYYY-MM-DD
   const checkin = fmtDate(checkinDate);
   const checkout = fmtDate(checkoutDate);
@@ -175,24 +151,6 @@ function buildSystemPrompt(request: PlanRequest): string {
 ## Quick Bite
 [One fast, nearby food recommendation that's open right now — could be a restaurant, food truck, café, or street food. Include specific dish to order.]`;
     extras.push(`- **RIGHT NOW MODE**: The user wants to know what they can do IMMEDIATELY — in the next 2 hours. Do NOT plan a full day. Be ultra-specific about timing: "open right now until 8 PM", "starts in 45 minutes", "happy hour ends at 7 PM". Only suggest places that are OPEN and things that are HAPPENING right now or very soon. Keep it short and actionable — this is not a full itinerary, it's a quick "here's what to do right now" guide.`);
-  }
-
-  // Multi-day vacation: override timeSections with day-level structure
-  if (days && days > 1) {
-    const start = localNow;
-    const dayBlocks: string[] = [];
-    for (let i = 0; i < days; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-      dayBlocks.push(
-        `# Day ${i + 1} - ${label}\n` +
-        `## Morning (8am - 12pm)\n[...]\n\n` +
-        `## Afternoon (12pm - 6pm)\n[...]\n\n` +
-        `## Evening (6pm - 11pm)\n[...]`
-      );
-    }
-    timeSections = dayBlocks.join('\n\n');
   }
 
   const dateOpts: Intl.DateTimeFormatOptions = { weekday: 'long' };
@@ -282,7 +240,7 @@ Writing style:
   {"title":"San Telmo Market","start":"10:30","end":"12:00","location":"Defensa St, San Telmo, Buenos Aires","description":"Sunday antique market with live tango"}
 ]
 -->
-Include EVERY venue/stop from the itinerary. Use 24-hour time format. Estimate realistic start/end times based on the time section and logical flow. The "location" should be the street address or neighborhood + city. The "description" should be one short line. For multi-day plans, add a "day" field (1, 2, 3...) to each event.${extrasBlock}`;
+Include EVERY venue/stop from the itinerary. Use 24-hour time format. Estimate realistic start/end times based on the time section and logical flow. The "location" should be the street address or neighborhood + city. The "description" should be one short line.${extrasBlock}`;
 }
 
 /**
@@ -304,7 +262,7 @@ function getCoreToolCalls(request: PlanRequest, city: string): { name: string; a
     ];
   }
 
-  // Regular single-day or multi-day: all 9 core tools
+  // Regular single-day: all 9 core tools
   return [
     { name: 'get_weather', args: { city } },
     { name: 'get_local_events', args: { city } },
@@ -346,8 +304,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   const toolCity = resolvedCity;
   yield { type: 'city_resolved', content: resolvedCity };
 
-  const isMultiDay = request.days && request.days > 1;
-  yield { type: 'thinking_chunk', thinking: isMultiDay ? `Planning your ${request.days}-day adventure in ${request.city}...` : `Planning your perfect day in ${request.city}...` };
+  yield { type: 'thinking_chunk', thinking: `Planning your perfect day in ${request.city}...` };
 
   // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
   const coreTools = getCoreToolCalls(request, toolCity);
@@ -405,9 +362,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
   // Build the user message with all tool data embedded
   const userParts: string[] = [
-    isMultiDay
-      ? `I'm planning a ${request.days}-day vacation in ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}.`
-      : `I'm visiting ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}. Plan my day there.`
+    `I'm visiting ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}. Plan my day there.`
   ];
   if (request.budget && request.budget !== 'any') userParts.push(`Budget: ${request.budget}`);
 
@@ -499,7 +454,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
   try {
     // Single LLM call — stream the itinerary directly
     let contentReceived = false;
-    let tokenBudget = isMultiDay ? Math.min(request.days! * 5000, 16000) : 16000;
+    let tokenBudget = 16000;
     if (timeRemaining() < 25_000) {
       tokenBudget = Math.min(tokenBudget, 12000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);

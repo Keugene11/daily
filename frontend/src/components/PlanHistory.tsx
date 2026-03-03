@@ -7,7 +7,6 @@ export interface SavedPlan {
   content: string;
   date: string;
   timestamp: number;
-  days?: number;
 }
 
 interface Props {
@@ -68,9 +67,6 @@ export const PlanHistory: React.FC<Props> = ({ plans, onSelect, onDelete, onClos
                   <div>
                     <h3 className="font-medium text-lg">
                       {plan.city}
-                      {plan.days && plan.days > 1 && (
-                        <span className="text-xs text-on-surface/35 font-normal ml-2">{plan.days}-day trip</span>
-                      )}
                     </h3>
                     <p className="text-xs text-on-surface/35">{plan.date}</p>
                   </div>

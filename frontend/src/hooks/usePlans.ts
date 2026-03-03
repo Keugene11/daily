@@ -11,7 +11,6 @@ interface PlanRow {
   content: string;
   date: string;
   timestamp: number;
-  days: number | null;
   created_at: string;
 }
 
@@ -61,7 +60,6 @@ export function usePlans(user: User | null) {
             content: plan.content,
             date: plan.date,
             timestamp: plan.timestamp,
-            days: plan.days ?? null,
           }));
           await supabase!.from('plans').upsert(inserts, { onConflict: 'id', ignoreDuplicates: true });
           localStorage.setItem(migrationKey, 'true');
@@ -85,7 +83,6 @@ export function usePlans(user: User | null) {
             content: row.content,
             date: row.date,
             timestamp: row.timestamp,
-            days: row.days ?? undefined,
           }));
           setPlans(remotePlans);
           setLocalPlans(remotePlans);
@@ -120,7 +117,6 @@ export function usePlans(user: User | null) {
           content: plan.content,
           date: plan.date,
           timestamp: plan.timestamp,
-          days: plan.days ?? null,
         });
         if (error) console.error('Failed to save plan:', error.message);
       } catch (err) {

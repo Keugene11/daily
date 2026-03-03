@@ -8,7 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const ALL_FEATURES = ['multiDay', 'cloudSync', 'recurring', 'antiRoutine', 'dateNight', 'dietary', 'accessible', 'mood', 'energy'];
+const ALL_FEATURES = ['cloudSync'];
 
 const FREE_PLAN_LIMIT = 3; // plans per month
 

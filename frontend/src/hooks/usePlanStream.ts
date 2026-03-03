@@ -19,7 +19,6 @@ export const usePlanStream = () => {
   const startStream = useCallback(async (city: string, budget?: string, extras?: {
     currentHour?: number;
     rightNow?: boolean;
-    days?: number;
     timezone?: string;
   }, getAccessToken?: () => Promise<string | null>) => {
     // Abort any in-flight stream

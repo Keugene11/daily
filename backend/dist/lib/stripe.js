@@ -11,12 +11,12 @@ exports.TIERS = {
     free: {
         planLimit: 3,
         period: 'month',
-        features: new Set(['multiDay', 'cloudSync']),
+        features: new Set(['cloudSync']),
     },
     pro: {
         planLimit: Infinity,
         period: 'month',
-        features: new Set(['multiDay', 'cloudSync']),
+        features: new Set(['cloudSync']),
     },
 };
 // Map Stripe Price IDs to tier names — both monthly and yearly map to 'pro'
