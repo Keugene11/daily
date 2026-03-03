@@ -271,7 +271,7 @@ async function* streamPlanGeneration(request) {
     console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, rightNow=${!!request.rightNow})`);
     // Track elapsed time to gracefully stop before Vercel's 60s hard limit
     const startTime = Date.now();
-    const DEADLINE_MS = 58_000;
+    const DEADLINE_MS = 85_000;
     const elapsed = () => Date.now() - startTime;
     const timeRemaining = () => DEADLINE_MS - elapsed();
     if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
@@ -346,13 +346,13 @@ async function* streamPlanGeneration(request) {
     const dataSections = [];
     // Cap array results to limit input tokens — the model only needs a handful of options
     const MAX_ITEMS = {
-        'get_restaurant_recommendations': 8,
-        'get_attractions': 8,
-        'get_accommodations': 4,
-        'get_happy_hours': 4,
-        'get_local_events': 4,
-        'get_free_stuff': 4,
-        'get_deals_coupons': 4,
+        'get_restaurant_recommendations': 6,
+        'get_attractions': 6,
+        'get_accommodations': 3,
+        'get_happy_hours': 3,
+        'get_local_events': 3,
+        'get_free_stuff': 3,
+        'get_deals_coupons': 3,
     };
     for (const tr of toolResults) {
         if (!tr.result?.success)
@@ -416,9 +416,9 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
     try {
         // Single LLM call — stream the itinerary directly
         let contentReceived = false;
-        let tokenBudget = 16000;
+        let tokenBudget = 8000;
         if (timeRemaining() < 25_000) {
-            tokenBudget = Math.min(tokenBudget, 12000);
+            tokenBudget = Math.min(tokenBudget, 6000);
             console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
         }
         const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;

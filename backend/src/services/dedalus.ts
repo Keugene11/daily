@@ -287,7 +287,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
   // Track elapsed time to gracefully stop before Vercel's 60s hard limit
   const startTime = Date.now();
-  const DEADLINE_MS = 58_000;
+  const DEADLINE_MS = 85_000;
   const elapsed = () => Date.now() - startTime;
   const timeRemaining = () => DEADLINE_MS - elapsed();
 
@@ -380,13 +380,13 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   const dataSections: string[] = [];
   // Cap array results to limit input tokens — the model only needs a handful of options
   const MAX_ITEMS: Record<string, number> = {
-    'get_restaurant_recommendations': 8,
-    'get_attractions': 8,
-    'get_accommodations': 4,
-    'get_happy_hours': 4,
-    'get_local_events': 4,
-    'get_free_stuff': 4,
-    'get_deals_coupons': 4,
+    'get_restaurant_recommendations': 6,
+    'get_attractions': 6,
+    'get_accommodations': 3,
+    'get_happy_hours': 3,
+    'get_local_events': 3,
+    'get_free_stuff': 3,
+    'get_deals_coupons': 3,
   };
   for (const tr of toolResults) {
     if (!tr.result?.success) continue;
@@ -452,9 +452,9 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
   try {
     // Single LLM call — stream the itinerary directly
     let contentReceived = false;
-    let tokenBudget = 16000;
+    let tokenBudget = 8000;
     if (timeRemaining() < 25_000) {
-      tokenBudget = Math.min(tokenBudget, 12000);
+      tokenBudget = Math.min(tokenBudget, 6000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 
