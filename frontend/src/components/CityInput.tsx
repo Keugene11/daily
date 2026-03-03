@@ -44,12 +44,12 @@ export const CityInput: React.FC<Props> = ({ value, onChange, disabled, recentCi
         className="w-full bg-transparent border-b border-on-surface/20 pb-3 text-lg text-on-surface placeholder-on-surface/20 focus:outline-none focus:border-on-surface/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       />
       {showDropdown && filtered.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-surface border border-on-surface/10 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-surface border border-on-surface/10 rounded-md shadow-md overflow-hidden">
           {filtered.map((city) => (
             <button
               key={city}
               type="button"
-              className="w-full text-left px-4 py-2.5 text-sm text-on-surface/70 hover:bg-on-surface/[0.05] transition-colors cursor-pointer"
+              className="w-full text-left px-3 py-1.5 text-xs text-on-surface/60 hover:bg-on-surface/[0.05] transition-colors cursor-pointer"
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange(city);
