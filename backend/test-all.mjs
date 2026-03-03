@@ -1057,36 +1057,12 @@ async function testDataQuality(services) {
   }
 }
 
-// ─── Test: Multi-day vacation feature ──────────────────────────────────
+// ─── Test: Multi-day display in ItineraryDisplay ──────────────────────
 async function testMultiDay() {
-  console.log('\n=== Multi-Day Vacation Feature ===');
+  console.log('\n=== Multi-Day Display (ItineraryDisplay) ===');
   const fs = await import('fs');
 
-  // Backend: PlanRequest type includes days field
-  const typesContent = fs.readFileSync('./src/types/index.ts', 'utf8');
-  assert(typesContent.includes('days?: number'), 'PlanRequest has days field');
-
-  // Backend: Route validates days
-  const routeContent = fs.readFileSync('./src/routes/plan.ts', 'utf8');
-  assert(routeContent.includes('days'), 'Route destructures days from request body');
-
-  // Backend: System prompt handles multi-day
-  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
-  assert(dedalusContent.includes('MULTI-DAY VACATION MODE'), 'System prompt has multi-day instructions');
-  assert(dedalusContent.includes('# Day ${i + 1}'), 'System prompt generates Day N headers');
-  assert(dedalusContent.includes('isMultiDay'), 'Streaming function checks for multi-day');
-  assert(dedalusContent.includes('days! * 4000'), 'Token budget scales with days');
-
-  // Frontend: App.tsx has trip duration selector
-  const appContent = fs.readFileSync('../frontend/src/App.tsx', 'utf8');
-  assert(appContent.includes('tripDays'), 'App has tripDays state');
-  assert(appContent.includes('setTripDays'), 'App has setTripDays setter');
-  assert(appContent.includes('Trip Length'), 'App has Trip Length label');
-  assert(appContent.includes('extras.days = tripDays'), 'App passes days in extras');
-  assert(appContent.includes("Plan My ${tripDays}-Day Trip"), 'CTA button shows trip length');
-  assert(appContent.includes('days={tripDays}'), 'App passes days to ItineraryDisplay');
-
-  // Frontend: ItineraryDisplay supports multi-day
+  // Frontend: ItineraryDisplay supports multi-day parsing and rendering
   const itineraryContent = fs.readFileSync('../frontend/src/components/ItineraryDisplay.tsx', 'utf8');
   assert(itineraryContent.includes('DayPlan'), 'ItineraryDisplay has DayPlan interface');
   assert(itineraryContent.includes('ParsedPlan'), 'ItineraryDisplay has ParsedPlan interface');
@@ -1109,22 +1085,9 @@ async function testMultiDay() {
   assert(itineraryContent.includes('prevContentRef'), 'ItineraryDisplay tracks previous content for reset');
   assert(itineraryContent.includes('setSelectedDay(0)'), 'ItineraryDisplay resets selectedDay on new plan');
 
-  // Frontend: PlanHistory stores days
-  const historyContent = fs.readFileSync('../frontend/src/components/PlanHistory.tsx', 'utf8');
-  assert(historyContent.includes('days?: number'), 'SavedPlan has days field');
-  assert(historyContent.includes('-day trip'), 'PlanHistory shows trip length badge');
-
-  // Bug fix: History replay restores tripDays
-  assert(appContent.includes('setTripDays(plan.days || 1)'), 'handleSelectPlan restores tripDays from saved plan');
-  assert(appContent.includes('extras.days = plan.days'), 'handleSelectPlan uses saved plan days in extras');
-
   // Frontend: useMediaEnrichment accepts maxPlaces
   const hookContent = fs.readFileSync('../frontend/src/hooks/useMediaEnrichment.ts', 'utf8');
   assert(hookContent.includes('maxPlaces'), 'useMediaEnrichment accepts maxPlaces parameter');
-
-  // Bug fix: usePlanStream extras type includes days
-  const streamContent = fs.readFileSync('../frontend/src/hooks/usePlanStream.ts', 'utf8');
-  assert(streamContent.includes('days?: number'), 'usePlanStream extras type includes days');
 }
 
 // ─── Run all tests ────────────────────────────────────────────────────

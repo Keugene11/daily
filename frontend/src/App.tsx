@@ -85,7 +85,6 @@ function App() {
   // Feature inputs
   const [rightNow, setRightNow] = useState(false);
 
-
   // Use the backend-resolved city for map/media (handles typos and landmark names)
   const mapCity = state.resolvedCity || city;
 
@@ -152,10 +151,6 @@ function App() {
     }
   }, [state.isStreaming, state.content, city, budget, savePlan]);
 
-  const handleDeletePlan = (id: string) => {
-    deletePlan(id);
-  };
-
   const handleSelectPlan = (plan: SavedPlan) => {
     if (subscription.isLimitReached('plan')) {
       setShowPricing(true);
@@ -178,7 +173,6 @@ function App() {
     }
     return extras;
   };
-
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
@@ -279,7 +273,6 @@ function App() {
   // Extract tool results for standalone cards
   const weatherData = state.toolResults['get_weather']?.data || null;
 
-
   const showResults = state.content || state.error || Object.keys(state.toolResults).length > 0 || state.thinking.length > 0;
 
   // Auth loading — show spinner while session is being restored
@@ -334,7 +327,7 @@ function App() {
         <PlanHistory
           plans={savedPlans}
           onSelect={handleSelectPlan}
-          onDelete={handleDeletePlan}
+          onDelete={deletePlan}
           onClose={() => navigate('/')}
         />
       } />
@@ -405,7 +398,6 @@ function App() {
                 ))}
               </div>
             </div>
-
 
             {/* Action buttons */}
             {subscription.isLimitReached('plan') ? (

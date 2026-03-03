@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkUsage = checkUsage;
 const supabase_admin_1 = require("../lib/supabase-admin");
 const stripe_1 = require("../lib/stripe");
-function checkUsage(counter) {
+function checkUsage(_counter) {
     return async (req, res, next) => {
         const tier = req.tier || 'free';
         const tierConfig = stripe_1.TIERS[tier];

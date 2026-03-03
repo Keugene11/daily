@@ -217,7 +217,6 @@ export const eventsService = {
       return 0;
     });
 
-    const citySlug = city.toLowerCase().replace(/\s+/g, '-');
     return {
       success: true,
       data: {

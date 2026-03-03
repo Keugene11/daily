@@ -16,7 +16,6 @@ import { dealsService } from './apis/deals';
 import { accommodationService } from './apis/accommodations';
 import { attractionService } from './apis/attractions';
 
-
 /**
  * Tool definitions in OpenAI-compatible format
  * These will be passed to the Dedalus SDK
@@ -353,8 +352,6 @@ export const executeToolCall = async (
   args: Record<string, any>,
   context?: { rightNow?: boolean; currentHour?: number }
 ): Promise<ToolResult> => {
-  console.log(`[Tool Execution] ${toolName} with args:`, JSON.stringify(args));
-
   try {
     switch (toolName) {
       case 'get_weather':

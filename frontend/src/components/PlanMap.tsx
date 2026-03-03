@@ -293,7 +293,6 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
 
         let cityResult = firstTry;
         if (!cityResult) {
-          console.warn('[PlanMap] geocodeCity failed, retrying in 2s...');
           await new Promise(r => setTimeout(r, 2000));
           if (cancelled) return;
           cityResult = await geocodeCity(city);

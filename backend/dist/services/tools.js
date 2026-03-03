@@ -330,7 +330,6 @@ exports.tools = [
  * All tools follow the same error handling pattern
  */
 const executeToolCall = async (toolName, args, context) => {
-    console.log(`[Tool Execution] ${toolName} with args:`, JSON.stringify(args));
     try {
         switch (toolName) {
             case 'get_weather':

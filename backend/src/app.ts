@@ -6,7 +6,6 @@ import webhookRouter from './routes/webhooks';
 import { requireAuth } from './middleware/auth';
 import { checkSubscription } from './middleware/subscription';
 
-
 const app = express();
 
 // Middleware
@@ -29,7 +28,6 @@ app.get('/health', (_req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     dedalusConfigured: !!(process.env.DEDALUS_API_KEY && process.env.DEDALUS_API_KEY !== 'your_dedalus_api_key_here'),
-    newsApiConfigured: !!(process.env.NEWS_API_KEY && process.env.NEWS_API_KEY !== 'your_newsapi_key_here'),
   });
 });
 

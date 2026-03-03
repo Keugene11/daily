@@ -183,7 +183,6 @@ function RichText({ text }: { text: string }) {
   return <>{renderInline(text)}</>;
 }
 
-
 function FormattedContent({ text }: { text: string }) {
   const lines = text.split('\n');
   return (
@@ -224,10 +223,9 @@ function ContentWithMedia({ text, places, mediaData }: {
       <div className="mt-5 flex flex-col gap-5">
         {mediaItems.map(place => {
           const media = mediaData.get(place)!;
-          const isVideo = !!media.videoId;
           const isPlaying = playingVideo === place;
 
-          if (isVideo && isPlaying) {
+          if (isPlaying) {
             return (
               <div key={place} className="rounded-xl overflow-hidden animate-fadeIn">
                 <div className="relative aspect-video bg-black">
@@ -243,37 +241,34 @@ function ContentWithMedia({ text, places, mediaData }: {
             );
           }
 
-          if (isVideo) {
-            return (
-              <button
-                key={place}
-                onClick={() => setPlayingVideo(place)}
-                className="relative w-full aspect-video bg-black cursor-pointer group block rounded-xl overflow-hidden"
-              >
-                <img
-                  src={`https://img.youtube.com/vi/${media.videoId}/maxresdefault.jpg`}
-                  alt={place}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    // maxresdefault 404s on some videos — fall back to hqdefault
-                    const img = e.currentTarget;
-                    if (!img.src.includes('hqdefault')) {
-                      img.src = `https://img.youtube.com/vi/${media.videoId}/hqdefault.jpg`;
-                    }
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-11 bg-red-600 rounded-xl flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
-                    <svg className="w-6 h-6 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
+          return (
+            <button
+              key={place}
+              onClick={() => setPlayingVideo(place)}
+              className="relative w-full aspect-video bg-black cursor-pointer group block rounded-xl overflow-hidden"
+            >
+              <img
+                src={`https://img.youtube.com/vi/${media.videoId}/maxresdefault.jpg`}
+                alt={place}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  // maxresdefault 404s on some videos — fall back to hqdefault
+                  const img = e.currentTarget;
+                  if (!img.src.includes('hqdefault')) {
+                    img.src = `https://img.youtube.com/vi/${media.videoId}/hqdefault.jpg`;
+                  }
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-11 bg-red-600 rounded-xl flex items-center justify-center opacity-90 group-hover:opacity-100 group-hover:bg-red-500 transition-all">
+                  <svg className="w-6 h-6 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
                 </div>
-              </button>
-            );
-          }
-
+              </div>
+            </button>
+          );
         })}
       </div>
     </div>

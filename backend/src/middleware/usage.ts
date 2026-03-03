@@ -5,7 +5,7 @@ import { TIERS } from '../lib/stripe';
 
 type CounterField = 'plan';
 
-export function checkUsage(counter: CounterField) {
+export function checkUsage(_counter: CounterField) {
   return async (req: SubscriptionRequest, res: Response, next: NextFunction) => {
     const tier = req.tier || 'free';
     const tierConfig = TIERS[tier];

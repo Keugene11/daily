@@ -84,10 +84,7 @@ export const usePlanStream = () => {
         while (true) {
           const { done, value } = await reader.read();
 
-          if (done) {
-            console.log('[SSE] Stream ended by server');
-            break;
-          }
+          if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -167,8 +164,6 @@ export const usePlanStream = () => {
 };
 
 function handleEvent(event: StreamEvent, setState: React.Dispatch<React.SetStateAction<PlanState>>) {
-  console.log('[SSE Event]', event.type, event);
-
   switch (event.type) {
     case 'connected':
       setState(prev => ({ ...prev, connected: true }));

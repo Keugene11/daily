@@ -47,7 +47,6 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
                 console.error('[SSE] Write failed:', writeErr);
                 break;
             }
-            console.log(`[SSE] Event sent:`, event.type);
             if (event.type === 'error' || event.type === 'done') {
                 break;
             }

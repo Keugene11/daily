@@ -268,7 +268,7 @@ function getCoreToolCalls(request, city) {
  * 3. Stream itinerary with tool data embedded in user message (single LLM call)
  */
 async function* streamPlanGeneration(request) {
-    console.log('[Dedalus] Starting stream for:', request);
+    console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, rightNow=${!!request.rightNow})`);
     // Track elapsed time to gracefully stop before Vercel's 60s hard limit
     const startTime = Date.now();
     const DEADLINE_MS = 58_000;
@@ -283,11 +283,10 @@ async function* streamPlanGeneration(request) {
     if (resolvedCity !== request.city) {
         console.log(`[Dedalus] Resolved city: "${request.city}" → "${resolvedCity}"`);
     }
-    const toolCity = resolvedCity;
     yield { type: 'city_resolved', content: resolvedCity };
     yield { type: 'thinking_chunk', thinking: `Planning your perfect day in ${request.city}...` };
     // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
-    const coreTools = getCoreToolCalls(request, toolCity);
+    const coreTools = getCoreToolCalls(request, resolvedCity);
     console.log(`[Dedalus] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
     for (const tc of coreTools) {
         yield { type: 'tool_call_start', tool: tc.name, args: tc.args };
@@ -296,7 +295,6 @@ async function* streamPlanGeneration(request) {
     console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
     const toolTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('tool_timeout')), toolDeadline));
     const toolSettled = await Promise.allSettled(coreTools.map(async (tc) => {
-        console.log(`[Dedalus] Executing tool: ${tc.name}`, tc.args);
         const result = await Promise.race([
             (0, tools_1.executeToolCall)(tc.name, tc.args, { rightNow: request.rightNow, currentHour: request.currentHour }),
             toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))

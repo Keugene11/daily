@@ -24,7 +24,7 @@
   "rewrites": [
     { "source": "/api/checkout", "destination": "/api/checkout" },
     { "source": "/api/portal", "destination": "/api/portal" },
-{ "source": "/api/subscription", "destination": "/api/subscription" },
+    { "source": "/api/subscription", "destination": "/api/subscription" },
     { "source": "/api/sync-subscription", "destination": "/api/sync-subscription" },
     { "source": "/api/delete-account", "destination": "/api/delete-account" },
     { "source": "/api/webhooks/stripe", "destination": "/api/webhooks/stripe" },

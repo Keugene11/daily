@@ -6,7 +6,6 @@ import { checkUsage } from '../middleware/usage';
 
 const router = Router();
 
-
 /**
  * POST /api/plan
  * Server-Sent Events endpoint for streaming plan generation
@@ -55,8 +54,6 @@ router.post('/plan', checkUsage('plan'), async (req: SubscriptionRequest, res: R
         console.error('[SSE] Write failed:', writeErr);
         break;
       }
-
-      console.log(`[SSE] Event sent:`, event.type);
 
       if (event.type === 'error' || event.type === 'done') {
         break;

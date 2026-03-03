@@ -39,26 +39,6 @@ export interface EventItem {
   daySpecific?: string;
 }
 
-export interface MeetupItem {
-  name: string;
-  date: string;
-  location: string;
-  description: string;
-  category: string;
-  url?: string;
-  isFree?: boolean;
-  price?: string;
-  topics?: string[];
-  daySpecific?: string;
-}
-
-export interface Activity {
-  activity: string;
-  type: string;
-  participants: number;
-  accessibility: string;
-}
-
 export interface StreamEvent {
   type: 'tool_call_start' | 'tool_call_result' | 'content_chunk' | 'thinking_chunk' | 'city_resolved' | 'done' | 'error';
   tool?: string;

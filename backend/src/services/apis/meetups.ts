@@ -1,5 +1,19 @@
-import { ToolResult, MeetupItem } from '../../types';
+import { ToolResult } from '../../types';
 import { resolveLocation } from './location_aliases';
+
+interface MeetupItem {
+  name: string;
+  date: string;
+  location: string;
+  description: string;
+  category: string;
+  url?: string;
+  link?: string;
+  isFree?: boolean;
+  price?: string;
+  topics?: string[];
+  daySpecific?: string;
+}
 
 interface TechEvent {
   name: string;

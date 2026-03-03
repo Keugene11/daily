@@ -37,10 +37,7 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
   const syncSubscription = useCallback(async (): Promise<string | null> => {
     try {
       const token = await getAccessToken();
-      if (!token) {
-        console.warn('[Subscription] No token for sync');
-        return null;
-      }
+      if (!token) return null;
 
       let res = await fetch(`${API_URL}/api/sync-subscription`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -49,7 +46,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       // Retry once with a fresh token if auth failed
       if (res.status === 401) {
-        console.warn('[Subscription] Sync got 401, refreshing token...');
         const retryToken = await getAccessToken();
         if (retryToken && retryToken !== token) {
           res = await fetch(`${API_URL}/api/sync-subscription`, {
@@ -61,7 +57,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       if (res.ok) {
         const result = await res.json();
-        console.log('[Subscription] Sync result:', result);
         return result.tier || null;
       } else {
         const text = await res.text();
@@ -78,7 +73,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
     try {
       const token = await getAccessToken();
       if (!token) {
-        console.warn('[Subscription] No token, skipping fetch');
         setData(null);
         setLoading(false);
         return;
@@ -92,7 +86,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       // the original token could be closer to expiry now
       const freshToken = await getAccessToken();
       if (!freshToken) {
-        console.warn('[Subscription] Token expired during sync');
         setData(null);
         setLoading(false);
         return;
@@ -105,7 +98,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       // If auth failed (401), force a session refresh and retry once
       if (res.status === 401) {
-        console.warn('[Subscription] Got 401, refreshing session and retrying...');
         const retryToken = await getAccessToken();
         if (retryToken) {
           res = await fetch(`${API_URL}/api/subscription`, {
@@ -117,13 +109,11 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
 
       if (res.ok) {
         const result = await res.json();
-        console.log('[Subscription] API response:', result);
 
         // Fallback: if sync found pro but subscription endpoint says free,
         // trust sync — it checks Stripe directly while the subscription
         // endpoint might have stale DB data or a bug
         if (syncTier === 'pro' && result.tier === 'free') {
-          console.warn('[Subscription] Sync says pro but API says free — overriding to pro');
           result.tier = 'pro';
           result.limits = { plans: -1 };
           result.usage = { plans: 0 };
@@ -137,7 +127,6 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
         // If the subscription endpoint failed but sync found pro,
         // construct a minimal pro response so the user isn't stuck on "Free"
         if (syncTier === 'pro') {
-          console.warn('[Subscription] Using sync tier as fallback');
           setData({
             tier: 'pro',
             interval: null,
@@ -205,15 +194,15 @@ export function useSubscription(getAccessToken: () => Promise<string | null>): U
       });
 
       const text = await res.text();
-      let data: any;
-      try { data = JSON.parse(text); } catch { data = { error: text }; }
+      let parsed: any;
+      try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
 
       if (!res.ok) {
-        console.error('[Checkout] Error:', res.status, data);
-        alert(`Checkout failed (${res.status}): ${data.error || text}`);
+        console.error('[Checkout] Error:', res.status, parsed);
+        alert(`Checkout failed (${res.status}): ${parsed.error || text}`);
         return;
       }
-      if (data.url) window.location.href = data.url;
+      if (parsed.url) window.location.href = parsed.url;
     } catch (err: any) {
       console.error('[Checkout] Error:', err);
       alert(`Checkout error: ${err.message}`);

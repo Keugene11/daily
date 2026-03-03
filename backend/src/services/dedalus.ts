@@ -283,7 +283,7 @@ function getCoreToolCalls(request: PlanRequest, city: string): { name: string; a
  * 3. Stream itinerary with tool data embedded in user message (single LLM call)
  */
 export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerator<StreamEvent> {
-  console.log('[Dedalus] Starting stream for:', request);
+  console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, rightNow=${!!request.rightNow})`);
 
   // Track elapsed time to gracefully stop before Vercel's 60s hard limit
   const startTime = Date.now();
@@ -301,13 +301,12 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   if (resolvedCity !== request.city) {
     console.log(`[Dedalus] Resolved city: "${request.city}" → "${resolvedCity}"`);
   }
-  const toolCity = resolvedCity;
   yield { type: 'city_resolved', content: resolvedCity };
 
   yield { type: 'thinking_chunk', thinking: `Planning your perfect day in ${request.city}...` };
 
   // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
-  const coreTools = getCoreToolCalls(request, toolCity);
+  const coreTools = getCoreToolCalls(request, resolvedCity);
   console.log(`[Dedalus] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
 
   for (const tc of coreTools) {
@@ -323,7 +322,6 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
   const toolSettled = await Promise.allSettled(
     coreTools.map(async (tc) => {
-      console.log(`[Dedalus] Executing tool: ${tc.name}`, tc.args);
       const result = await Promise.race([
         executeToolCall(tc.name, tc.args, { rightNow: request.rightNow, currentHour: request.currentHour }),
         toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
