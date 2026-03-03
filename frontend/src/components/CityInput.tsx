@@ -49,7 +49,7 @@ export const CityInput: React.FC<Props> = ({ value, onChange, disabled, recentCi
             <button
               key={city}
               type="button"
-              className="w-full text-left px-3 py-1.5 text-xs text-on-surface/60 hover:bg-on-surface/[0.05] transition-colors cursor-pointer"
+              className="w-full text-left px-3 py-2 text-[13px] text-on-surface/60 hover:bg-on-surface/[0.05] transition-colors cursor-pointer"
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange(city);
