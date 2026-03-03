@@ -115,18 +115,27 @@ function buildSystemPrompt(request) {
 [Specific recommendation continuing the day's narrative arc]
 
 ## Evening (6pm - 11pm)
-[Specific recommendation for the night — dinner, nightlife, or relaxation]`;
+[Specific recommendation for the night — dinner and evening activities]
+
+## Nightlife (11pm+)
+[1-2 bars, cocktail lounges, or live music spots to end the night. Use ONLY venues from the Nightlife Venues data. Include vibe, drink prices, and what makes each spot worth visiting. Keep it short — this is a nightcap, not a full night out.]`;
     if (currentHour !== undefined && currentHour !== null) {
         if (currentHour >= 18) {
             timeSections = `## Evening (now - 11pm)
-[Pack the evening with specific recommendations — dinner, activities, nightlife]`;
+[Pack the evening with specific recommendations — dinner, activities]
+
+## Nightlife (11pm+)
+[1-2 bars or lounges to end the night. Use ONLY venues from the Nightlife Venues data.]`;
         }
         else if (currentHour >= 12) {
             timeSections = `## Afternoon (now - 6pm)
 [Specific recommendation starting from now]
 
 ## Evening (6pm - 11pm)
-[Specific recommendation for the night]`;
+[Specific recommendation for the night]
+
+## Nightlife (11pm+)
+[1-2 bars or lounges to end the night. Use ONLY venues from the Nightlife Venues data.]`;
         }
     }
     if (request.nightlife) {
@@ -186,10 +195,13 @@ ${timeSections}
 ## Your Hotel
 [REQUIRED — pick ONE accommodation that best fits the user's budget and location. Choose the option closest to the day's activities so the geographic routing makes sense.
 - If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE it with a real hotel you know in ${request.city}.
-- **BOOKING LINK**: The accommodation name MUST link to a booking page with dates pre-filled (check-in: ${checkin}, check-out: ${checkout}):
+- **BOOKING LINK — THIS IS CRITICAL**: The hotel name MUST be a clickable markdown link to booking.com (or hostelworld for hostels). Do NOT link to Google Maps. Use this exact URL pattern with the hotel name substituted:
   - Hotels: [Hotel Name](https://www.booking.com/searchresults.html?ss=Hotel+Name,+${encodeURIComponent(request.city)}&checkin=${checkin}&checkout=${checkout}&no_rooms=1&group_adults=2)
   - Hostels: [Hostel Name](https://www.hostelworld.com/find/s?q=Hostel+Name,+${encodeURIComponent(request.city)}&dateFrom=${checkin}&dateTo=${checkout}&guests=1)
-  - Use + for spaces in the property name within the URL.
+  - Replace spaces in the hotel name with + in the URL (e.g., "The Hoxton" → ss=The+Hoxton).
+  - WRONG: [Hotel Name](https://www.google.com/maps/...) — NEVER use a Google Maps link for the hotel
+  - WRONG: [Hotel Name](https://maps.google.com/...) — NEVER use a Maps link for the hotel
+  - RIGHT: [The Hoxton](https://www.booking.com/searchresults.html?ss=The+Hoxton,+${encodeURIComponent(request.city)}&checkin=${checkin}&checkout=${checkout}&no_rooms=1&group_adults=2)
 - Include type (hotel/hostel/boutique/apartment), price per night, neighborhood.
 - Write 2-3 sentences reviewing it — what makes it a good pick, the vibe, standout amenities, any insider tips (e.g., "ask for a room facing the courtyard — it's quieter").]
 
@@ -246,12 +258,13 @@ function getCoreToolCalls(request, city) {
             { name: 'get_local_events', args: { city } },
         ];
     }
-    // Regular single-day: all 9 core tools
+    // Regular single-day: all core tools including nightlife
     return [
         { name: 'get_weather', args: { city } },
         { name: 'get_local_events', args: { city } },
         { name: 'get_restaurant_recommendations', args: { city, budget } },
         { name: 'get_attractions', args: { city } },
+        { name: 'get_nightlife', args: { city } },
         { name: 'get_free_stuff', args: { city } },
         { name: 'get_deals_coupons', args: { city } },
         { name: 'get_happy_hours', args: { city } },
@@ -402,9 +415,9 @@ ${dataSections.join('\n\n')}
 If any data section above is missing (e.g., no Weather section), simply omit that topic from the itinerary — do NOT write "Unavailable" or "Not available".
 
 Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
-1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
+1. Time-of-day sections (Morning/Afternoon/Evening/Nightlife) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
-3. ## Your Hotel — ONE accommodation with price, a 2-3 sentence review, and a BOOKING LINK (booking.com for hotels, hostelworld.com for hostels — with dates pre-filled). The hotel name MUST be a clickable link to the booking page, NOT a Google Maps link.
+3. ## Your Hotel — ONE accommodation with price, a 2-3 sentence review, and a BOOKING LINK to booking.com (NOT Google Maps). The hotel name MUST link to booking.com with dates pre-filled.
 You MUST write all 3. Do NOT stop early. NEVER stop mid-sentence — if you're running low on space, wrap up concisely rather than cutting off.
 
 CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
@@ -476,7 +489,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
                         messages: [
                             { role: 'system', content: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.' },
                             { role: 'assistant', content: contextTail },
-                            { role: 'user', content: 'Continue writing. Do not repeat anything. Finish the remaining sections (Evening, Estimated Total, Your Hotel, Pro Tips) — whichever are missing.' }
+                            { role: 'user', content: 'Continue writing. Do not repeat anything. Finish the remaining sections (Evening, Nightlife, Estimated Total, Your Hotel, Pro Tips) — whichever are missing.' }
                         ],
                         stream: true,
                         temperature: 0.7,
