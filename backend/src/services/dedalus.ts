@@ -74,7 +74,7 @@ function getClient(): Dedalus {
   if (!client) {
     const apiKey = process.env.DEDALUS_API_KEY || '';
     console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-    client = new Dedalus({ apiKey, timeout: 55000 });
+    client = new Dedalus({ apiKey, timeout: 65000 });
   }
   return client;
 }
@@ -383,7 +383,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
 
   // Track elapsed time to gracefully stop before Vercel's 60s hard limit
   const startTime = Date.now();
-  const DEADLINE_MS = 55_000;
+  const DEADLINE_MS = 58_000;
   const elapsed = () => Date.now() - startTime;
   const timeRemaining = () => DEADLINE_MS - elapsed();
 
@@ -485,11 +485,43 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   };
 
   const dataSections: string[] = [];
+  // Cap array results to limit input tokens — the model only needs a handful of options
+  const MAX_ITEMS: Record<string, number> = {
+    'get_restaurant_recommendations': 8,
+    'get_attractions': 8,
+    'get_accommodations': 4,
+    'get_happy_hours': 4,
+    'get_local_events': 4,
+    'get_free_stuff': 4,
+    'get_deals_coupons': 4,
+  };
   for (const tr of toolResults) {
     if (!tr.result?.success) continue;
     const label = TOOL_LABELS[tr.name] || tr.name;
-    dataSections.push(`### ${label}\n${JSON.stringify(tr.result.data || tr.result, null, 0)}`);
+    let raw = tr.result.data || tr.result;
+    // Trim arrays to max items
+    const maxItems = MAX_ITEMS[tr.name];
+    if (maxItems && Array.isArray(raw)) {
+      raw = raw.slice(0, maxItems);
+    } else if (maxItems && raw && typeof raw === 'object') {
+      // Some tools nest arrays inside object keys
+      for (const key of Object.keys(raw)) {
+        if (Array.isArray(raw[key]) && raw[key].length > maxItems) {
+          raw = { ...raw, [key]: raw[key].slice(0, maxItems) };
+        }
+      }
+    }
+    // Compact: strip nulls and truncate long strings
+    const compacted = JSON.stringify(raw, (_, v) => {
+      if (v === null || v === undefined || v === '') return undefined;
+      if (typeof v === 'string' && v.length > 200) return v.slice(0, 200) + '...';
+      return v;
+    }, 0);
+    dataSections.push(`### ${label}\n${compacted}`);
   }
+
+  const approxInputChars = dataSections.join('').length;
+  console.log(`[Dedalus] Tool data sections: ${dataSections.length}, ~${approxInputChars} chars (~${Math.ceil(approxInputChars / 4)} tokens)`);
 
   const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
     ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
@@ -513,7 +545,7 @@ Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these
 1. Time-of-day sections (Morning/Afternoon/Evening) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
 3. ## Your Hotel — ONE accommodation with price, a 2-3 sentence review, and a BOOKING LINK (booking.com for hotels, hostelworld.com for hostels — with dates pre-filled). The hotel name MUST be a clickable link to the booking page, NOT a Google Maps link.
-You MUST write all 3. Do NOT stop early.
+You MUST write all 3. Do NOT stop early. NEVER stop mid-sentence — if you're running low on space, wrap up concisely rather than cutting off.
 
 CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
 
@@ -527,9 +559,9 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
   try {
     // Single LLM call — stream the itinerary directly
     let contentReceived = false;
-    let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 12000;
+    let tokenBudget = isMultiDay ? Math.min(request.days! * 5000, 16000) : 16000;
     if (timeRemaining() < 25_000) {
-      tokenBudget = Math.min(tokenBudget, 10000);
+      tokenBudget = Math.min(tokenBudget, 12000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 
@@ -547,7 +579,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
 
       if (!isRetry) {
         const stream = await dedalus.chat.completions.create({
-          model: 'anthropic/claude-sonnet-4-5',
+          model: 'anthropic/claude-sonnet-4-20250514',
           messages,
           stream: true,
           temperature: 0.7,
@@ -578,22 +610,27 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
           }
         }
 
-        // If truncated and we have time, send a continuation request
-        if (wasTruncated && timeRemaining() > 10_000) {
+        // If truncated and we have time, send continuation requests until complete
+        while (wasTruncated && timeRemaining() > 8_000) {
           console.log(`[Dedalus] Continuing truncated output (${timeRemaining()}ms remaining)...`);
-          const continuationBudget = Math.min(4000, tokenBudget);
+          const continuationBudget = Math.min(6000, tokenBudget);
+          // Only send the last ~3000 chars of accumulated content to save context space
+          const contextTail = accumulatedContent.length > 3000
+            ? '...' + accumulatedContent.slice(-3000)
+            : accumulatedContent;
           const contStream = await dedalus.chat.completions.create({
-            model: 'anthropic/claude-sonnet-4-5',
+            model: 'anthropic/claude-sonnet-4-20250514',
             messages: [
-              ...messages,
-              { role: 'assistant', content: accumulatedContent },
-              { role: 'user', content: 'Your previous response was cut off mid-sentence. Continue EXACTLY where you left off — do not repeat anything, just seamlessly finish the rest of the itinerary including any remaining sections (Evening, Estimated Total, Your Hotel, Pro Tips).' }
+              { role: 'system', content: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.' },
+              { role: 'assistant', content: contextTail },
+              { role: 'user', content: 'Continue writing. Do not repeat anything. Finish the remaining sections (Evening, Estimated Total, Your Hotel, Pro Tips) — whichever are missing.' }
             ],
             stream: true,
             temperature: 0.7,
             max_tokens: continuationBudget
           });
 
+          wasTruncated = false;
           for await (const chunk of contStream) {
             const delta = chunk.choices?.[0]?.delta;
             const content = delta?.content;
@@ -602,14 +639,18 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
               yield { type: 'content_chunk', content };
             }
             if (chunk.choices?.[0]?.finish_reason) {
-              console.log(`[Dedalus] Continuation finished: ${chunk.choices[0].finish_reason} | ${elapsed()}ms total`);
+              const contReason = chunk.choices[0].finish_reason;
+              console.log(`[Dedalus] Continuation finished: ${contReason} | ${elapsed()}ms total`);
+              if (contReason === 'length') {
+                wasTruncated = true; // loop again if still truncated
+              }
               break;
             }
           }
         }
       } else {
         const fallbackResponse = await dedalus.chat.completions.create({
-          model: 'anthropic/claude-sonnet-4-5',
+          model: 'anthropic/claude-sonnet-4-20250514',
           messages,
           temperature: 0.7,
           max_tokens: tokenBudget
