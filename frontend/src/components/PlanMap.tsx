@@ -178,14 +178,14 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
     }
 
     const isDark = document.documentElement.classList.contains('dark');
-    const accentColor = isDark ? '#818CF8' : '#3B82F6';
+    const accentColor = isDark ? '#A78BFA' : '#2563EB';
 
     // Add numbered circle markers with label overlays
     locs.forEach((loc, i) => {
       // SVG circle with number as marker icon
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28">
-        <circle cx="14" cy="14" r="12" fill="${accentColor}" stroke="white" stroke-width="2"/>
-        <text x="14" y="18" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="sans-serif">${i + 1}</text>
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+        <circle cx="16" cy="16" r="14" fill="${accentColor}" stroke="white" stroke-width="2.5"/>
+        <text x="16" y="21" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="sans-serif">${i + 1}</text>
       </svg>`;
 
       const marker = new google.maps.Marker({
@@ -193,8 +193,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         position: { lat: loc.lat, lng: loc.lng },
         icon: {
           url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-          scaledSize: new google.maps.Size(28, 28),
-          anchor: new google.maps.Point(14, 14),
+          scaledSize: new google.maps.Size(32, 32),
+          anchor: new google.maps.Point(16, 16),
         },
       });
       markersRef.current.push(marker);
@@ -211,7 +211,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
         onAdd() {
           this.div = document.createElement('div');
-          this.div.style.cssText = `position:absolute;white-space:nowrap;font-size:11px;font-weight:600;color:${isDark ? '#e2e8f0' : '#1e293b'};background:${isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'};padding:2px 8px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none;`;
+          this.div.style.cssText = `position:absolute;white-space:nowrap;font-size:11px;font-weight:700;color:${isDark ? '#f1f5f9' : '#0f172a'};background:${isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)'};padding:3px 8px 3px 10px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border-left:3px solid ${accentColor};pointer-events:none;`;
           this.div.textContent = this.text;
           this.getPanes()!.overlayLayer.appendChild(this.div);
         }
@@ -219,8 +219,8 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
           if (!this.div) return;
           const point = this.getProjection().fromLatLngToDivPixel(this.position);
           if (point) {
-            this.div.style.left = (point.x + 18) + 'px';
-            this.div.style.top = (point.y - 10) + 'px';
+            this.div.style.left = (point.x + 20) + 'px';
+            this.div.style.top = (point.y - 12) + 'px';
           }
         }
         onRemove() {
@@ -240,16 +240,16 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         path: locs.map(l => ({ lat: l.lat, lng: l.lng })),
         strokeColor: accentColor,
         strokeOpacity: 0,
-        strokeWeight: 3,
+        strokeWeight: 4,
         icons: [{
           icon: {
             path: 'M 0,-1 0,1',
-            strokeOpacity: 0.5,
-            strokeWeight: 3,
+            strokeOpacity: 0.8,
+            strokeWeight: 4,
             scale: 4,
           },
           offset: '0',
-          repeat: '16px',
+          repeat: '14px',
         }],
         map,
       });
