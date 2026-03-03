@@ -171,6 +171,14 @@ function buildSystemPrompt(request: PlanRequest): string {
     );
   }
 
+  // Compute check-in / check-out dates for booking links
+  const checkinDate = localNow;
+  const checkoutDate = new Date(checkinDate);
+  checkoutDate.setDate(checkoutDate.getDate() + (days && days > 1 ? days : 1));
+  const fmtDate = (d: Date) => d.toISOString().split('T')[0]; // YYYY-MM-DD
+  const checkin = fmtDate(checkinDate);
+  const checkout = fmtDate(checkoutDate);
+
   const extrasBlock = extras.length > 0 ? `\n\nSPECIAL INSTRUCTIONS:\n${extras.join('\n')}` : '';
 
   // Determine time sections based on current hour
@@ -287,9 +295,12 @@ ${timeSections}
 ## Your Hotel
 [REQUIRED — pick ONE accommodation that best fits the user's budget and location. Choose the option closest to the day's activities so the geographic routing makes sense.
 - If the tool returned generic placeholders (e.g., "City Center Hotel"), REPLACE it with a real hotel you know in ${request.city}.
-- Name as a clickable Google Maps link, type (hotel/hostel/boutique/apartment), price per night, neighborhood.
-- Write 2-3 sentences reviewing it — what makes it a good pick, the vibe, standout amenities, any insider tips (e.g., "ask for a room facing the courtyard — it's quieter").
-- For tool-provided accommodations, use the "link" field. For your own, create links as [Hotel Name](https://www.google.com/maps/search/Hotel+Name/@LAT,LNG,17z).]
+- **BOOKING LINK**: The accommodation name MUST link to a booking page with dates pre-filled (check-in: ${checkin}, check-out: ${checkout}):
+  - Hotels: [Hotel Name](https://www.booking.com/searchresults.html?ss=Hotel+Name,+${encodeURIComponent(request.city)}&checkin=${checkin}&checkout=${checkout}&no_rooms=1&group_adults=2)
+  - Hostels: [Hostel Name](https://www.hostelworld.com/find/s?q=Hostel+Name,+${encodeURIComponent(request.city)}&dateFrom=${checkin}&dateTo=${checkout}&guests=1)
+  - Use + for spaces in the property name within the URL.
+- Include type (hotel/hostel/boutique/apartment), price per night, neighborhood.
+- Write 2-3 sentences reviewing it — what makes it a good pick, the vibe, standout amenities, any insider tips (e.g., "ask for a room facing the courtyard — it's quieter").]
 
 Writing style:
 - Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
@@ -298,6 +309,7 @@ Writing style:
 - **LINKS**: EVERY venue, restaurant, event, bar, and attraction MUST be a clickable markdown link — NO EXCEPTIONS.
   - For places from tool data: copy the pre-formatted "link" or "markdownLink" field directly.
   - For places from YOUR OWN knowledge: create the link yourself as [Place Name](https://www.google.com/maps/search/Place+Name/@LAT,LNG,17z) — include the approximate latitude and longitude so the map can pin the exact location. Use + for spaces in the place name.
+  - For bookable activities (tours, museums, experiences with ticketed entry): add a second "Book tickets" link pointing to [Book tickets](https://www.getyourguide.com/s/?q=Activity+Name+${encodeURIComponent(request.city)}&date_from=${checkin}&date_to=${checkout}). Only add this for places that require or benefit from advance booking — NOT for free parks, streets, or walk-in cafés.
   - WRONG: https://maps.google.com/?q=Griffith%20Observatory — NEVER write a raw URL
   - WRONG: "Visit Griffith Observatory" — NEVER write a place name without a link
   - RIGHT: "Hike up to [Griffith Observatory](https://www.google.com/maps/search/Griffith+Observatory/@34.1184,-118.3004,17z) for panoramic views"
