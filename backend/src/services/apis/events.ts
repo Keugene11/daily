@@ -162,7 +162,7 @@ function matchCity(city: string): { events: ScheduledEvent[]; isDefault: boolean
 }
 
 export const eventsService = {
-  async getEvents(city: string, rightNow?: boolean, localHour?: number): Promise<ToolResult> {
+  async getEvents(city: string, _unused?: unknown, localHour?: number): Promise<ToolResult> {
     await new Promise(r => setTimeout(r, 200));
 
     const dow = dayOfWeek();
@@ -170,12 +170,6 @@ export const eventsService = {
 
     // Filter to events available today
     let available = allEvents.filter(e => !e.days || e.days.includes(dow));
-
-    // Right Now mode: only show events happening now or in the next 2 hours
-    if (rightNow) {
-      const { isActiveNow } = await import('./time_utils');
-      available = available.filter(e => isActiveNow(e.time, localHour));
-    }
 
     // Build today's highlights — events that are day-specific and available today
     const todayHighlights: string[] = [];

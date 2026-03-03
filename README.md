@@ -10,7 +10,7 @@ AI-powered day planner that generates personalized itineraries for any city. Ent
 - Google Places integration for restaurants and attractions
 - Interactive map plotting all locations mentioned in the plan
 - Multi-day trip planning (up to 7 days)
-- "Right Now" mode for instant recommendations
+- Nightlife mode for evening-focused bar, club, and late-night plans
 - Weather-based outfit suggestions
 - Plan history with cloud sync
 - Dark/light theme

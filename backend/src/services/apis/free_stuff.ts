@@ -117,7 +117,7 @@ function matchCity(city: string): { activities: FreeActivity[]; alwaysFree: stri
 }
 
 export const freeStuffService = {
-  async getFreeStuff(city: string, rightNow?: boolean, localHour?: number): Promise<ToolResult<FreeStuffData>> {
+  async getFreeStuff(city: string): Promise<ToolResult<FreeStuffData>> {
     await new Promise(r => setTimeout(r, 150));
 
     const dow = dayOfWeek();
@@ -125,12 +125,6 @@ export const freeStuffService = {
 
     // Filter activities to those available today
     let available = matched.activities.filter(a => !a.days || a.days.includes(dow));
-
-    // Right Now mode: only show activities happening now or in the next 2 hours
-    if (rightNow) {
-      const { isActiveNow } = await import('./time_utils');
-      available = available.filter(a => isActiveNow(a.time, localHour));
-    }
 
     // Add Google Maps URLs (pre-formatted markdown for AI to use directly)
     const activitiesWithUrls = available.map(a => {

@@ -324,7 +324,7 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   const toolSettled = await Promise.allSettled(
     coreTools.map(async (tc) => {
       const result = await Promise.race([
-        executeToolCall(tc.name, tc.args, { currentHour: request.currentHour }),
+        executeToolCall(tc.name, tc.args),
         toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
       ]);
       return { name: tc.name, result };
