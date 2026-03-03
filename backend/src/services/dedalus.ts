@@ -529,11 +529,12 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
     let contentReceived = false;
     let tokenBudget = isMultiDay ? Math.min(request.days! * 4000, 16000) : 12000;
     if (timeRemaining() < 25_000) {
-      tokenBudget = Math.min(tokenBudget, 8000);
+      tokenBudget = Math.min(tokenBudget, 10000);
       console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
     }
 
     const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
+    let accumulatedContent = '';
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isRetry = attempt > 0;
@@ -554,12 +555,14 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
         });
 
         let outputTokens = 0;
+        let wasTruncated = false;
         for await (const chunk of stream) {
           const delta = chunk.choices?.[0]?.delta;
           const content = delta?.content;
 
           if (content) {
             contentReceived = true;
+            accumulatedContent += content;
             outputTokens += Math.ceil(content.length / 4);
             yield { type: 'content_chunk', content };
           }
@@ -569,8 +572,39 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
             console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens | ${elapsed()}ms total`);
             if (reason === 'length') {
               console.warn(`[Dedalus] OUTPUT TRUNCATED — hit max_tokens (${tokenBudget})`);
+              wasTruncated = true;
             }
             break;
+          }
+        }
+
+        // If truncated and we have time, send a continuation request
+        if (wasTruncated && timeRemaining() > 10_000) {
+          console.log(`[Dedalus] Continuing truncated output (${timeRemaining()}ms remaining)...`);
+          const continuationBudget = Math.min(4000, tokenBudget);
+          const contStream = await dedalus.chat.completions.create({
+            model: 'anthropic/claude-sonnet-4-5',
+            messages: [
+              ...messages,
+              { role: 'assistant', content: accumulatedContent },
+              { role: 'user', content: 'Your previous response was cut off mid-sentence. Continue EXACTLY where you left off — do not repeat anything, just seamlessly finish the rest of the itinerary including any remaining sections (Evening, Estimated Total, Your Hotel, Pro Tips).' }
+            ],
+            stream: true,
+            temperature: 0.7,
+            max_tokens: continuationBudget
+          });
+
+          for await (const chunk of contStream) {
+            const delta = chunk.choices?.[0]?.delta;
+            const content = delta?.content;
+            if (content) {
+              accumulatedContent += content;
+              yield { type: 'content_chunk', content };
+            }
+            if (chunk.choices?.[0]?.finish_reason) {
+              console.log(`[Dedalus] Continuation finished: ${chunk.choices[0].finish_reason} | ${elapsed()}ms total`);
+              break;
+            }
           }
         }
       } else {
@@ -584,6 +618,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
         const fallbackContent = fallbackResponse.choices?.[0]?.message?.content;
         if (fallbackContent) {
           contentReceived = true;
+          accumulatedContent = fallbackContent;
           const chunkSize = 100;
           for (let i = 0; i < fallbackContent.length; i += chunkSize) {
             yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
