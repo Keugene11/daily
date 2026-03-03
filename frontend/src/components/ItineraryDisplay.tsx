@@ -106,7 +106,7 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
     if (!insideBold && match[1] !== undefined && match[2] !== undefined) {
       // Bold-wrapped link: **[text](url)**
       elements.push(
-        <a key={keyGen.v++} href={match[2]} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline underline-offset-2">
+        <a key={keyGen.v++} href={match[2]} target="_blank" rel="noopener noreferrer" className="text-accent underline decoration-accent/30 hover:decoration-accent/60 underline-offset-2">
           <strong className="font-semibold">{match[1].replace(/\*\*/g, '')}</strong>
         </a>
       );
@@ -118,7 +118,7 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
       const label = insideBold ? match[1] : match[3];
       const href = insideBold ? match[2] : match[4];
       elements.push(
-        <a key={keyGen.v++} href={href} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline underline-offset-2">
+        <a key={keyGen.v++} href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline decoration-accent/30 hover:decoration-accent/60 underline-offset-2">
           {(label || '').replace(/\*\*/g, '')}
         </a>
       );
@@ -135,7 +135,7 @@ function renderInline(text: string, insideBold = false, keyGen = { v: 0 }): Reac
       const rawUrl = match[0].replace(/[.,;:!?]+$/, '');
       const trailing = match[0].slice(rawUrl.length);
       elements.push(
-        <a key={keyGen.v++} href={rawUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline underline-offset-2">
+        <a key={keyGen.v++} href={rawUrl} target="_blank" rel="noopener noreferrer" className="text-accent underline decoration-accent/30 hover:decoration-accent/60 underline-offset-2">
           {urlLabel(rawUrl)}
         </a>
       );
