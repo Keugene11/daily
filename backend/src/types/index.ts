@@ -55,4 +55,5 @@ export interface PlanRequest {
   currentHour?: number;
   timezone?: string;
   rightNow?: boolean;
+  nightlife?: boolean;
 }

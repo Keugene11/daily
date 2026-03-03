@@ -16,6 +16,7 @@ const wait_times_1 = require("./apis/wait_times");
 const deals_1 = require("./apis/deals");
 const accommodations_1 = require("./apis/accommodations");
 const attractions_1 = require("./apis/attractions");
+const nightlife_1 = require("./apis/nightlife");
 exports.tools = [
     {
         type: 'function',
@@ -324,6 +325,23 @@ exports.tools = [
             }
         }
     },
+    {
+        type: 'function',
+        function: {
+            name: 'get_nightlife',
+            description: 'Find top nightlife venues — bars, clubs, cocktail lounges, live music spots, and late-night hangouts. Returns verified, currently-open venues from Google Places with ratings, vibes, neighborhoods, and review highlights.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    city: {
+                        type: 'string',
+                        description: 'City name to search for nightlife venues'
+                    }
+                },
+                required: ['city']
+            }
+        }
+    },
 ];
 /**
  * Execute a tool call and return the result
@@ -362,6 +380,8 @@ const executeToolCall = async (toolName, args, context) => {
                 return await accommodations_1.accommodationService.getAccommodations(args.city, args.budget, args.type);
             case 'get_attractions':
                 return await attractions_1.attractionService.getAttractions(args.city, args.category);
+            case 'get_nightlife':
+                return await nightlife_1.nightlifeService.getNightlife(args.city);
             default:
                 return {
                     success: false,

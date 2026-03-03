@@ -129,6 +129,17 @@ function buildSystemPrompt(request) {
 [Specific recommendation for the night]`;
         }
     }
+    if (request.nightlife) {
+        timeSections = `## Pre-Game (7pm - 9pm)
+[Dinner and early drinks — a great restaurant or food spot to fuel the night, plus a nearby bar for pre-game cocktails. Focus on places with good vibes for starting the evening.]
+
+## Main Event (9pm - 1am)
+[The heart of the night — bars, clubs, live music venues, dance floors. Include 2-3 spots the user can bar-hop between. Mention cover charges, dress codes, drink prices, what kind of music/vibe each place has, and what nights are best.]
+
+## Late Night (1am+)
+[Where to go after hours — late-night food spots, after-hours bars, diners, food trucks. What's still open and worth hitting when the main venues close.]`;
+        extras.push(`- **NIGHTLIFE MODE**: The user wants a night out — bars, clubs, live music, lounges, late-night food. Focus on what's open LATE, cover charge info, dress codes, drink specials, vibes, and live music schedules. Do NOT plan daytime activities. This is an evening-only plan starting around 7pm. Mention which nights are best for each venue if known.`);
+    }
     if (rightNow) {
         const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
         if (timezone)
@@ -237,6 +248,17 @@ Include EVERY venue/stop from the itinerary. Use 24-hour time format. Estimate r
  */
 function getCoreToolCalls(request, city) {
     const budget = request.budget && request.budget !== 'any' ? request.budget : undefined;
+    if (request.nightlife) {
+        // Nightlife mode: bars, clubs, late-night food, events
+        return [
+            { name: 'get_weather', args: { city } },
+            { name: 'get_nightlife', args: { city } },
+            { name: 'get_happy_hours', args: { city } },
+            { name: 'get_restaurant_recommendations', args: { city, budget } },
+            { name: 'get_deals_coupons', args: { city } },
+            { name: 'get_local_events', args: { city } },
+        ];
+    }
     if (request.rightNow) {
         // Right Now mode: only time-sensitive tools
         return [
@@ -342,6 +364,7 @@ async function* streamPlanGeneration(request) {
         'get_happy_hours': 'Happy Hours (⚠️ unverified — use timing/deal context only, not bar names)',
         'get_accommodations': 'Accommodations (verified, currently open via Google Places)',
         'get_sunrise_sunset': 'Sunrise/Sunset & Golden Hour',
+        'get_nightlife': 'Nightlife Venues (verified via Google Places)',
     };
     const dataSections = [];
     // Cap array results to limit input tokens — the model only needs a handful of options
@@ -353,6 +376,7 @@ async function* streamPlanGeneration(request) {
         'get_local_events': 3,
         'get_free_stuff': 3,
         'get_deals_coupons': 3,
+        'get_nightlife': 5,
     };
     for (const tr of toolResults) {
         if (!tr.result?.success)

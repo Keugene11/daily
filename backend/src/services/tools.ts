@@ -15,6 +15,7 @@ import { waitTimeService } from './apis/wait_times';
 import { dealsService } from './apis/deals';
 import { accommodationService } from './apis/accommodations';
 import { attractionService } from './apis/attractions';
+import { nightlifeService } from './apis/nightlife';
 
 /**
  * Tool definitions in OpenAI-compatible format
@@ -341,6 +342,23 @@ export const tools: Tool[] = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_nightlife',
+      description: 'Find top nightlife venues — bars, clubs, cocktail lounges, live music spots, and late-night hangouts. Returns verified, currently-open venues from Google Places with ratings, vibes, neighborhoods, and review highlights.',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: {
+            type: 'string',
+            description: 'City name to search for nightlife venues'
+          }
+        },
+        required: ['city']
+      }
+    }
+  },
 ];
 
 /**
@@ -398,6 +416,9 @@ export const executeToolCall = async (
 
       case 'get_attractions':
         return await attractionService.getAttractions(args.city, args.category);
+
+      case 'get_nightlife':
+        return await nightlifeService.getNightlife(args.city);
 
       default:
         return {

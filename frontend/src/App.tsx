@@ -115,6 +115,9 @@ function App() {
         extras.rightNow = true;
         extras.currentHour = new Date().getHours();
       }
+      if (pending.nightlife) {
+        extras.nightlife = true;
+      }
       // Auto-start the plan
       localStorage.setItem('daily_prefs', JSON.stringify({ city: pending.city, budget: pending.budget || 'any' }));
       startStream(pending.city, pending.budget || 'any', extras, getAccessToken);
@@ -466,6 +469,33 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   What's happening right now?
+                </button>
+
+                {/* Nightlife mode */}
+                <button
+                  onClick={() => {
+                    if (!city.trim()) return;
+                    if (!session) {
+                      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
+                        city, budget, nightlife: true,
+                      }));
+                      signInWithGoogle();
+                      return;
+                    }
+                    if (subscription.isLimitReached('plan')) {
+                      setShowPricing(true);
+                      return;
+                    }
+                    savePrefs();
+                    startStream(city, budget, { ...buildExtras(), nightlife: true }, getAccessToken);
+                  }}
+                  disabled={state.isStreaming || !city.trim()}
+                  className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 006.963-2.738 9.72 9.72 0 002.039-3.26z" />
+                  </svg>
+                  Nightlife
                 </button>
 
                 {/* Remaining plans counter */}

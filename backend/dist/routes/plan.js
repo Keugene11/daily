@@ -9,7 +9,7 @@ const router = (0, express_1.Router)();
  * Server-Sent Events endpoint for streaming plan generation
  */
 router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
-    const { city, budget, currentHour, rightNow, timezone } = req.body;
+    const { city, budget, currentHour, rightNow, nightlife, timezone } = req.body;
     // Validate input
     if (!city) {
         return res.status(400).json({ error: 'City is required' });
@@ -34,7 +34,7 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, rightNow, timezone });
+        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, rightNow, nightlife, timezone });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;
