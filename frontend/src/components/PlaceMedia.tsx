@@ -28,11 +28,11 @@ export const PlaceMedia: React.FC<Props> = ({ places, mediaData, city }) => {
   // Static map fallback — uses OpenStreetMap's static tile service
   const staticMapUrl = (place: string) => {
     const q = city ? `${place}, ${city}` : place;
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(q)}&zoom=15&size=320x200&scale=2&maptype=roadmap&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}`;
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(q)}&zoom=15&size=320x200&scale=2&maptype=roadmap&key=${import.meta.env.VITE_GOOGLE_MAPS_KEY || ''}`;
   };
 
   // Check if we have a Google Maps API key for static maps
-  const hasGoogleKey = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const hasGoogleKey = !!import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
   return (
     <div className="flex flex-col gap-3 animate-fadeIn">
