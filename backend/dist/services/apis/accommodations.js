@@ -10,6 +10,13 @@ const PRICE_LEVEL_MAP = {
     'PRICE_LEVEL_EXPENSIVE': '$$$',
     'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
 };
+const PRICE_ESTIMATE_MAP = {
+    'PRICE_LEVEL_FREE': '~$30/night',
+    'PRICE_LEVEL_INEXPENSIVE': '~$60/night',
+    'PRICE_LEVEL_MODERATE': '~$120/night',
+    'PRICE_LEVEL_EXPENSIVE': '~$250/night',
+    'PRICE_LEVEL_VERY_EXPENSIVE': '~$400+/night',
+};
 // Map Google Place types to accommodation categories
 const ACCOMMODATION_TYPE_MAP = {
     'hotel': 'hotel',
@@ -61,6 +68,7 @@ function mapPlaceToAccommodation(place, city) {
         }
     }
     const priceRange = PRICE_LEVEL_MAP[place.priceLevel] || '$$';
+    const avgNight = PRICE_ESTIMATE_MAP[place.priceLevel] || '~$120/night';
     const ratingNum = place.rating || 0;
     const rating = ratingNum > 0 ? `${ratingNum}/5` : 'N/A';
     const ratingCount = place.userRatingCount || 0;
@@ -92,6 +100,7 @@ function mapPlaceToAccommodation(place, city) {
         name,
         type,
         priceRange,
+        avgNight,
         rating,
         ratingCount,
         description,

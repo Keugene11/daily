@@ -194,7 +194,7 @@ ${timeSections}
 
 ## Your Hotel
 [REQUIRED — pick ONE accommodation. Copy its pre-formatted "link" field directly (it already points to booking.com with dates).
-- Include type, price per night, neighborhood.
+- Include type, the "avgNight" price estimate (e.g. ~$120/night), and neighborhood.
 - Write 2-3 sentences about what makes it a good pick.]
 
 Writing style:
@@ -409,7 +409,7 @@ If any data section above is missing (e.g., no Weather section), simply omit tha
 Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
 1. Time-of-day sections (Morning/Afternoon/Evening/Nightlife) with real places and prices
 2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
-3. ## Your Hotel — ONE accommodation with price and a 2-3 sentence review. Copy the "link" field from the accommodation data (it already links to booking.com).
+3. ## Your Hotel — ONE accommodation with its avgNight price (e.g. ~$120/night) and a 2-3 sentence review. Copy the "link" field from the accommodation data (it already links to booking.com).
 You MUST write all 3. Do NOT stop early. NEVER stop mid-sentence — if you're running low on space, wrap up concisely rather than cutting off.
 
 CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
