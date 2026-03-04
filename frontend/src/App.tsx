@@ -339,7 +339,7 @@ function App() {
       {/* Hero / Input */}
       {isHome && !showResults && (
         <div className="flex flex-col items-center justify-center px-6 pt-32 pb-20">
-          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-center leading-[1.1] mb-6">
+          <h1 className="text-4xl md:text-5xl font-normal tracking-tight text-center leading-[1.1] mb-6" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
             {greeting.split(/(\s+)/).map((word, i) => {
               if (/^\s+$/.test(word)) return word;
               const wordIndex = greeting.split(/(\s+)/).slice(0, i).filter(w => !/^\s+$/.test(w)).length;
