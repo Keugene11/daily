@@ -186,6 +186,7 @@ function mapPlaceToRestaurant(place: any, city: string): Restaurant {
   const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
 
   const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+  const url = place.websiteUri || googleMapsUri;
 
   return {
     name,
@@ -196,8 +197,8 @@ function mapPlaceToRestaurant(place: any, city: string): Restaurant {
     description,
     neighborhood,
     address: place.formattedAddress || '',
-    url: googleMapsUri,
-    link: `[${name}](${googleMapsUri})`,
+    url,
+    link: `[${name}](${url})`,
     reviewHighlights,
   };
 }
@@ -239,6 +240,7 @@ async function searchGooglePlaces(
     'places.types',
     'places.editorialSummary',
     'places.googleMapsUri',
+    'places.websiteUri',
     'places.reviews',
     'places.businessStatus',
     'places.currentOpeningHours',

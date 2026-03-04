@@ -138,6 +138,7 @@ function mapPlaceToAttraction(place: any, city: string): Attraction {
   const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
 
   const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+  const url = place.websiteUri || googleMapsUri;
 
   return {
     name,
@@ -147,8 +148,8 @@ function mapPlaceToAttraction(place: any, city: string): Attraction {
     description,
     neighborhood,
     address: place.formattedAddress || '',
-    url: googleMapsUri,
-    link: `[${name}](${googleMapsUri})`,
+    url,
+    link: `[${name}](${url})`,
     priceLevel,
   };
 }
@@ -175,6 +176,7 @@ async function searchGooglePlaces(
     'places.types',
     'places.editorialSummary',
     'places.googleMapsUri',
+    'places.websiteUri',
     'places.reviews',
     'places.businessStatus',
     'places.currentOpeningHours',

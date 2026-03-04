@@ -140,6 +140,7 @@ function mapPlaceToVenue(place: any, city: string): NightlifeVenue {
   const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
 
   const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+  const url = place.websiteUri || googleMapsUri;
 
   return {
     name,
@@ -149,7 +150,7 @@ function mapPlaceToVenue(place: any, city: string): NightlifeVenue {
     neighborhood,
     address: place.formattedAddress || '',
     vibe,
-    link: `[${name}](${googleMapsUri})`,
+    link: `[${name}](${url})`,
     reviewHighlights,
   };
 }
@@ -174,6 +175,7 @@ async function searchGooglePlaces(city: string, query: string): Promise<Nightlif
     'places.types',
     'places.editorialSummary',
     'places.googleMapsUri',
+    'places.websiteUri',
     'places.reviews',
     'places.businessStatus',
     'places.currentOpeningHours',
