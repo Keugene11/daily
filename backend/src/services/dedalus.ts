@@ -31,7 +31,15 @@ async function resolveCity(city: string): Promise<string> {
     const data = await res.json() as any[];
     if (data.length === 0) return city;
 
-    const best = data.reduce((a: any, b: any) =>
+    // Filter to results whose display_name actually contains the query
+    // (Nominatim sometimes returns unrelated high-importance results, e.g. "Bali" → Paris)
+    const queryLower = city.toLowerCase();
+    const relevant = data.filter((d: any) =>
+      (d.display_name || '').toLowerCase().includes(queryLower)
+    );
+    const pool = relevant.length > 0 ? relevant : data;
+
+    const best = pool.reduce((a: any, b: any) =>
       (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a
     );
     const importance = parseFloat(best.importance) || 0;
