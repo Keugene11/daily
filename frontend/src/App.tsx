@@ -354,7 +354,7 @@ function App() {
               );
             })}
           </h1>
-          <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16 animate-greeting-word" style={{ animationDelay: '500ms' }}>
+          <p className="text-lg text-on-surface/40 text-center max-w-xl mb-16">
             A new way to plan your perfect day.
           </p>
 
@@ -470,7 +470,7 @@ function App() {
           </div>
 
           {/* What Daily Does — required for Google OAuth verification */}
-          <div className="w-full max-w-2xl mt-24 space-y-16 animate-greeting-word" style={{ animationDelay: '700ms' }}>
+          <div className="w-full max-w-2xl mt-24 space-y-16">
             <div className="text-center">
               <h2 className="text-lg font-medium tracking-tight mb-3">What is Daily?</h2>
               <p className="text-sm text-on-surface/50 leading-relaxed max-w-lg mx-auto">
