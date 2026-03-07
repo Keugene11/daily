@@ -91,7 +91,7 @@ app.get('/api/privacy', (_req, res) => {
     <h2>Changes</h2>
     <p>We may update this policy from time to time. Changes will be reflected by the "last updated" date above.</p>
     <h2>Contact</h2>
-    <p>Questions about this policy? Reach out at <a href="mailto:dailyplannerapp@gmail.com">dailyplannerapp@gmail.com</a>.</p>
+    <p>Questions about this policy? Reach out at <a href="mailto:keugenelee11@gmail.com">keugenelee11@gmail.com</a>.</p>
   </div>
 </body>
 </html>`);
