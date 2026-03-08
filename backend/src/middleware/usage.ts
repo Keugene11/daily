@@ -16,14 +16,9 @@ export function checkUsage(_counter: CounterField) {
       return next();
     }
 
+    // TEMP: allow unauthenticated users to generate plans (demo mode)
     if (!req.userId) {
-      return res.status(403).json({
-        error: 'limit_reached',
-        message: 'Sign in to use this feature',
-        tier,
-        limit,
-        used: 0,
-      });
+      return next();
     }
 
     const dbColumn = 'plan_count';

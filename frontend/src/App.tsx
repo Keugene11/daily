@@ -165,15 +165,8 @@ function App() {
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
-    if (!session) {
-      // Save pending plan so we can resume after OAuth redirect
-      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-        city, budget,
-      }));
-      signInWithGoogle();
-      return;
-    }
-    if (subscription.isLimitReached('plan')) {
+    // TEMP: skip login gate for demo mode
+    if (subscription.isLimitReached('plan') && session) {
       setShowPricing(true);
       return;
     }
@@ -436,14 +429,8 @@ function App() {
                 <button
                   onClick={() => {
                     if (!city.trim()) return;
-                    if (!session) {
-                      sessionStorage.setItem('daily_pending_plan', JSON.stringify({
-                        city, budget, nightlife: true,
-                      }));
-                      signInWithGoogle();
-                      return;
-                    }
-                    if (subscription.isLimitReached('plan')) {
+                    // TEMP: skip login gate for demo mode
+                    if (subscription.isLimitReached('plan') && session) {
                       setShowPricing(true);
                       return;
                     }
