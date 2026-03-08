@@ -279,10 +279,9 @@ function App() {
           <button onClick={() => setShowPricing(true)} className="hover:text-on-surface transition-colors">
             plans
           </button>
-          {session ? (
+          {/* TEMP: hide sign in button for demo mode */}
+          {session && (
             <button onClick={() => { navigate('/profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
-          ) : (
-            <button onClick={signInWithGoogle} className="hover:text-on-surface transition-colors">sign in</button>
           )}
 
           <button
