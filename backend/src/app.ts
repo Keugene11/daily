@@ -27,7 +27,7 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    dedalusConfigured: !!(process.env.DEDALUS_API_KEY && process.env.DEDALUS_API_KEY !== 'your_dedalus_api_key_here'),
+    anthropicConfigured: !!process.env.ANTHROPIC_API_KEY,
   });
 });
 

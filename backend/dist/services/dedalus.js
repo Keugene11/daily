@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.streamPlanGeneration = streamPlanGeneration;
-const dedalus_labs_1 = __importDefault(require("dedalus-labs"));
+const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const tools_1 = require("./tools");
 // ── City name resolution via Nominatim ────────────────────────────────
 // When the user types a non-city name (e.g., "Cornell", "Stanford"),
@@ -33,7 +33,12 @@ async function resolveCity(city) {
         const data = await res.json();
         if (data.length === 0)
             return city;
-        const best = data.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
+        // Filter to results whose display_name actually contains the query
+        // (Nominatim sometimes returns unrelated high-importance results, e.g. "Bali" → Paris)
+        const queryLower = city.toLowerCase();
+        const relevant = data.filter((d) => (d.display_name || '').toLowerCase().includes(queryLower));
+        const pool = relevant.length > 0 ? relevant : data;
+        const best = pool.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
         const importance = parseFloat(best.importance) || 0;
         const addr = best.address || {};
         const rawCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet;
@@ -66,9 +71,9 @@ async function resolveCity(city) {
 let client = null;
 function getClient() {
     if (!client) {
-        const apiKey = process.env.DEDALUS_API_KEY || '';
-        console.log('[Dedalus] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-        client = new dedalus_labs_1.default({ apiKey, timeout: 65000 });
+        const apiKey = process.env.ANTHROPIC_API_KEY || '';
+        console.log('[Anthropic] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
+        client = new sdk_1.default({ apiKey, timeout: 65000 });
     }
     return client;
 }
@@ -271,31 +276,31 @@ function getCoreToolCalls(request, city) {
  * 3. Stream itinerary with tool data embedded in user message (single LLM call)
  */
 async function* streamPlanGeneration(request) {
-    console.log(`[Dedalus] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, nightlife=${!!request.nightlife})`);
+    console.log(`[Anthropic] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, nightlife=${!!request.nightlife})`);
     // Track elapsed time to gracefully stop before Vercel's 60s hard limit
     const startTime = Date.now();
     const DEADLINE_MS = 85_000;
     const elapsed = () => Date.now() - startTime;
     const timeRemaining = () => DEADLINE_MS - elapsed();
-    if (!process.env.DEDALUS_API_KEY || process.env.DEDALUS_API_KEY === 'your_dedalus_api_key_here') {
-        yield { type: 'error', error: 'Dedalus API key not configured.' };
+    if (!process.env.ANTHROPIC_API_KEY) {
+        yield { type: 'error', error: 'Anthropic API key not configured.' };
         return;
     }
     // ── Phase 1: Resolve city name ──
     const resolvedCity = await resolveCity(request.city);
     if (resolvedCity !== request.city) {
-        console.log(`[Dedalus] Resolved city: "${request.city}" → "${resolvedCity}"`);
+        console.log(`[Anthropic] Resolved city: "${request.city}" → "${resolvedCity}"`);
     }
     yield { type: 'city_resolved', content: resolvedCity };
     yield { type: 'thinking_chunk', thinking: `Planning your perfect day in ${request.city}...` };
     // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
     const coreTools = getCoreToolCalls(request, resolvedCity);
-    console.log(`[Dedalus] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
+    console.log(`[Anthropic] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
     for (const tc of coreTools) {
         yield { type: 'tool_call_start', tool: tc.name, args: tc.args };
     }
     const toolDeadline = Math.max(timeRemaining() - 30_000, 5_000); // reserve 30s for LLM
-    console.log(`[Dedalus] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
+    console.log(`[Anthropic] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
     const toolTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('tool_timeout')), toolDeadline));
     const toolSettled = await Promise.allSettled(coreTools.map(async (tc) => {
         const result = await Promise.race([
@@ -315,14 +320,14 @@ async function* streamPlanGeneration(request) {
         else {
             const failResult = { name: coreTools[idx].name, result: { success: false, error: 'Tool execution failed' } };
             toolResults.push(failResult);
-            console.error(`[Dedalus] Tool ${coreTools[idx].name} failed:`, settled.reason);
+            console.error(`[Anthropic] Tool ${coreTools[idx].name} failed:`, settled.reason);
             yield { type: 'tool_call_result', tool: failResult.name, result: failResult.result };
         }
     }
     yield { type: 'thinking_chunk', thinking: `Gathered data from ${toolResults.filter(t => t.result?.success).length} sources...` };
-    console.log(`[Dedalus] Tools done. Elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
+    console.log(`[Anthropic] Tools done. Elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
     if (timeRemaining() < 8_000) {
-        console.log('[Dedalus] Not enough time for LLM — aborting');
+        console.log('[Anthropic] Not enough time for LLM — aborting');
         yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
         return;
     }
@@ -388,7 +393,7 @@ async function* streamPlanGeneration(request) {
         dataSections.push(`### ${label}\n${compacted}`);
     }
     const approxInputChars = dataSections.join('').length;
-    console.log(`[Dedalus] Tool data sections: ${dataSections.length}, ~${approxInputChars} chars (~${Math.ceil(approxInputChars / 4)} tokens)`);
+    console.log(`[Anthropic] Tool data sections: ${dataSections.length}, ~${approxInputChars} chars (~${Math.ceil(approxInputChars / 4)} tokens)`);
     const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
         ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
         : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
@@ -413,112 +418,107 @@ Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these
 You MUST write all 3. Do NOT stop early. NEVER stop mid-sentence — if you're running low on space, wrap up concisely rather than cutting off.
 
 CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
+    const systemPrompt = buildSystemPrompt(request);
     const messages = [
-        { role: 'system', content: buildSystemPrompt(request) },
         { role: 'user', content: fullUserMessage }
     ];
-    const dedalus = getClient();
+    const anthropic = getClient();
     try {
         // Single LLM call — stream the itinerary directly
         let contentReceived = false;
         let tokenBudget = 10000;
         if (timeRemaining() < 25_000) {
             tokenBudget = Math.min(tokenBudget, 7000);
-            console.log(`[Dedalus] Reduced token budget to ${tokenBudget} due to time pressure`);
+            console.log(`[Anthropic] Reduced token budget to ${tokenBudget} due to time pressure`);
         }
         const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
         let accumulatedContent = '';
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const isRetry = attempt > 0;
             if (isRetry) {
-                console.log('[Dedalus] Retry: Non-streaming fallback...');
+                console.log('[Anthropic] Retry: Non-streaming fallback...');
                 yield { type: 'thinking_chunk', thinking: 'Generating itinerary (retry)...' };
             }
             else {
-                console.log('[Dedalus] Streaming itinerary (single LLM call)...');
+                console.log('[Anthropic] Streaming itinerary (single LLM call)...');
             }
             if (!isRetry) {
-                const stream = await dedalus.chat.completions.create({
-                    model: 'anthropic/claude-sonnet-4-20250514',
+                const stream = anthropic.messages.stream({
+                    model: 'claude-sonnet-4-20250514',
+                    system: systemPrompt,
                     messages,
-                    stream: true,
                     temperature: 0.7,
                     max_tokens: tokenBudget
                 });
                 let outputTokens = 0;
                 let wasTruncated = false;
-                for await (const chunk of stream) {
-                    const delta = chunk.choices?.[0]?.delta;
-                    const content = delta?.content;
-                    if (content) {
+                for await (const event of stream) {
+                    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                        const content = event.delta.text;
                         contentReceived = true;
                         accumulatedContent += content;
                         outputTokens += Math.ceil(content.length / 4);
                         yield { type: 'content_chunk', content };
                     }
-                    if (chunk.choices?.[0]?.finish_reason) {
-                        const reason = chunk.choices[0].finish_reason;
-                        console.log(`[Dedalus] Stream finished: ${reason} | ~${outputTokens} tokens | ${elapsed()}ms total`);
-                        if (reason === 'length') {
-                            console.warn(`[Dedalus] OUTPUT TRUNCATED — hit max_tokens (${tokenBudget})`);
+                    if (event.type === 'message_delta') {
+                        const reason = event.delta.stop_reason;
+                        console.log(`[Anthropic] Stream finished: ${reason} | ~${outputTokens} tokens | ${elapsed()}ms total`);
+                        if (reason === 'max_tokens') {
+                            console.warn(`[Anthropic] OUTPUT TRUNCATED — hit max_tokens (${tokenBudget})`);
                             wasTruncated = true;
                         }
-                        break;
                     }
                 }
                 // If truncated and we have time, send continuation requests until complete (max 2)
                 let continuations = 0;
                 while (wasTruncated && timeRemaining() > 8_000 && continuations < 2) {
                     continuations++;
-                    console.log(`[Dedalus] Continuation #${continuations} (${timeRemaining()}ms remaining)...`);
+                    console.log(`[Anthropic] Continuation #${continuations} (${timeRemaining()}ms remaining)...`);
                     const continuationBudget = Math.min(6000, tokenBudget);
-                    // Only send the last ~3000 chars of accumulated content to save context space
                     const contextTail = accumulatedContent.length > 3000
                         ? '...' + accumulatedContent.slice(-3000)
                         : accumulatedContent;
-                    const contStream = await dedalus.chat.completions.create({
-                        model: 'anthropic/claude-sonnet-4-20250514',
+                    const contStream = anthropic.messages.stream({
+                        model: 'claude-sonnet-4-20250514',
+                        system: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.',
                         messages: [
-                            { role: 'system', content: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.' },
                             { role: 'assistant', content: contextTail },
                             { role: 'user', content: 'Continue writing. Do not repeat anything. Finish the remaining sections (Evening, Nightlife, Estimated Total, Your Hotel, Pro Tips) — whichever are missing.' }
                         ],
-                        stream: true,
                         temperature: 0.7,
                         max_tokens: continuationBudget
                     });
                     wasTruncated = false;
                     let contChars = 0;
-                    for await (const chunk of contStream) {
-                        const delta = chunk.choices?.[0]?.delta;
-                        const content = delta?.content;
-                        if (content) {
+                    for await (const event of contStream) {
+                        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                            const content = event.delta.text;
                             accumulatedContent += content;
                             contChars += content.length;
                             yield { type: 'content_chunk', content };
                         }
-                        if (chunk.choices?.[0]?.finish_reason) {
-                            const contReason = chunk.choices[0].finish_reason;
-                            console.log(`[Dedalus] Continuation #${continuations} finished: ${contReason} | +${contChars} chars | ${elapsed()}ms total`);
-                            if (contReason === 'length') {
+                        if (event.type === 'message_delta') {
+                            const contReason = event.delta.stop_reason;
+                            console.log(`[Anthropic] Continuation #${continuations} finished: ${contReason} | +${contChars} chars | ${elapsed()}ms total`);
+                            if (contReason === 'max_tokens') {
                                 wasTruncated = true;
                             }
-                            break;
                         }
                     }
-                    // If continuation produced nothing, stop looping
                     if (contChars === 0)
                         break;
                 }
             }
             else {
-                const fallbackResponse = await dedalus.chat.completions.create({
-                    model: 'anthropic/claude-sonnet-4-20250514',
+                const fallbackResponse = await anthropic.messages.create({
+                    model: 'claude-sonnet-4-20250514',
+                    system: systemPrompt,
                     messages,
                     temperature: 0.7,
                     max_tokens: tokenBudget
                 });
-                const fallbackContent = fallbackResponse.choices?.[0]?.message?.content;
+                const textBlock = fallbackResponse.content.find((b) => b.type === 'text');
+                const fallbackContent = textBlock?.text;
                 if (fallbackContent) {
                     contentReceived = true;
                     accumulatedContent = fallbackContent;
@@ -526,7 +526,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
                     for (let i = 0; i < fallbackContent.length; i += chunkSize) {
                         yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
                     }
-                    console.log('[Dedalus] Fallback response received, length:', fallbackContent.length);
+                    console.log('[Anthropic] Fallback response received, length:', fallbackContent.length);
                 }
             }
             if (contentReceived)
@@ -536,11 +536,11 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
             yield { type: 'error', error: 'Failed to generate itinerary after retrying. Please try again.' };
             return;
         }
-        console.log(`[Dedalus] Total time: ${elapsed()}ms`);
+        console.log(`[Anthropic] Total time: ${elapsed()}ms`);
         yield { type: 'done' };
     }
     catch (error) {
-        console.error('[Dedalus] Stream error:', error);
+        console.error('[Anthropic] Stream error:', error);
         yield {
             type: 'error',
             error: error instanceof Error ? error.message : 'Failed to generate plan'

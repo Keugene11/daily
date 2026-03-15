@@ -28,7 +28,7 @@ app.get('/health', (_req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        dedalusConfigured: !!(process.env.DEDALUS_API_KEY && process.env.DEDALUS_API_KEY !== 'your_dedalus_api_key_here'),
+        anthropicConfigured: !!process.env.ANTHROPIC_API_KEY,
     });
 });
 // Privacy policy (served as HTML, no auth required)
@@ -91,7 +91,7 @@ app.get('/api/privacy', (_req, res) => {
     <h2>Changes</h2>
     <p>We may update this policy from time to time. Changes will be reflected by the "last updated" date above.</p>
     <h2>Contact</h2>
-    <p>Questions about this policy? Reach out at <a href="mailto:dailyplannerapp@gmail.com">dailyplannerapp@gmail.com</a>.</p>
+    <p>Questions about this policy? Reach out at <a href="mailto:keugenelee11@gmail.com">keugenelee11@gmail.com</a>.</p>
   </div>
 </body>
 </html>`);

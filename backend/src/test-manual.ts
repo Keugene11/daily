@@ -1,5 +1,5 @@
 /**
- * Manual test script for the Dedalus SDK integration
+ * Manual test script for the Anthropic SDK integration
  * Run with: npm test (or tsx src/test-manual.ts)
  */
 import dotenv from 'dotenv';
@@ -9,7 +9,7 @@ import { streamPlanGeneration } from './services/dedalus';
 dotenv.config();
 
 async function test() {
-  console.log('🧪 Starting manual test of Dedalus SDK integration\n');
+  console.log('🧪 Starting manual test of Anthropic SDK integration\n');
   console.log('='.repeat(60));
 
   const testRequest = {
