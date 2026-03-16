@@ -12,12 +12,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onSignIn, loading }) =
       <nav className="flex items-center justify-between px-8 py-5 border-b border-on-surface/10">
         <span className="text-lg font-semibold tracking-tight">daily</span>
         <a
-          href="https://www.dedaluslabs.ai"
+          href="https://www.anthropic.com"
           target="_blank"
           rel="noopener noreferrer"
           className="px-4 py-1.5 border border-on-surface/20 rounded-full text-on-surface/80 hover:bg-on-surface/5 transition-colors text-sm"
         >
-          Dedalus SDK
+          Anthropic SDK
         </a>
       </nav>
 
@@ -62,14 +62,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onSignIn, loading }) =
         <p className="text-xs text-on-surface/30">
           Powered by{' '}
           <a
-            href="https://www.dedaluslabs.ai"
+            href="https://www.anthropic.com"
             target="_blank"
             rel="noopener noreferrer"
             className="text-on-surface/50 hover:text-on-surface/70 transition-colors"
           >
-            Dedalus
+            Anthropic
           </a>
-          {' '}&middot; Real-time AI tool calling demo
+          {' '}&middot; Real-time AI tool calling
         </p>
       </footer>
     </div>

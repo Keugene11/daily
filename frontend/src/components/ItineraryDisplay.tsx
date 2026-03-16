@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useMemo } from 'react';
 interface Props {
   content: string;
   city?: string;
@@ -12,17 +12,9 @@ interface TimeSlot {
   content: string;
 }
 
-interface DayPlan {
-  dayLabel: string;
-  dayNumber: number;
-  slots: TimeSlot[];
-}
-
 interface ParsedPlan {
   preamble: string;
-  days: DayPlan[];
   slots: TimeSlot[];
-  globalSections: TimeSlot[];
 }
 
 /** Extract a short, readable label from a raw URL */
@@ -183,94 +175,21 @@ function FormattedContent({ text }: { text: string }) {
 
 
 
-// Pure parsing functions — defined outside component to avoid recreation on every render
-function parseSections(text: string): TimeSlot[] {
-  const slots: TimeSlot[] = [];
+function parseItinerary(text: string): ParsedPlan {
   const sections = text.split(/##\s+/);
-  sections.shift();
+  const preamble = (sections.shift() || '').trim();
+  const slots: TimeSlot[] = [];
   sections.forEach(section => {
     const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
     if (match) {
       slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
     }
   });
-  return slots;
-}
-
-function parseItinerary(text: string): ParsedPlan {
-  const hasMultipleDays = /^# Day \d/m.test(text);
-
-  if (!hasMultipleDays) {
-    const sections = text.split(/##\s+/);
-    const preamble = (sections.shift() || '').trim();
-    const slots: TimeSlot[] = [];
-    sections.forEach(section => {
-      const match = section.match(/^([^\n(]+?)\s*(?:\(([^)]+)\))?\s*\n([\s\S]*)/);
-      if (match) {
-        slots.push({ period: match[1].trim(), time: match[2] || '', content: match[3].trim() });
-      }
-    });
-    return { preamble, days: [], slots, globalSections: [] };
-  }
-
-  const dayChunks = text.split(/^# /m);
-  const preamble = (dayChunks.shift() || '').trim();
-  const parsedDays: DayPlan[] = [];
-  const globalSections: TimeSlot[] = [];
-
-  for (const chunk of dayChunks) {
-    const headerMatch = chunk.match(/^(Day \d+[^\n]*)\n([\s\S]*)/);
-    if (!headerMatch) continue;
-
-    const dayLabel = headerMatch[1].trim();
-    const dayNumberMatch = dayLabel.match(/Day (\d+)/);
-    const dayNumber = dayNumberMatch ? parseInt(dayNumberMatch[1]) : 0;
-    const dayContent = headerMatch[2];
-
-    const allSlots = parseSections(dayContent);
-    const daySlots: TimeSlot[] = [];
-
-    for (const slot of allSlots) {
-      if (/^(where to stay|your hotel|estimated total)$/i.test(slot.period)) {
-        globalSections.push(slot);
-      } else {
-        daySlots.push(slot);
-      }
-    }
-
-    if (daySlots.length > 0) {
-      parsedDays.push({ dayLabel, dayNumber, slots: daySlots });
-    }
-  }
-
-  const afterLastDay = text.match(/(?:^|\n)## (Where to Stay|Your Hotel|Estimated Total)\s*(?:\(([^)]*)\))?\s*\n([\s\S]*?)(?=\n## |\n# |$)/gi);
-  if (afterLastDay) {
-    for (const match of afterLastDay) {
-      const m = match.match(/## ([^\n(]+?)(?:\s*\(([^)]*)\))?\s*\n([\s\S]*)/);
-      if (m) {
-        const period = m[1].trim();
-        if (!globalSections.some(s => s.period.toLowerCase() === period.toLowerCase())) {
-          globalSections.push({ period, time: m[2] || '', content: m[3].trim() });
-        }
-      }
-    }
-  }
-
-  return { preamble, days: parsedDays, slots: [], globalSections };
+  return { preamble, slots };
 }
 
 export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, calendarLoading }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const [selectedDay, setSelectedDay] = useState(0);
-  const prevContentRef = useRef(content);
-
-  // Reset selected day when a new plan starts (content goes empty)
-  useEffect(() => {
-    if (!content && prevContentRef.current) {
-      setSelectedDay(0);
-    }
-    prevContentRef.current = content;
-  }, [content]);
 
   // Memoize content parsing — only re-parse when content changes, not on every re-render
   const { processed, parsed } = useMemo(() => {
@@ -284,14 +203,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, ca
     return { processed: p, parsed: parseItinerary(p) };
   }, [content]);
 
-  const hasDayParsing = parsed.days.length > 0;
-  const showDayTabs = parsed.days.length > 1;
-
-  // Clamp selectedDay to valid range
-  const activeDayIdx = showDayTabs ? Math.min(selectedDay, parsed.days.length - 1) : 0;
-  const activeSlots = (hasDayParsing ? (parsed.days[activeDayIdx]?.slots || []) : parsed.slots)
-    .filter(s => s.content.trim().length > 0);
-  const allSlots = [...activeSlots, ...parsed.globalSections.filter(s => s.content.trim().length > 0)];
+  const allSlots = parsed.slots.filter(s => s.content.trim().length > 0);
 
   const renderSlots = (slots: TimeSlot[], startIndex = 0) => (
     <div className="space-y-2">
@@ -321,7 +233,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, ca
   if (allSlots.length === 0 && content) {
     return (
       <div className="animate-fadeIn">
-        <h2 className="text-2xl font-semibold tracking-tight mb-8">{hasDayParsing ? 'Your trip' : 'Your day'}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight mb-8">Your day</h2>
         <div className="text-[15px] leading-relaxed text-on-surface/70">
           <FormattedContent text={processed} />
         </div>
@@ -332,7 +244,7 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, ca
   return (
     <div className="animate-fadeIn" ref={ref}>
       <div className="flex items-center justify-between mb-10">
-        <h2 className="text-2xl font-semibold tracking-tight">{hasDayParsing ? 'Your trip' : 'Your day'}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Your day</h2>
         {onAddToCalendar && (
           <button
             onClick={onAddToCalendar}
@@ -365,35 +277,8 @@ export const ItineraryDisplay: React.FC<Props> = ({ content, onAddToCalendar, ca
         </div>
       )}
 
-      {/* Day tabs for multi-day trips */}
-      {showDayTabs && (
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          {parsed.days.map((day, i) => (
-            <button
-              key={i}
-              onClick={() => setSelectedDay(i)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                activeDayIdx === i
-                  ? 'bg-accent text-on-accent'
-                  : 'border border-on-surface/15 text-on-surface/50 hover:border-on-surface/30'
-              }`}
-            >
-              Day {day.dayNumber}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Day label for multi-day */}
-      {hasDayParsing && parsed.days[activeDayIdx] && (
-        <p className="text-sm text-on-surface/40 mb-6">{parsed.days[activeDayIdx].dayLabel}</p>
-      )}
-
-      {/* Time slots for selected day */}
-      {renderSlots(activeSlots)}
-
-      {/* Global sections (Where to Stay, Estimated Total) — always shown */}
-      {parsed.globalSections.length > 0 && renderSlots(parsed.globalSections, activeSlots.length)}
+      {/* Time slots */}
+      {renderSlots(allSlots)}
     </div>
   );
 };

@@ -85,12 +85,6 @@ export function cacheGeocode(place: string, city: string, coords: { lat: number;
   setGeoCache(cache);
 }
 
-// Detect how many days are in the plan content
-export function detectDayCount(content: string): number {
-  const dayHeaders = content.match(/^# Day \d+/gm);
-  return dayHeaders ? dayHeaders.length : 1;
-}
-
 export const MARKER_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#6366F1', '#14B8A6'];
 
 // Order locations into an efficient route using nearest-neighbor from the first point

@@ -1,7 +1,7 @@
 {
   "name": "what-should-i-do-today",
   "version": "1.0.0",
-  "description": "AI-powered day planner using Dedalus SDK for excellent tool calling demonstration",
+  "description": "AI-powered day planner using Anthropic SDK for real-time tool calling",
   "private": true,
   "scripts": {
     "dev:backend": "cd backend && npm run dev",
@@ -12,7 +12,7 @@
     "build": "npm run build:backend && npm run build:frontend"
   },
   "keywords": [
-    "dedalus",
+    "anthropic",
     "ai-agent",
     "tool-calling",
     "react",

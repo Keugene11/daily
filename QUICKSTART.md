@@ -57,7 +57,7 @@ Once both servers show "ready" or "compiled successfully", open:
 - Run `npm install` in both `backend` and `frontend` directories
 
 ### API errors
-- Backend: Check `backend/.env` has valid `DEDALUS_API_KEY`
+- Backend: Check `backend/.env` has valid `ANTHROPIC_API_KEY`
 - News: Optional - add `NEWS_API_KEY` if you want news headlines
 
 ## 📝 Configuration
@@ -66,7 +66,7 @@ Once both servers show "ready" or "compiled successfully", open:
   - Change in: `backend/.env` and `frontend/vite.config.ts`
 
 - **API Keys**: `backend/.env`
-  - Dedalus: https://www.dedaluslabs.ai/dashboard/api-keys
+  - Anthropic: https://console.anthropic.com
   - NewsAPI: https://newsapi.org/register
 
 ## 🎯 What You Should See

@@ -148,6 +148,7 @@ function mapPlaceToRestaurant(place, city) {
     const addressParts = (place.formattedAddress || '').split(',').map((s) => s.trim());
     const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
     const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+    const url = place.websiteUri || googleMapsUri;
     return {
         name,
         cuisine,
@@ -157,8 +158,8 @@ function mapPlaceToRestaurant(place, city) {
         description,
         neighborhood,
         address: place.formattedAddress || '',
-        url: googleMapsUri,
-        link: `[${name}](${googleMapsUri})`,
+        url,
+        link: `[${name}](${url})`,
         reviewHighlights,
     };
 }
@@ -196,6 +197,7 @@ async function searchGooglePlaces(city, cuisine, budget) {
         'places.types',
         'places.editorialSummary',
         'places.googleMapsUri',
+        'places.websiteUri',
         'places.reviews',
         'places.businessStatus',
         'places.currentOpeningHours',

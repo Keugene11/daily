@@ -564,35 +564,35 @@ Visit [Pike Place Market](https://maps.google.com/?q=Pike+Place+Market,+Seattle)
   assert(planMapContent.includes('if (i > 0) await new Promise'), 'PlanMap rate-limits between geocode calls');
 }
 
-// ─── Test: System Prompt (dedalus.ts) ─────────────────────────────────
+// ─── Test: System Prompt (anthropic.ts) ─────────────────────────────────
 async function testSystemPrompt() {
   console.log('\n=== System Prompt Verification ===');
 
   const fs = await import('fs');
-  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
+  const anthropicContent = fs.readFileSync('./src/services/anthropic.ts', 'utf8');
 
   // Accommodations in mandatory tool list
-  assert(dedalusContent.includes('get_accommodations') && dedalusContent.includes('Call ALL of these'),
+  assert(anthropicContent.includes('get_accommodations') && anthropicContent.includes('Call ALL of these'),
     'get_accommodations in mandatory tool list');
 
   // Accommodations in available tools description
-  assert(dedalusContent.includes('get_accommodations: Where to stay'),
+  assert(anthropicContent.includes('get_accommodations: Where to stay'),
     'get_accommodations in available tools descriptions');
 
   // Where to Stay section in itinerary structure
-  assert(dedalusContent.includes('## Where to Stay'),
+  assert(anthropicContent.includes('## Where to Stay'),
     'Where to Stay section in itinerary template');
 
   // Force-call fallback exists (parallel force-call uses tool name in ID)
-  assert(dedalusContent.includes("forced_") && dedalusContent.includes("forceCalls"),
+  assert(anthropicContent.includes("forced_") && anthropicContent.includes("forceCalls"),
     'force-call fallback for accommodations exists');
 
   // User message mentions accommodations
-  assert(dedalusContent.includes('accommodations, sunrise/sunset'),
+  assert(anthropicContent.includes('accommodations, sunrise/sunset'),
     'user message mentions accommodations');
 
   // Retry nudge mentions accommodations
-  assert(dedalusContent.includes('get_accommodations, get_sunrise_sunset'),
+  assert(anthropicContent.includes('get_accommodations, get_sunrise_sunset'),
     'retry nudge mentions accommodations');
 }
 
@@ -702,12 +702,12 @@ async function testForceCallWarnings() {
   console.log('\n=== Force-Call Warnings ===');
 
   const fs = await import('fs');
-  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
+  const anthropicContent = fs.readFileSync('./src/services/anthropic.ts', 'utf8');
 
   // Verify parallel force-call logic exists with logging
-  assert(dedalusContent.includes('forceCalls.length > 0'),
+  assert(anthropicContent.includes('forceCalls.length > 0'),
     'force-call checks if any tools need forcing');
-  assert(dedalusContent.includes('Force-calling'),
+  assert(anthropicContent.includes('Force-calling'),
     'force-call logs when executing skipped tools');
 }
 
@@ -1004,15 +1004,15 @@ async function testPlanMapRendering() {
   assert(planMap.includes('disableDefaultUI') && planMap.includes('zoomControl'),
     'Map has minimal UI with zoom control only');
 
-  // ── 20. Dedalus SDK has timeout ──
-  const dedalusContent = fs.readFileSync('./src/services/dedalus.ts', 'utf8');
-  assert(dedalusContent.includes('timeout: 45000'),
-    'Dedalus client has 45s timeout to prevent Vercel function hanging');
+  // ── 20. Anthropic SDK has timeout ──
+  const anthropicContent = fs.readFileSync('./src/services/anthropic.ts', 'utf8');
+  assert(anthropicContent.includes('timeout: 45000'),
+    'Anthropic client has 45s timeout to prevent Vercel function hanging');
 
   // ── 21. Tool execution uses Promise.allSettled (not Promise.all) ──
-  assert(dedalusContent.includes('Promise.allSettled'),
+  assert(anthropicContent.includes('Promise.allSettled'),
     'Tool execution uses allSettled so one failing tool cannot crash the plan');
-  assert(!dedalusContent.includes('Promise.all(') || dedalusContent.indexOf('Promise.all(') > dedalusContent.indexOf('Promise.allSettled'),
+  assert(!anthropicContent.includes('Promise.all(') || anthropicContent.indexOf('Promise.all(') > anthropicContent.indexOf('Promise.allSettled'),
     'No remaining Promise.all for tool execution (replaced with allSettled)');
 
   // ── 22. res.write wrapped in try/catch ──

@@ -1,0 +1,549 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.streamPlanGeneration = streamPlanGeneration;
+const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
+const tools_1 = require("./tools");
+// ── City name resolution via Nominatim ────────────────────────────────
+// When the user types a non-city name (e.g., "Cornell", "Stanford"),
+// resolve it to the actual city (e.g., "Ithaca", "Palo Alto") so all
+// tool calls and the system prompt use the correct city.
+/** Disambiguate a city name by appending state (for US/AU/etc.) to avoid
+ *  ambiguity — "Cambridge" alone could be England or Massachusetts. */
+function disambiguate(cityName, addr) {
+    const state = addr.state;
+    if (!state)
+        return cityName;
+    // Only disambiguate well-known ambiguous names
+    const ambiguous = new Set(['cambridge', 'springfield', 'portland', 'richmond', 'columbia',
+        'jackson', 'lincoln', 'franklin', 'madison', 'clinton', 'greenville', 'burlington',
+        'manchester', 'windsor', 'hamilton', 'georgetown', 'newcastle', 'victoria']);
+    if (ambiguous.has(cityName.toLowerCase())) {
+        return `${cityName}, ${state}`;
+    }
+    return cityName;
+}
+async function resolveCity(city) {
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(1500) });
+        if (!res.ok)
+            return city;
+        const data = await res.json();
+        if (data.length === 0)
+            return city;
+        // Filter to results whose display_name actually contains the query
+        // (Nominatim sometimes returns unrelated high-importance results, e.g. "Bali" → Paris)
+        const queryLower = city.toLowerCase();
+        const relevant = data.filter((d) => (d.display_name || '').toLowerCase().includes(queryLower));
+        const pool = relevant.length > 0 ? relevant : data;
+        const best = pool.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
+        const importance = parseFloat(best.importance) || 0;
+        const addr = best.address || {};
+        const rawCity = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet;
+        const resolved = rawCity?.replace(/^City of\s+/i, '').trim();
+        // If importance is high and we have a resolved city, use it
+        if (resolved && resolved.toLowerCase() !== city.toLowerCase())
+            return disambiguate(resolved, addr);
+        // If importance is low and resolved matches input (no disambiguation),
+        // try "{input} university" — handles Cornell, Stanford, MIT, etc.
+        if (importance < 0.3 && (!resolved || resolved.toLowerCase() === city.toLowerCase())) {
+            await new Promise(r => setTimeout(r, 500)); // Nominatim rate limit
+            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${city} university`)}&format=json&limit=5&addressdetails=1&email=dailyplanner@app.dev`, { signal: AbortSignal.timeout(1500) });
+            if (res2.ok) {
+                const data2 = await res2.json();
+                if (data2.length > 0) {
+                    const best2 = data2.reduce((a, b) => (parseFloat(b.importance) || 0) > (parseFloat(a.importance) || 0) ? b : a);
+                    const addr2 = best2.address || {};
+                    const rawCity2 = addr2.city || addr2.town || addr2.village || addr2.municipality || addr2.hamlet;
+                    const resolved2 = rawCity2?.replace(/^City of\s+/i, '').trim();
+                    if (resolved2 && resolved2.toLowerCase() !== city.toLowerCase())
+                        return disambiguate(resolved2, addr2);
+                }
+            }
+        }
+    }
+    catch { /* Nominatim failed — use raw city */ }
+    return city;
+}
+// Lazy-initialize the client so dotenv has time to load first
+let client = null;
+function getClient() {
+    if (!client) {
+        const apiKey = process.env.ANTHROPIC_API_KEY || '';
+        console.log('[Anthropic] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
+        client = new sdk_1.default({ apiKey, timeout: 65000 });
+    }
+    return client;
+}
+function buildSystemPrompt(request) {
+    const { budget, currentHour, timezone } = request;
+    // Helper to get time in the user's timezone
+    const userNow = (tz) => {
+        if (tz) {
+            try {
+                return new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+            }
+            catch { }
+        }
+        return new Date();
+    };
+    const localNow = userNow(timezone);
+    const extras = [];
+    // Budget
+    if (budget && budget !== 'any') {
+        extras.push(`- Budget: ${budget === 'free' ? 'FREE activities only' : budget === 'low' ? 'affordable options ($)' : budget === 'medium' ? 'mid-range options ($$)' : 'premium experiences ($$$)'}. Factor cost into every suggestion.`);
+    }
+    // Time-aware planning
+    if (currentHour !== undefined && currentHour !== null) {
+        if (currentHour >= 12 && currentHour < 18) {
+            extras.push(`- It's currently ${currentHour > 12 ? currentHour - 12 : 12}pm. SKIP the Morning section entirely — start from Afternoon. The user doesn't need morning plans.`);
+        }
+        else if (currentHour >= 18) {
+            extras.push(`- It's currently ${currentHour > 12 ? currentHour - 12 : 12}pm. SKIP Morning and Afternoon entirely — only plan the Evening section since that's all the time they have left today.`);
+        }
+    }
+    // Compute check-in / check-out dates for booking links
+    const checkinDate = localNow;
+    const checkoutDate = new Date(checkinDate);
+    checkoutDate.setDate(checkoutDate.getDate() + 1);
+    const fmtDate = (d) => d.toISOString().split('T')[0]; // YYYY-MM-DD
+    const checkin = fmtDate(checkinDate);
+    const checkout = fmtDate(checkoutDate);
+    const extrasBlock = extras.length > 0 ? `\n\nSPECIAL INSTRUCTIONS:\n${extras.join('\n')}` : '';
+    // Determine time sections based on current hour
+    let timeSections = `## Morning (8am - 12pm)
+[Specific recommendation with real venue names, addresses, neighborhoods, and practical details]
+
+## Afternoon (12pm - 6pm)
+[Specific recommendation continuing the day's narrative arc]
+
+## Evening (6pm - 11pm)
+[Specific recommendation for the night — dinner and evening activities]
+
+## Nightlife (11pm+)
+[1-2 bars or lounges from the Nightlife data. Vibe, drink prices, one line each. Keep brief.]`;
+    if (currentHour !== undefined && currentHour !== null) {
+        if (currentHour >= 18) {
+            timeSections = `## Evening (now - 11pm)
+[Pack the evening with specific recommendations — dinner, activities]
+
+## Nightlife (11pm+)
+[1-2 bars or lounges from the Nightlife data. Vibe, drink prices, one line each. Keep brief.]`;
+        }
+        else if (currentHour >= 12) {
+            timeSections = `## Afternoon (now - 6pm)
+[Specific recommendation starting from now]
+
+## Evening (6pm - 11pm)
+[Specific recommendation for the night]
+
+## Nightlife (11pm+)
+[1-2 bars or lounges from the Nightlife data. Vibe, drink prices, one line each. Keep brief.]`;
+        }
+    }
+    if (request.nightlife) {
+        timeSections = `## Pre-Game (7pm - 9pm)
+[Dinner and early drinks — a great restaurant or food spot to fuel the night, plus a nearby bar for pre-game cocktails. Focus on places with good vibes for starting the evening.]
+
+## Main Event (9pm - 1am)
+[The heart of the night — bars, clubs, live music venues, dance floors. Include 2-3 spots the user can bar-hop between. Mention cover charges, dress codes, drink prices, what kind of music/vibe each place has, and what nights are best.]
+
+## Late Night (1am+)
+[Where to go after hours — late-night food spots, after-hours bars, diners, food trucks. What's still open and worth hitting when the main venues close.]`;
+        extras.push(`- **NIGHTLIFE MODE**: The user wants a night out — bars, clubs, live music, lounges, late-night food. Focus on what's open LATE, cover charge info, dress codes, drink specials, vibes, and live music schedules. Do NOT plan daytime activities. This is an evening-only plan starting around 7pm. Mention which nights are best for each venue if known.`);
+    }
+    const dateOpts = { weekday: 'long' };
+    if (timezone)
+        dateOpts.timeZone = timezone;
+    const dayOfWeek = new Date().toLocaleDateString('en-US', dateOpts);
+    const fullDate = localNow.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return `You are a fun, enthusiastic local concierge who knows the destination the user is asking about intimately — the neighborhoods, the hidden gems, the best food spots, the local culture. If the user gives a country, state, or region instead of a specific city, pick the best city or area within that destination for an amazing day trip and plan around it. If the user gives a university, landmark, or institution name instead of a city (e.g., "Cornell", "Stanford", "Yosemite"), identify the actual city/town where it's located (e.g., Ithaca, Palo Alto, Mariposa) and use THAT city for all tool calls and recommendations. Plan their perfect day.
+
+TODAY IS: ${fullDate}
+Day of the week: ${dayOfWeek}
+This is important! Many events, free museum days, deals, and specials are day-specific. The tools will return ONLY what's available today — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!" or "Today's ${dayOfWeek} deal: $1 tacos at...").
+
+IMPORTANT RULES:
+1. The user message below includes real-time data from multiple sources. If a source returns generic/placeholder data (e.g., "Local Favorite Grill", "Community Art Walk"), SKIP that entry — do not use it. Use your knowledge only for neighborhood descriptions, transition directions, and general city context — NEVER for venue names.
+2. **ALL venue names must come from the VERIFIED data provided.** Restaurants, attractions, and accommodations are verified via Google Places (confirmed currently open). Use ONLY those for specific venue names. Happy hours and events data may be outdated — use them for general context (neighborhoods, timing, deal types) but do NOT trust their specific venue/bar names. The ONLY non-data venues you may mention are public parks and outdoor infrastructure (bridges, plazas, boardwalks) that cannot close. If data has few results, plan fewer stops — do NOT fill gaps from your own knowledge.
+3. Build the itinerary around the attractions and restaurants provided. If the destination is known for a specific ACTIVITY (skiing, surfing, hiking, diving, wine tasting), that activity MUST be the centerpiece — but for specific venues, still only use what was provided. Do NOT add attractions, museums, or landmarks from your own knowledge.
+4. **GEOGRAPHIC ROUTING — THIS IS CRITICAL**: The user will plug these stops into Google Maps in order. If they zigzag across the city, the plan is useless. Follow this method:
+   a) Pick ONE neighborhood/area for Morning, ONE for Afternoon, ONE for Evening. All activities within a time period MUST be walkable from each other (under 15 min walk).
+   b) The three neighborhoods must form a logical geographic arc — not bouncing north-south-north. Morning → Afternoon → Evening should flow in one direction across the city (e.g., south → central → north, or east → west).
+   c) Start Morning BY NAME at the accommodation — e.g., "Starting from [Hotel Name](link), head to..." End Evening BY NAME back at it — e.g., "...a short walk back to [Hotel Name](link)." This creates a visible loop.
+   d) For EACH activity, state which neighborhood it's in parenthetically so the user can verify proximity — e.g., "Head to [Café Name](link) **(SoHo)** for brunch".
+   e) Between time periods, briefly note the transition: "**Walk 10 min north to Greenwich Village for the afternoon.**"
+   f) NEVER recommend two consecutive places that are more than 20 min apart by walking/transit. If a must-see attraction is far away, rearrange the order or swap it into a different time period where it fits geographically.
+5. **EVERY section in the output format is MANDATORY** — you must include ALL of them: the time-of-day sections, Where to Stay, Estimated Total, AND Pro Tips. NEVER skip or truncate any section. The Estimated Total is especially important — the user needs to know how much the day will cost.
+
+DATA NOTES:
+- Restaurants may include "reviewHighlights" — real snippets from customer reviews mentioning specific dishes. USE these to recommend specific items. If no reviewHighlights, describe by cuisine type but do NOT invent specific named dishes. Approximate per-person cost from price level ($=~$10-15, $$=~$20-35, $$$=~$50+).
+- Events and free stuff are DAY-AWARE — highlight day-specific finds prominently (e.g., "Since it's ${dayOfWeek}, MoMA is FREE tonight!").
+- Happy hours data may be outdated — use for timing/deal context only, do NOT trust specific bar names.
+
+Structure the itinerary with these exact sections:
+
+${timeSections}
+
+## Estimated Total
+[REQUIRED — add up ALL costs from the itinerary (food, drinks, activities, transport, entry fees):
+- Food & Drinks: ~$XX
+- Activities & Entry: ~$XX
+- Transport: ~$XX
+- **Total: ~$XX per person**
+
+**Pro Tips:**
+- 2-4 general tips about visiting ${request.city} that a tourist wouldn't easily know (city-level insider knowledge, NOT about specific venues above). One line each.]
+
+## Your Hotel
+[REQUIRED — pick ONE accommodation. Copy its pre-formatted "link" field directly (it already points to booking.com with dates).
+- Include type, the "avgNight" price estimate (e.g. ~$120/night), and neighborhood.
+- Write 2-3 sentences about what makes it a good pick.]
+
+Writing style:
+- Lead each time period with a specific weather note — actual temperature in °C/°F, feels-like, rain/wind/UV warnings with practical advice ("bring an umbrella", "wear sunscreen", "bundle up").
+- Name REAL restaurants with their actual cuisine, neighborhood, and what they're known for. When reviewHighlights are available, cite specific dishes that real customers mentioned (e.g., "reviewers rave about the cacio e pepe" or "get the spicy margarita — multiple reviewers call it the best"). When no reviewHighlights are present, describe by cuisine type but do NOT invent specific named dishes. Use the price level from the tool to estimate per-person cost. Never generic names.
+- Name REAL landmarks, streets, parks, and venues. Include cross-streets or neighborhoods so someone could actually find them.
+- **LINKS**: EVERY venue, restaurant, event, bar, and attraction MUST be a clickable markdown link — NO EXCEPTIONS.
+  - For places from tool data: copy the pre-formatted "link" or "markdownLink" field directly.
+  - For places from YOUR OWN knowledge: create the link yourself as [Place Name](https://www.google.com/maps/search/Place+Name/@LAT,LNG,17z) — include the approximate latitude and longitude so the map can pin the exact location. Use + for spaces in the place name.
+  - For bookable activities (tours, museums, experiences with ticketed entry): add a second "Book tickets" link pointing to [Book tickets](https://www.getyourguide.com/s/?q=Activity+Name+${encodeURIComponent(request.city)}&date_from=${checkin}&date_to=${checkout}). Only add this for places that require or benefit from advance booking — NOT for free parks, streets, or walk-in cafés.
+  - WRONG: https://maps.google.com/?q=Griffith%20Observatory — NEVER write a raw URL
+  - WRONG: "Visit Griffith Observatory" — NEVER write a place name without a link
+  - RIGHT: "Hike up to [Griffith Observatory](https://www.google.com/maps/search/Griffith+Observatory/@34.1184,-118.3004,17z) for panoramic views"
+  - RIGHT: "Grab a coffee at [Blue Bottle Coffee](https://www.google.com/maps/search/Blue+Bottle+Coffee/@34.0407,-118.2468,17z)"
+- **PRICES ARE REQUIRED**: Always cite specific dollar/currency amounts — never say "affordable" or "cheap" without a number. For restaurants, the tool provides price level ($-$$$$) but NOT specific dish prices — use your own knowledge to estimate dish prices with a ~ prefix (e.g., "~$14"). Use dealPrice, price fields from other tool data. Examples:
+  - "~$3.50/slice" not "cheap pizza"
+  - "$8 craft cocktails, $5 beers" not "drink specials"
+  - "Lunch for ~$12/person" not "budget-friendly"
+  - "Save 45% — was $180, now $99" not "big discount"
+- Reference deals, free activities, and golden hour timing when those tools return data. ESPECIALLY highlight day-specific finds — "Since it's [day], [venue] is free today!" or "Today's [day] deal: [deal]". These make the plan feel personalized and timely.
+- Be warm, specific, and enthusiastic — like a local friend who's excited to show someone around.
+- **DIVERSIFY activities** — don't just list restaurants and landmarks. Include a MIX of experiences: outdoor activities, walking tours, cultural experiences, live music, classes, markets, nightlife, quirky/offbeat spots. A great itinerary feels like an adventure, not just a list of meals.
+- After describing each place in prose, add a bullet list for that one place with these four bullets (no heading):
+  - **Name**: Café Tortoni
+  - **What it is**: Historic 1858 coffee house in the city center
+  - **Why visit**: Literary crowd favorite, gorgeous Belle Époque interior, live tango shows
+  - **Price**: ~$6/coffee, ~$12/pastry set
+- If a tool fails or returns generic data, use YOUR OWN knowledge to fill in with real, specific recommendations for that city.
+
+**REQUIRED — CALENDAR DATA**: At the very end of your response (after everything else), append a hidden JSON block for Google Calendar export. Use this EXACT format:
+<!-- CALENDAR_EVENTS
+[
+  {"title":"Café Tortoni","start":"09:00","end":"10:00","location":"Av. de Mayo 825, Buenos Aires","description":"Historic coffee house — try the churros con chocolate"},
+  {"title":"San Telmo Market","start":"10:30","end":"12:00","location":"Defensa St, San Telmo, Buenos Aires","description":"Sunday antique market with live tango"}
+]
+-->
+Include EVERY venue/stop from the itinerary. Use 24-hour time format. Estimate realistic start/end times based on the time section and logical flow. The "location" should be the street address or neighborhood + city. The "description" should be one short line.${extrasBlock}`;
+}
+/**
+ * Deterministically build the list of tools to call based on request type.
+ * No LLM needed — we always know which tools are relevant.
+ */
+function getCoreToolCalls(request, city) {
+    const budget = request.budget && request.budget !== 'any' ? request.budget : undefined;
+    if (request.nightlife) {
+        // Nightlife mode: bars, clubs, late-night food, events
+        return [
+            { name: 'get_weather', args: { city } },
+            { name: 'get_nightlife', args: { city } },
+            { name: 'get_happy_hours', args: { city } },
+            { name: 'get_restaurant_recommendations', args: { city, budget } },
+            { name: 'get_deals_coupons', args: { city } },
+            { name: 'get_local_events', args: { city } },
+        ];
+    }
+    // Regular single-day: all core tools including nightlife
+    return [
+        { name: 'get_weather', args: { city } },
+        { name: 'get_local_events', args: { city } },
+        { name: 'get_restaurant_recommendations', args: { city, budget } },
+        { name: 'get_attractions', args: { city } },
+        { name: 'get_nightlife', args: { city } },
+        { name: 'get_free_stuff', args: { city } },
+        { name: 'get_deals_coupons', args: { city } },
+        { name: 'get_happy_hours', args: { city } },
+        { name: 'get_accommodations', args: { city, budget } },
+        { name: 'get_sunrise_sunset', args: { city } },
+    ];
+}
+/**
+ * Stream plan generation — optimized pipeline:
+ * 1. Resolve city name (Nominatim)
+ * 2. Execute ALL tools directly in parallel (no LLM needed to decide)
+ * 3. Stream itinerary with tool data embedded in user message (single LLM call)
+ */
+async function* streamPlanGeneration(request) {
+    console.log(`[Anthropic] Starting stream for: ${request.city} (budget=${request.budget || 'any'}, nightlife=${!!request.nightlife})`);
+    // Track elapsed time to gracefully stop before Vercel's 60s hard limit
+    const startTime = Date.now();
+    const DEADLINE_MS = 85_000;
+    const elapsed = () => Date.now() - startTime;
+    const timeRemaining = () => DEADLINE_MS - elapsed();
+    if (!process.env.ANTHROPIC_API_KEY) {
+        yield { type: 'error', error: 'Anthropic API key not configured.' };
+        return;
+    }
+    // ── Phase 1: Resolve city name ──
+    const resolvedCity = await resolveCity(request.city);
+    if (resolvedCity !== request.city) {
+        console.log(`[Anthropic] Resolved city: "${request.city}" → "${resolvedCity}"`);
+    }
+    yield { type: 'city_resolved', content: resolvedCity };
+    yield { type: 'thinking_chunk', thinking: `Planning your perfect day in ${request.city}...` };
+    // ── Phase 2: Execute ALL tools directly in parallel (no LLM needed) ──
+    const coreTools = getCoreToolCalls(request, resolvedCity);
+    console.log(`[Anthropic] Executing ${coreTools.length} tools directly (skipping LLM tool selection)`);
+    for (const tc of coreTools) {
+        yield { type: 'tool_call_start', tool: tc.name, args: tc.args };
+    }
+    const toolDeadline = Math.max(timeRemaining() - 30_000, 5_000); // reserve 30s for LLM
+    console.log(`[Anthropic] Tool execution budget: ${toolDeadline}ms (elapsed: ${elapsed()}ms)`);
+    const toolTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('tool_timeout')), toolDeadline));
+    const toolSettled = await Promise.allSettled(coreTools.map(async (tc) => {
+        const result = await Promise.race([
+            (0, tools_1.executeToolCall)(tc.name, tc.args),
+            toolTimeout.catch(() => ({ success: false, error: 'Timed out' }))
+        ]);
+        return { name: tc.name, result };
+    }));
+    // Collect results and emit events
+    const toolResults = [];
+    for (let idx = 0; idx < toolSettled.length; idx++) {
+        const settled = toolSettled[idx];
+        if (settled.status === 'fulfilled') {
+            toolResults.push(settled.value);
+            yield { type: 'tool_call_result', tool: settled.value.name, result: settled.value.result };
+        }
+        else {
+            const failResult = { name: coreTools[idx].name, result: { success: false, error: 'Tool execution failed' } };
+            toolResults.push(failResult);
+            console.error(`[Anthropic] Tool ${coreTools[idx].name} failed:`, settled.reason);
+            yield { type: 'tool_call_result', tool: failResult.name, result: failResult.result };
+        }
+    }
+    yield { type: 'thinking_chunk', thinking: `Gathered data from ${toolResults.filter(t => t.result?.success).length} sources...` };
+    console.log(`[Anthropic] Tools done. Elapsed: ${elapsed()}ms, remaining: ${timeRemaining()}ms`);
+    if (timeRemaining() < 8_000) {
+        console.log('[Anthropic] Not enough time for LLM — aborting');
+        yield { type: 'error', error: 'Request took too long gathering data. Please try again.' };
+        return;
+    }
+    // ── Phase 3: Build message with embedded tool data and stream itinerary ──
+    yield { type: 'thinking_chunk', thinking: 'Crafting your personalized itinerary...' };
+    // Build the user message with all tool data embedded
+    const userParts = [
+        `I'm visiting ${request.city}${resolvedCity !== request.city ? ` (${resolvedCity})` : ''}. Plan my day there.`
+    ];
+    if (request.budget && request.budget !== 'any')
+        userParts.push(`Budget: ${request.budget}`);
+    // Embed tool results as structured data sections
+    const TOOL_LABELS = {
+        'get_weather': 'Weather',
+        'get_local_events': 'Local Events (day-specific)',
+        'get_restaurant_recommendations': 'Restaurants (verified, currently open via Google Places)',
+        'get_attractions': 'Attractions & Activities (verified, currently open via Google Places)',
+        'get_free_stuff': 'Free Activities Today',
+        'get_deals_coupons': 'Deals & Discounts Today',
+        'get_happy_hours': 'Happy Hours (⚠️ unverified — use timing/deal context only, not bar names)',
+        'get_accommodations': 'Accommodations (verified, currently open via Google Places)',
+        'get_sunrise_sunset': 'Sunrise/Sunset & Golden Hour',
+        'get_nightlife': 'Nightlife Venues (verified via Google Places)',
+    };
+    const dataSections = [];
+    // Cap array results to limit input tokens — the model only needs a handful of options
+    const MAX_ITEMS = {
+        'get_restaurant_recommendations': 6,
+        'get_attractions': 6,
+        'get_accommodations': 3,
+        'get_happy_hours': 3,
+        'get_local_events': 3,
+        'get_free_stuff': 3,
+        'get_deals_coupons': 3,
+        'get_nightlife': 5,
+    };
+    for (const tr of toolResults) {
+        if (!tr.result?.success)
+            continue;
+        const label = TOOL_LABELS[tr.name] || tr.name;
+        let raw = tr.result.data || tr.result;
+        // Trim arrays to max items
+        const maxItems = MAX_ITEMS[tr.name];
+        if (maxItems && Array.isArray(raw)) {
+            raw = raw.slice(0, maxItems);
+        }
+        else if (maxItems && raw && typeof raw === 'object') {
+            // Some tools nest arrays inside object keys
+            for (const key of Object.keys(raw)) {
+                if (Array.isArray(raw[key]) && raw[key].length > maxItems) {
+                    raw = { ...raw, [key]: raw[key].slice(0, maxItems) };
+                }
+            }
+        }
+        // Compact: strip nulls and truncate long strings
+        const compacted = JSON.stringify(raw, (_, v) => {
+            if (v === null || v === undefined || v === '')
+                return undefined;
+            if (typeof v === 'string' && v.length > 200 && !v.startsWith('http'))
+                return v.slice(0, 200) + '...';
+            return v;
+        }, 0);
+        dataSections.push(`### ${label}\n${compacted}`);
+    }
+    const approxInputChars = dataSections.join('').length;
+    console.log(`[Anthropic] Tool data sections: ${dataSections.length}, ~${approxInputChars} chars (~${Math.ceil(approxInputChars / 4)} tokens)`);
+    const activityHint = request.city.match(/chamonix|aspen|vail|whistler|zermatt|st\.?\s*moritz|courchevel|verbier|jackson hole|park city|telluride|big sky|mammoth/i)
+        ? 'This is a SKI destination — skiing/snowboarding MUST be the centerpiece of the plan. '
+        : request.city.match(/pipeline|bali|byron bay|gold coast|bondi|tofino|tamarindo|nosara|rincon|jeffreys bay/i)
+            ? 'This is a SURF destination — surfing MUST be the centerpiece of the plan. '
+            : request.city.match(/patagonia|annapurna|kilimanjaro|appalachian|camino|dolomites/i)
+                ? 'This is a HIKING destination — hiking/trekking MUST be the centerpiece of the plan. '
+                : '';
+    const fullUserMessage = `${userParts.join('. ')}
+
+Here is today's real-time data for your itinerary:
+
+${dataSections.join('\n\n')}
+
+---
+
+If any data section above is missing (e.g., no Weather section), simply omit that topic from the itinerary — do NOT write "Unavailable" or "Not available".
+
+Now write the full itinerary. ${activityHint}MANDATORY CHECKLIST — write these sections IN THIS ORDER:
+1. Time-of-day sections (Morning/Afternoon/Evening/Nightlife) with real places and prices
+2. ## Estimated Total — cost breakdown + **Pro Tips:** with 2-4 insider tips at the bottom
+3. ## Your Hotel — ONE accommodation with its avgNight price (e.g. ~$120/night) and a 2-3 sentence review. Copy the "link" field from the accommodation data (it already links to booking.com).
+You MUST write all 3. Do NOT stop early. NEVER stop mid-sentence — if you're running low on space, wrap up concisely rather than cutting off.
+
+CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants and Attractions sections above. These are verified open via Google Places. Do NOT use specific bar/venue names from Happy Hours or Events — that data may be outdated. Do NOT add ANY venues from your own knowledge. The ONLY exceptions are public parks and outdoor infrastructure that cannot close.`;
+    const systemPrompt = buildSystemPrompt(request);
+    const messages = [
+        { role: 'user', content: fullUserMessage }
+    ];
+    const anthropic = getClient();
+    try {
+        // Single LLM call — stream the itinerary directly
+        let contentReceived = false;
+        let tokenBudget = 10000;
+        if (timeRemaining() < 25_000) {
+            tokenBudget = Math.min(tokenBudget, 7000);
+            console.log(`[Anthropic] Reduced token budget to ${tokenBudget} due to time pressure`);
+        }
+        const maxAttempts = timeRemaining() > 35_000 ? 2 : 1;
+        let accumulatedContent = '';
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const isRetry = attempt > 0;
+            if (isRetry) {
+                console.log('[Anthropic] Retry: Non-streaming fallback...');
+                yield { type: 'thinking_chunk', thinking: 'Generating itinerary (retry)...' };
+            }
+            else {
+                console.log('[Anthropic] Streaming itinerary (single LLM call)...');
+            }
+            if (!isRetry) {
+                const stream = anthropic.messages.stream({
+                    model: 'claude-sonnet-4-20250514',
+                    system: systemPrompt,
+                    messages,
+                    temperature: 0.7,
+                    max_tokens: tokenBudget
+                });
+                let outputTokens = 0;
+                let wasTruncated = false;
+                for await (const event of stream) {
+                    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                        const content = event.delta.text;
+                        contentReceived = true;
+                        accumulatedContent += content;
+                        outputTokens += Math.ceil(content.length / 4);
+                        yield { type: 'content_chunk', content };
+                    }
+                    if (event.type === 'message_delta') {
+                        const reason = event.delta.stop_reason;
+                        console.log(`[Anthropic] Stream finished: ${reason} | ~${outputTokens} tokens | ${elapsed()}ms total`);
+                        if (reason === 'max_tokens') {
+                            console.warn(`[Anthropic] OUTPUT TRUNCATED — hit max_tokens (${tokenBudget})`);
+                            wasTruncated = true;
+                        }
+                    }
+                }
+                // If truncated and we have time, send continuation requests until complete (max 2)
+                let continuations = 0;
+                while (wasTruncated && timeRemaining() > 8_000 && continuations < 2) {
+                    continuations++;
+                    console.log(`[Anthropic] Continuation #${continuations} (${timeRemaining()}ms remaining)...`);
+                    const continuationBudget = Math.min(6000, tokenBudget);
+                    const contextTail = accumulatedContent.length > 3000
+                        ? '...' + accumulatedContent.slice(-3000)
+                        : accumulatedContent;
+                    const contStream = anthropic.messages.stream({
+                        model: 'claude-sonnet-4-20250514',
+                        system: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.',
+                        messages: [
+                            { role: 'assistant', content: contextTail },
+                            { role: 'user', content: 'Continue writing. Do not repeat anything. Finish the remaining sections (Evening, Nightlife, Estimated Total, Your Hotel, Pro Tips) — whichever are missing.' }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: continuationBudget
+                    });
+                    wasTruncated = false;
+                    let contChars = 0;
+                    for await (const event of contStream) {
+                        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                            const content = event.delta.text;
+                            accumulatedContent += content;
+                            contChars += content.length;
+                            yield { type: 'content_chunk', content };
+                        }
+                        if (event.type === 'message_delta') {
+                            const contReason = event.delta.stop_reason;
+                            console.log(`[Anthropic] Continuation #${continuations} finished: ${contReason} | +${contChars} chars | ${elapsed()}ms total`);
+                            if (contReason === 'max_tokens') {
+                                wasTruncated = true;
+                            }
+                        }
+                    }
+                    if (contChars === 0)
+                        break;
+                }
+            }
+            else {
+                const fallbackResponse = await anthropic.messages.create({
+                    model: 'claude-sonnet-4-20250514',
+                    system: systemPrompt,
+                    messages,
+                    temperature: 0.7,
+                    max_tokens: tokenBudget
+                });
+                const textBlock = fallbackResponse.content.find((b) => b.type === 'text');
+                const fallbackContent = textBlock?.text;
+                if (fallbackContent) {
+                    contentReceived = true;
+                    accumulatedContent = fallbackContent;
+                    const chunkSize = 100;
+                    for (let i = 0; i < fallbackContent.length; i += chunkSize) {
+                        yield { type: 'content_chunk', content: fallbackContent.slice(i, i + chunkSize) };
+                    }
+                    console.log('[Anthropic] Fallback response received, length:', fallbackContent.length);
+                }
+            }
+            if (contentReceived)
+                break;
+        }
+        if (!contentReceived) {
+            yield { type: 'error', error: 'Failed to generate itinerary after retrying. Please try again.' };
+            return;
+        }
+        console.log(`[Anthropic] Total time: ${elapsed()}ms`);
+        yield { type: 'done' };
+    }
+    catch (error) {
+        console.error('[Anthropic] Stream error:', error);
+        yield {
+            type: 'error',
+            error: error instanceof Error ? error.message : 'Failed to generate plan'
+        };
+    }
+}

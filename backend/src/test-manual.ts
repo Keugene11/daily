@@ -3,7 +3,7 @@
  * Run with: npm test (or tsx src/test-manual.ts)
  */
 import dotenv from 'dotenv';
-import { streamPlanGeneration } from './services/dedalus';
+import { streamPlanGeneration } from './services/anthropic';
 
 // Load environment variables
 dotenv.config();

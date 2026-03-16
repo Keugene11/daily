@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { streamPlanGeneration } from '../services/dedalus';
+import { streamPlanGeneration } from '../services/anthropic';
 import { SubscriptionRequest } from '../middleware/subscription';
 import { checkUsage } from '../middleware/usage';
 

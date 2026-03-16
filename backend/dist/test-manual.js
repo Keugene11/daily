@@ -8,7 +8,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * Run with: npm test (or tsx src/test-manual.ts)
  */
 const dotenv_1 = __importDefault(require("dotenv"));
-const dedalus_1 = require("./services/dedalus");
+const anthropic_1 = require("./services/anthropic");
 // Load environment variables
 dotenv_1.default.config();
 async function test() {
@@ -21,7 +21,7 @@ async function test() {
     console.log('='.repeat(60));
     console.log('\n📡 Streaming events:\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)(testRequest);
+        const stream = (0, anthropic_1.streamPlanGeneration)(testRequest);
         let contentAccumulator = '';
         for await (const event of stream) {
             switch (event.type) {

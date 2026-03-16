@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const dedalus_1 = require("../services/dedalus");
+const anthropic_1 = require("../services/anthropic");
 const usage_1 = require("../middleware/usage");
 const router = (0, express_1.Router)();
 /**
@@ -34,7 +34,7 @@ router.post('/plan', (0, usage_1.checkUsage)('plan'), async (req, res) => {
     // Send initial connection confirmation
     res.write('data: {"type":"connected"}\n\n');
     try {
-        const stream = (0, dedalus_1.streamPlanGeneration)({ city, budget, currentHour, nightlife, timezone });
+        const stream = (0, anthropic_1.streamPlanGeneration)({ city, budget, currentHour, nightlife, timezone });
         for await (const event of stream) {
             if (clientDisconnected)
                 break;

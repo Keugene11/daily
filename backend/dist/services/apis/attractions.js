@@ -107,6 +107,7 @@ function mapPlaceToAttraction(place, city) {
     const addressParts = (place.formattedAddress || '').split(',').map((s) => s.trim());
     const neighborhood = addressParts.length >= 3 ? addressParts[1] : (addressParts[0] || '');
     const googleMapsUri = place.googleMapsUri || `https://maps.google.com/?q=${encodeURIComponent(name + ', ' + city)}`;
+    const url = place.websiteUri || googleMapsUri;
     return {
         name,
         type,
@@ -115,8 +116,8 @@ function mapPlaceToAttraction(place, city) {
         description,
         neighborhood,
         address: place.formattedAddress || '',
-        url: googleMapsUri,
-        link: `[${name}](${googleMapsUri})`,
+        url,
+        link: `[${name}](${url})`,
         priceLevel,
     };
 }
@@ -138,6 +139,7 @@ async function searchGooglePlaces(city, query) {
         'places.types',
         'places.editorialSummary',
         'places.googleMapsUri',
+        'places.websiteUri',
         'places.reviews',
         'places.businessStatus',
         'places.currentOpeningHours',

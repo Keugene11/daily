@@ -62,7 +62,7 @@ interface CalendarEvent {
   end: string;      // "10:00" (24h)
   location: string;
   description: string;
-  day?: number;     // for multi-day plans
+  day?: number;
 }
 
 function parseCalendarEvents(content: string): CalendarEvent[] | null {

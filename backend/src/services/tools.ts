@@ -19,7 +19,7 @@ import { nightlifeService } from './apis/nightlife';
 
 /**
  * Tool definitions in OpenAI-compatible format
- * These will be passed to the Dedalus SDK
+ * These will be passed to the Anthropic SDK
  */
 export interface Tool {
   type: 'function';

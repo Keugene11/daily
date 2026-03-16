@@ -40,13 +40,13 @@ cd frontend && npm install && cd ..
 
 1. **Edit `backend/.env`** and add your API keys:
    ```env
-   DEDALUS_API_KEY=your_actual_key_here
+   ANTHROPIC_API_KEY=your_actual_key_here
    NEWS_API_KEY=your_actual_key_here
    PORT=3000
    ```
 
 2. **Get your API keys:**
-   - **Dedalus** (required): https://www.dedaluslabs.ai/dashboard/api-keys
+   - **Anthropic** (required): https://console.anthropic.com
    - **NewsAPI** (optional): https://newsapi.org/register
 
 ## Run the App

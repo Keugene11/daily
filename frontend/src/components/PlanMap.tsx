@@ -9,7 +9,6 @@ import {
   boundingBoxRadiusKm,
   getGeoCache,
   setGeoCache,
-  detectDayCount,
   distanceKm,
   MAX_DISTANCE_KM,
   removeOutliers,
@@ -353,9 +352,7 @@ export const PlanMap: React.FC<Props> = ({ content, city }) => {
         }
 
         // Step 3: Extract places and geocode them, adding markers progressively
-        const dayCount = detectDayCount(content);
-        const maxPlaces = Math.min(dayCount * 10, 25);
-        const places = extractPlaces(content, city, maxPlaces);
+        const places = extractPlaces(content, city, 10);
 
         const hotel = extractFirstAccommodation(content);
         const hotelName = hotel?.name ?? null;

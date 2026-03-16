@@ -2,7 +2,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   optimizeRoute,
-  detectDayCount,
   MARKER_COLORS,
   getGeoCache,
   setGeoCache,
@@ -124,51 +123,6 @@ describe('optimizeRoute', () => {
     const result1 = optimizeRoute(locs);
     const result2 = optimizeRoute(locs);
     expect(result1).toEqual(result2);
-  });
-});
-
-// ── detectDayCount ───────────────────────────────────────────────────
-
-describe('detectDayCount', () => {
-  it('returns 1 for single-day content (no day headers)', () => {
-    const content = `## Morning\nVisit places\n## Evening\nDinner`;
-    expect(detectDayCount(content)).toBe(1);
-  });
-
-  it('detects 3 days from day headers', () => {
-    const content = `
-# Day 1 - Monday
-## Morning
-stuff
-# Day 2 - Tuesday
-## Morning
-stuff
-# Day 3 - Wednesday
-## Morning
-stuff
-    `;
-    expect(detectDayCount(content)).toBe(3);
-  });
-
-  it('detects 7 days', () => {
-    const content = Array.from({ length: 7 }, (_, i) =>
-      `# Day ${i + 1} - Someday\n## Morning\nstuff`
-    ).join('\n');
-    expect(detectDayCount(content)).toBe(7);
-  });
-
-  it('returns 1 for empty content', () => {
-    expect(detectDayCount('')).toBe(1);
-  });
-
-  it('ignores ## Day headers (h2 level)', () => {
-    const content = '## Day 1\nstuff\n## Day 2\nstuff';
-    expect(detectDayCount(content)).toBe(1);
-  });
-
-  it('ignores "Day" in body text', () => {
-    const content = 'What a beautiful day! Day trips are fun.';
-    expect(detectDayCount(content)).toBe(1);
   });
 });
 
