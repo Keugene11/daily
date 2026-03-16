@@ -35,20 +35,6 @@
 - **Payments**: Stripe (monthly/yearly Pro plans)
 - **Auth**: Supabase Auth with Google OAuth
 
-## Tools
-
-| Tool | Data Source | Description |
-|------|-----------|-------------|
-| Weather | wttr.in | Temperature, conditions, UV, rain forecast |
-| Restaurants | Google Places API | Top-rated restaurants with reviews, price levels |
-| Attractions | Google Places API | Landmarks, activities, experiences, entertainment |
-| Events | Curated database | Day-specific local events for major cities |
-| Free Stuff | Curated database | Free museums, parks, tours, festivals |
-| Deals & Coupons | Curated database | Daily deals and discounts |
-| Happy Hours | Curated database | Bar specials and happy hour times |
-| Accommodations | Google Places API | Hotels and lodging by budget |
-| Sunrise/Sunset | sunrise-sunset.org | Golden hour timing |
-
 ## Deployment
 
 Deployed on Vercel. Production branch is `main`, development branch is `master`.
