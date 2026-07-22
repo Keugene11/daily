@@ -488,7 +488,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
 
       if (!isRetry) {
         const stream = anthropic.messages.stream({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-haiku-4-5-20251001',
           system: systemPrompt,
           messages,
           temperature: 0.7,
@@ -527,7 +527,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
             ? '...' + accumulatedContent.slice(-3000)
             : accumulatedContent;
           const contStream = anthropic.messages.stream({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-haiku-4-5-20251001',
             system: 'You are continuing an itinerary that was cut off. Pick up EXACTLY where it left off — do not repeat anything already written. Finish all remaining sections concisely.',
             messages: [
               { role: 'assistant', content: contextTail },
@@ -558,7 +558,7 @@ CRITICAL: For ALL specific venue names — ONLY use data from the Restaurants an
         }
       } else {
         const fallbackResponse = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-haiku-4-5-20251001',
           system: systemPrompt,
           messages,
           temperature: 0.7,
