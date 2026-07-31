@@ -15,7 +15,6 @@ import { usePlanStream } from './hooks/usePlanStream';
 import { useAuth } from './hooks/useAuth';
 import { usePlans } from './hooks/usePlans';
 import { useSubscription } from './hooks/useSubscription';
-import { PricingModal } from './components/PricingModal';
 import './styles/index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -59,7 +58,6 @@ function App() {
   const subscription = useSubscription(getAccessToken);
   const navigate = useNavigate();
   const location = useLocation();
-  const [showPricing, setShowPricing] = useState(false);
   const [city, setCity] = useState('');
   const [budget, setBudget] = useState('any');
   const { state, startStream, reset } = usePlanStream();
@@ -145,10 +143,6 @@ function App() {
   }, [state.isStreaming, state.content, city, budget, savePlan]);
 
   const handleSelectPlan = (plan: SavedPlan) => {
-    if (subscription.isLimitReached('plan')) {
-      setShowPricing(true);
-      return;
-    }
     setCity(plan.city);
     setBudget(plan.budget);
     navigate('/');
@@ -165,11 +159,6 @@ function App() {
 
   const handlePlanClick = () => {
     if (!city.trim()) return;
-    // TEMP: skip login gate for demo mode
-    if (subscription.isLimitReached('plan') && session) {
-      setShowPricing(true);
-      return;
-    }
     savePrefs();
     startStream(city, budget, buildExtras(), getAccessToken);
   };
@@ -182,10 +171,6 @@ function App() {
   };
 
   const handleReplan = () => {
-    if (subscription.isLimitReached('plan')) {
-      setShowPricing(true);
-      return;
-    }
     if (city.trim()) {
       startStream(city, budget, buildExtras(), getAccessToken);
     }
@@ -276,9 +261,6 @@ function App() {
           {session && (
             <button onClick={() => { navigate('/history'); reset(); }} className="hover:text-on-surface transition-colors">history</button>
           )}
-          <button onClick={() => setShowPricing(true)} className="hover:text-on-surface transition-colors">
-            plans
-          </button>
           {/* TEMP: hide sign in button for demo mode */}
           {session && (
             <button onClick={() => { navigate('/profile'); reset(); }} className="hover:text-on-surface transition-colors">profile</button>
@@ -321,7 +303,7 @@ function App() {
           onClose={() => navigate('/')}
           onSignOut={signOut}
           onManage={subscription.openPortal}
-          onUpgrade={() => setShowPricing(true)}
+          onUpgrade={() => {}}
           onRefresh={subscription.refresh}
           onDeleteAccount={subscription.deleteAccount}
         />
@@ -392,67 +374,41 @@ function App() {
             </div>
 
             {/* Action buttons */}
-            {subscription.isLimitReached('plan') ? (
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowPricing(true)}
-                  className="w-full py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all"
-                >
-                  Upgrade to Pro for Unlimited Plans
-                </button>
-                <p className="text-xs text-red-400 text-center">You've used all 3 free plans this month</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handlePlanClick}
-                    disabled={state.isStreaming || !city.trim()}
-                    className="flex-1 py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {state.isStreaming ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Planning...
-                      </span>
-                    ) : (
-                      'Plan My Day'
-                    )}
-                  </button>
-                </div>
-
-                {/* Nightlife mode */}
-                <button
-                  onClick={() => {
-                    if (!city.trim()) return;
-                    // TEMP: skip login gate for demo mode
-                    if (subscription.isLimitReached('plan') && session) {
-                      setShowPricing(true);
-                      return;
-                    }
-                    savePrefs();
-                    startStream(city, budget, { ...buildExtras(), nightlife: true }, getAccessToken);
-                  }}
-                  disabled={state.isStreaming || !city.trim()}
-                  className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 006.963-2.738 9.72 9.72 0 002.039-3.26z" />
-                  </svg>
-                  Nightlife
-                </button>
-
-                {/* Remaining plans counter */}
-                {session && subscription.data && subscription.data.limits.plans > 0 && (
-                  <p className="text-xs text-on-surface/30 text-center">
-                    {subscription.data.limits.plans - subscription.data.usage.plans} of {subscription.data.limits.plans} free plans remaining this month
-                  </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handlePlanClick}
+                disabled={state.isStreaming || !city.trim()}
+                className="flex-1 py-3.5 bg-accent text-on-accent font-medium rounded-full text-sm hover:bg-accent/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {state.isStreaming ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Planning...
+                  </span>
+                ) : (
+                  'Plan My Day'
                 )}
-              </>
-            )}
+              </button>
+            </div>
+
+            {/* Nightlife mode */}
+            <button
+              onClick={() => {
+                if (!city.trim()) return;
+                savePrefs();
+                startStream(city, budget, { ...buildExtras(), nightlife: true }, getAccessToken);
+              }}
+              disabled={state.isStreaming || !city.trim()}
+              className="w-full py-3.5 border border-on-surface/20 text-on-surface/70 font-medium rounded-full text-sm hover:bg-on-surface/5 hover:text-on-surface transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 006.963-2.738 9.72 9.72 0 002.039-3.26z" />
+              </svg>
+              Nightlife
+            </button>
           </div>
 
         </div>
@@ -496,27 +452,6 @@ function App() {
             </div>
           )}
 
-          {/* Usage limit reached */}
-          {state.error === 'limit_reached' && (
-            <div className="border border-accent/30 rounded-lg p-6 mb-10 animate-fadeIn text-center">
-              <p className="text-on-surface text-sm font-medium mb-1">You've used all 3 free plans this month</p>
-              <p className="text-on-surface/50 text-sm mb-4">Upgrade to Pro for unlimited plans.</p>
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={() => setShowPricing(true)}
-                  className="px-6 py-2.5 text-sm bg-accent text-on-accent rounded-full font-medium hover:bg-accent/90 transition-colors"
-                >
-                  View Plans
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="px-5 py-2.5 text-sm border border-on-surface/20 rounded-full text-on-surface/60 hover:bg-on-surface/5 transition-colors"
-                >
-                  Go Back
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Itinerary — always show if content exists, even on error (partial plan) */}
           {state.content && (
@@ -565,16 +500,6 @@ function App() {
 
       </>} />
       </Routes>
-
-      {/* Pricing Modal */}
-      {showPricing && (
-        <PricingModal
-          currentTier={subscription.tier}
-          currentInterval={subscription.interval}
-          onCheckout={subscription.createCheckout}
-          onClose={() => setShowPricing(false)}
-        />
-      )}
 
       {/* Footer */}
       <footer className="border-t border-on-surface/10 mt-auto px-4 md:px-8 py-6 text-center flex items-center justify-center gap-4">
