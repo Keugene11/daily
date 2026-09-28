@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { openrouter } from './openrouter';
 import { executeToolCall } from './tools';
 import { PlanRequest, StreamEvent } from '../types';
 
@@ -76,15 +77,10 @@ async function resolveCity(city: string): Promise<string> {
 }
 
 // Lazy-initialize the client so dotenv has time to load first
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY || '';
-    console.log('[Anthropic] Initializing with API key:', apiKey ? `${apiKey.substring(0, 15)}...` : 'MISSING');
-    client = new Anthropic({ apiKey, timeout: 65000 });
-  }
-  return client;
+// The itinerary is written by a cheap OpenRouter model (see openrouter.ts),
+// behind the same messages.stream / messages.create surface the code below uses.
+function getClient() {
+  return openrouter;
 }
 
 function buildSystemPrompt(request: PlanRequest): string {
@@ -305,8 +301,8 @@ export async function* streamPlanGeneration(request: PlanRequest): AsyncGenerato
   const elapsed = () => Date.now() - startTime;
   const timeRemaining = () => DEADLINE_MS - elapsed();
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    yield { type: 'error', error: 'Anthropic API key not configured.' };
+  if (!process.env.OPENROUTER_API_KEY) {
+    yield { type: 'error', error: 'OpenRouter API key not configured.' };
     return;
   }
 
